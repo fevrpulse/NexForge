@@ -1,0 +1,66 @@
+{
+  "name": "nexforge-desktop",
+  "version": "1.0.0",
+  "description": "NexForge Desktop",
+  "main": "main.js",
+  "author": "fevrpulse",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fevrpulse/NexForge.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "release": "electron-builder --win --publish always"
+  },
+  "build": {
+    "appId": "com.nexforge.app",
+    "productName": "NexForge",
+    "files": [
+      "index.html",
+      "main.js",
+      "preload.js",
+      "auth.html",
+      "auth-success.html",
+      "package.json",
+      "node_modules/electron-updater/**/*",
+      "node_modules/builder-util-runtime/**/*",
+      "node_modules/fs-extra/**/*",
+      "node_modules/js-yaml/**/*",
+      "node_modules/lazy-val/**/*",
+      "node_modules/lodash.escaperegexp/**/*",
+      "node_modules/lodash.isequal/**/*",
+      "node_modules/sax/**/*",
+      "node_modules/semver/**/*",
+      "node_modules/tiny-typed-emitter/**/*",
+      "node_modules/universalify/**/*",
+      "node_modules/jsonfile/**/*",
+      "node_modules/graceful-fs/**/*",
+      "node_modules/argparse/**/*"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "fevrpulse",
+        "repo": "NexForge"
+      }
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8"
+  }
+}

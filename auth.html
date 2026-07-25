@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign in — NexForge</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #080808; --surface: #101010; --panel: #181818;
+      --border: #242424; --border2: #2e2e2e;
+      --text: #efefef; --muted: #555; --muted2: #888;
+      --neon: #c9ff00; --red: #ff3d1f;
+      --font: 'Syne', sans-serif; --mono: 'JetBrains Mono', monospace;
+    }
+    body {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: var(--bg); color: var(--text); font-family: var(--font); position: relative; overflow: hidden;
+    }
+    .auth-grid {
+      position: absolute; inset: 0;
+      background-image: linear-gradient(rgba(201,255,0,.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(201,255,0,.03) 1px, transparent 1px);
+      background-size: 40px 40px; pointer-events: none;
+    }
+    .auth-glow {
+      position: absolute; width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(201,255,0,.06) 0%, transparent 70%);
+      top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none;
+    }
+    .auth-box {
+      position: relative; z-index: 1; width: 100%; max-width: 420px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 40px; margin: 20px;
+    }
+    .auth-logo { font-size: 24px; font-weight: 800; letter-spacing: -1px; margin-bottom: 8px; }
+    .auth-logo span { color: var(--neon); }
+    .auth-tagline {
+      font-family: var(--mono); font-size: 11px; color: var(--muted2);
+      letter-spacing: 1px; margin-bottom: 32px;
+    }
+    .auth-tabs {
+      display: flex; gap: 0; margin-bottom: 28px;
+      background: var(--panel); border-radius: 8px; padding: 3px;
+    }
+    .auth-tab {
+      flex: 1; padding: 8px; text-align: center; font-size: 13px; font-weight: 600;
+      border-radius: 6px; cursor: pointer; transition: all .15s; color: var(--muted2);
+    }
+    .auth-tab.active { background: var(--neon); color: #000; }
+    .field { margin-bottom: 14px; }
+    .field label {
+      display: block; font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+      color: var(--muted2); margin-bottom: 6px; text-transform: uppercase;
+    }
+    .field input, .field select {
+      width: 100%; background: var(--panel); border: 1px solid var(--border2);
+      border-radius: 8px; padding: 11px 14px; font-size: 13px; font-family: var(--font);
+      color: var(--text); outline: none;
+    }
+    .field input:focus, .field select:focus { border-color: var(--neon); }
+    .auth-btn {
+      width: 100%; padding: 12px; background: var(--neon); color: #000; border: none;
+      border-radius: 8px; font-family: var(--font); font-size: 14px; font-weight: 700;
+      cursor: pointer; transition: all .15s; margin-top: 4px;
+    }
+    .auth-btn:hover { background: #b8ef00; transform: translateY(-1px); }
+    .auth-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .auth-msg {
+      font-family: var(--mono); font-size: 11px; text-align: center;
+      margin-top: 12px; min-height: 16px;
+    }
+    .auth-msg.error { color: var(--red); }
+    .auth-msg.success { color: var(--neon); }
+    .browser-note {
+      margin-top: 20px; text-align: center;
+      font-family: var(--mono); font-size: 10px; color: var(--muted);
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-grid"></div>
+  <div class="auth-glow"></div>
+  <div class="auth-box">
+    <div class="auth-logo">Nex<span>Forge</span></div>
+    <div class="auth-tagline">// SIGN IN VIA BROWSER · RETURN TO THE APP</div>
+
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tab-login-btn" onclick="switchTab('login')">Sign In</div>
+      <div class="auth-tab" id="tab-signup-btn" onclick="switchTab('signup')">Create Account</div>
+    </div>
+
+    <div id="tab-login">
+      <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="your@email.com" /></div>
+      <div class="field"><label>Password</label><input type="password" id="login-password" placeholder="••••••••" /></div>
+      <button class="auth-btn" id="login-btn" onclick="handleLogin()">Enter the Forge →</button>
+      <div class="auth-msg" id="login-msg"></div>
+    </div>
+
+    <div id="tab-signup" style="display:none">
+      <div class="field"><label>Gamer Tag</label><input type="text" id="signup-tag" placeholder="GhostAxe99" maxlength="20" /></div>
+      <div class="field"><label>Email</label><input type="email" id="signup-email" placeholder="your@email.com" /></div>
+      <div class="field"><label>Password</label><input type="password" id="signup-password" placeholder="Min. 6 characters" /></div>
+      <div class="field">
+        <label>Primary Platform</label>
+        <select id="signup-platform">
+          <option value="PC">PC</option>
+          <option value="PS5">PS5</option>
+          <option value="Xbox">Xbox</option>
+          <option value="Mobile">Mobile</option>
+          <option value="Switch">Switch</option>
+        </select>
+      </div>
+      <button class="auth-btn" id="signup-btn" onclick="handleSignup()">Forge My Account →</button>
+      <div class="auth-msg" id="signup-msg"></div>
+    </div>
+
+    <div class="browser-note">After signing in, return to the NexForge desktop app.</div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://nfaxokwpmaxyhnvatrwf.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mYXhva3dwbWF4eWhudmF0cndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDc3NTcsImV4cCI6MjA5NDEyMzc1N30.22fLTgCxh5ne9zrod9gc2-idnw6biFUIDNZLEZkJUSk';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    const params = new URLSearchParams(window.location.search);
+    const initialMode = params.get('mode') === 'signup' ? 'signup' : 'login';
+    switchTab(initialMode);
+
+    function switchTab(tab) {
+      document.getElementById('tab-login-btn').classList.toggle('active', tab === 'login');
+      document.getElementById('tab-signup-btn').classList.toggle('active', tab === 'signup');
+      document.getElementById('tab-login').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('tab-signup').style.display = tab === 'signup' ? 'block' : 'none';
+    }
+
+    async function sendSessionToApp(session, needsOnboarding) {
+      if (!session?.access_token || !session?.refresh_token) {
+        throw new Error('Your account was created, but email confirmation may be required before you can sign in.');
+      }
+
+      const response = await fetch('/callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+          needs_onboarding: needsOnboarding,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Could not connect to the NexForge app. Make sure it is running.');
+      }
+
+      window.location.href = '/success';
+    }
+
+    async function handleLogin() {
+      const email = document.getElementById('login-email').value.trim();
+      const pass = document.getElementById('login-password').value;
+      const msg = document.getElementById('login-msg');
+      const btn = document.getElementById('login-btn');
+
+      if (!email || !pass) {
+        msg.className = 'auth-msg error';
+        msg.textContent = 'Fill in all fields.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Entering...';
+      msg.textContent = '';
+
+      const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (error) {
+        msg.className = 'auth-msg error';
+        msg.textContent = error.message;
+        btn.disabled = false;
+        btn.textContent = 'Enter the Forge →';
+        return;
+      }
+
+      try {
+        await sendSessionToApp(data.session, false);
+      } catch (err) {
+        msg.className = 'auth-msg error';
+        msg.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Enter the Forge →';
+      }
+    }
+
+    async function handleSignup() {
+      const tag = document.getElementById('signup-tag').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const pass = document.getElementById('signup-password').value;
+      const plat = document.getElementById('signup-platform').value;
+      const msg = document.getElementById('signup-msg');
+      const btn = document.getElementById('signup-btn');
+
+      if (!tag || !email || !pass) {
+        msg.className = 'auth-msg error';
+        msg.textContent = 'Fill in all fields.';
+        return;
+      }
+      if (pass.length < 6) {
+        msg.className = 'auth-msg error';
+        msg.textContent = 'Password must be 6+ characters.';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Forging...';
+      msg.textContent = '';
+
+      const { data, error } = await sb.auth.signUp({
+        email,
+        password: pass,
+        options: { data: { gamer_tag: tag, platform: plat } },
+      });
+
+      if (error) {
+        msg.className = 'auth-msg error';
+        msg.textContent = error.message;
+        btn.disabled = false;
+        btn.textContent = 'Forge My Account →';
+        return;
+      }
+
+      await sb.from('profiles').upsert({
+        id: data.user.id,
+        gamer_tag: tag,
+        platform: plat,
+        mmr: 1200,
+        wins: 0,
+        losses: 0,
+        main_game: 'Valorant',
+        created_at: new Date().toISOString(),
+      });
+
+      try {
+        await sendSessionToApp(data.session, true);
+      } catch (err) {
+        msg.className = 'auth-msg error';
+        msg.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = 'Forge My Account →';
+      }
+    }
+  </script>
+</body>
+</html>
