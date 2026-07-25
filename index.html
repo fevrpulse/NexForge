@@ -424,9 +424,22 @@ select:focus{border-color:var(--neon)}
 .session-row-game{font-size:13px;font-weight:700}
 .session-row-meta{font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:3px}
 .session-row-stats{font-family:var(--mono);font-size:10px;color:var(--text);text-align:right;line-height:1.6}
+.duel-row{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  padding:14px 0;border-bottom:1px solid var(--border);
+}
+.duel-row:last-child{border-bottom:none}
+.duel-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.duel-meta{font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.55}
+.duel-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:120px}
+.duel-active-box{
+  border:1px solid rgba(201,255,0,.25);background:rgba(201,255,0,.05);
+  border-radius:12px;padding:16px;margin-bottom:16px;
+}
 @media (max-width:900px){
   .track-banner{flex-direction:column;align-items:flex-start}
   .session-metric-grid{grid-template-columns:1fr}
+  .duel-row{flex-direction:column}
 }
 </style>
 </head>
@@ -502,6 +515,7 @@ select:focus{border-color:var(--neon)}
           <option value="Minecraft">Minecraft</option>
           <option value="Roblox">Roblox</option>
           <option value="GTA Online">GTA Online</option>
+          <option value="Geometry Dash">Geometry Dash</option>
         </optgroup>
         <optgroup label="Not listed">
           <option value="__other__">Other — type your own</option>
@@ -557,6 +571,7 @@ select:focus{border-color:var(--neon)}
           <option value="Minecraft">Minecraft</option>
           <option value="Roblox">Roblox</option>
           <option value="GTA Online">GTA Online</option>
+          <option value="Geometry Dash">Geometry Dash</option>
         </optgroup>
         <optgroup label="Not listed">
           <option value="__other__">Other — type your own</option>
@@ -743,10 +758,20 @@ select:focus{border-color:var(--neon)}
               </div>
 
               <div class="mm-box-actions">
-                <button class="action-btn primary" id="mm-btn" onclick="toggleSearch()">Find Match</button>
-                <div class="dots" id="mm-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><span class="mm-timer" id="mm-timer">0:00</span></div>
+                <button class="action-btn primary" id="mm-btn" onclick="toggleSearch()">Post Open Queue</button>
+                <div class="dots" id="mm-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div><span class="mm-timer" id="mm-timer">Waiting for challenger…</span></div>
               </div>
             </div>
+          </div>
+
+          <div id="mm-active-duel" class="duel-active-box" style="display:none"></div>
+
+          <div class="card" style="margin-bottom:16px">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px">
+              <div class="card-title" style="margin:0">Open Queues</div>
+              <button class="action-btn ghost" style="padding:6px 12px;font-size:11px" onclick="loadOpenDuels()">Refresh</button>
+            </div>
+            <div id="mm-open-queues"><div style="font-family:var(--mono);font-size:11px;color:var(--muted2);padding:12px 0;text-align:center">Loading open queues…</div></div>
           </div>
 
           <!-- FORTNITE DUO FINDER — shown dynamically -->
@@ -844,7 +869,7 @@ select:focus{border-color:var(--neon)}
                   <option>Fortnite</option><option>PUBG</option><option>Fall Guys</option>
                   <option>Rocket League</option><option>FIFA 25</option><option>NBA 2K25</option>
                   <option>League of Legends</option><option>Dota 2</option><option>Minecraft</option>
-                  <option>Roblox</option><option>GTA Online</option>
+                  <option>Roblox</option><option>GTA Online</option><option>Geometry Dash</option>
                 </select>
               </div>
               <div class="field" style="margin:0">
@@ -1018,7 +1043,7 @@ select:focus{border-color:var(--neon)}
           <div class="card" style="margin-bottom:16px">
             <div class="card-title">Find Squadmates</div>
             <div class="filter-row">
-              <select id="sq-game"><option>Any Game</option><option>Valorant</option><option>CS2</option><option>Call of Duty: Warzone</option><option>Overwatch 2</option><option>Halo Infinite</option><option>Apex Legends</option><option>Fortnite</option><option>PUBG</option><option>Fall Guys</option><option>Rocket League</option><option>FIFA 25</option><option>NBA 2K25</option><option>League of Legends</option><option>Dota 2</option><option>Minecraft</option><option>Roblox</option><option>GTA Online</option></select>
+              <select id="sq-game"><option>Any Game</option><option>Valorant</option><option>CS2</option><option>Call of Duty: Warzone</option><option>Overwatch 2</option><option>Halo Infinite</option><option>Apex Legends</option><option>Fortnite</option><option>PUBG</option><option>Fall Guys</option><option>Rocket League</option><option>FIFA 25</option><option>NBA 2K25</option><option>League of Legends</option><option>Dota 2</option><option>Minecraft</option><option>Roblox</option><option>GTA Online</option><option>Geometry Dash</option></select>
               <select id="sq-rank"><option>Any Rank</option><option>Bronze</option><option>Silver</option><option>Gold</option><option>Platinum</option><option>Diamond</option></select>
               <select id="sq-plat"><option>Any Platform</option><option>PC</option><option>PS5</option><option>Xbox</option><option>Mobile</option></select>
             </div>
@@ -1244,7 +1269,7 @@ async function handleAuthCallback(tokens) {
 const KNOWN_MAIN_GAMES = [
   'Valorant','CS2','Call of Duty: Warzone','Overwatch 2','Halo Infinite',
   'Apex Legends','Fortnite','PUBG','Fall Guys','Rocket League','FIFA 25','NBA 2K25',
-  'League of Legends','Dota 2','Minecraft','Roblox','GTA Online'
+  'League of Legends','Dota 2','Minecraft','Roblox','GTA Online','Geometry Dash'
 ];
 
 function toggleCustomGameFields(prefix) {
@@ -1498,7 +1523,7 @@ const GAME_CATALOG = [
   { category: 'Battle Royale', games: ['Apex Legends', 'Fortnite', 'PUBG', 'Fall Guys'] },
   { category: 'Sports & Racing', games: ['Rocket League', 'FIFA 25', 'NBA 2K25'] },
   { category: 'MOBA & Strategy', games: ['League of Legends', 'Dota 2'] },
-  { category: 'Other', games: ['Minecraft', 'Roblox', 'GTA Online'] },
+  { category: 'Other', games: ['Minecraft', 'Roblox', 'GTA Online', 'Geometry Dash'] },
 ];
 
 const GAME_ICONS = {
@@ -1506,7 +1531,7 @@ const GAME_ICONS = {
   'Apex Legends': '🪂', 'Fortnite': '🏗', 'PUBG': '🎯', 'Fall Guys': '🏃',
   'Rocket League': '⚽', 'FIFA 25': '⚽', 'NBA 2K25': '🏀',
   'League of Legends': '⚔', 'Dota 2': '⚔',
-  'Minecraft': '🌍', 'Roblox': '🎮', 'GTA Online': '🏎',
+  'Minecraft': '🌍', 'Roblox': '🎮', 'GTA Online': '🏎', 'Geometry Dash': '💎',
 };
 
 const GAME_MODES = {
@@ -1527,6 +1552,7 @@ const GAME_MODES = {
   'Minecraft':             [{icon:'🌍',name:'Join NexForge Server',desc:'Connect to the hosted Java server.',details:'Persistent NexForge survival SMP. Build, explore, and compete on seasonal leaderboards.',server:'play.nexforge.gg'},{icon:'⚔',name:'PvP Arena',desc:'1v1 or FFA combat arena.',details:'Kit PvP arena with MMR tracking. Queue for 1v1 duels or FFA free-for-all.',server:'play.nexforge.gg/pvp'},{icon:'🏗',name:'Build Battle',desc:'Timed build competition.',details:'Theme-based build battles judged by community votes. Winners earn MMR boosts.',server:'play.nexforge.gg/build'},{icon:'🏆',name:'Survival Tournament',desc:'Last player standing event.',details:'Hardcore survival bracket. Last player alive advances each round.',server:'play.nexforge.gg/tourney'}],
   'Roblox':                [{icon:'🎮',name:'NexForge Hub',desc:'Join the NexForge Roblox experience.',details:'Central hub for all NexForge Roblox game modes. Party up before queuing.',server:'NexForge Roblox game'},{icon:'⚔',name:'Obby Race',desc:'Obstacle course tournament queue.',details:'Timed obby races with checkpoint tracking. Fastest times win.',server:'NexForge Obby'},{icon:'👥',name:'Team Battles',desc:'Custom team-vs-team matches.',details:'Red vs Blue team battles with round-based scoring.',server:'NexForge Battle'},{icon:'🏆',name:'Tournament',desc:'Ranked Roblox competition.',details:'Multi-round elimination across NexForge Roblox experiences.',server:'NexForge bracket'}],
   'GTA Online':            [{icon:'🏎',name:'Race Series',desc:'Custom hosted street races.',details:'Point-to-point and circuit races on custom tracks. Placement and lap times tracked.',server:'NexForge race lobby'},{icon:'🔫',name:'Deathmatch',desc:'Custom DM or team DM.',details:'GTA deathmatch on custom maps. K/D ratio affects MMR.',server:'NexForge DM lobby'},{icon:'👥',name:'Adversary Mode',desc:'Custom adversary match queue.',details:'Objective-based GTA modes — capture zones, hold areas, and more.',server:'NexForge lobby'},{icon:'🏆',name:'Tournament',desc:'Multi-event GTA bracket.',details:'Race + DM combined scoring across multiple event types.',server:'NexForge bracket'}],
+  'Geometry Dash':         [{icon:'💎',name:'Rated Levels',desc:'Queue for rated demon and feature levels.',details:'Jump into popular rated levels with MMR based on clears, attempts, and consistency.',server:'NexForge GD lobby'},{icon:'⚡',name:'Demon Rush',desc:'Hard demon challenge queue.',details:'Focus on Hard / Insane / Extreme demons. Completions boost MMR; fails have lighter impact.',server:'NexForge demon lobby'},{icon:'🏗',name:'Create & Share',desc:'Custom level showcase sessions.',details:'Share levels with other NexForge players and get feedback. Light MMR for engagement.',server:'NexForge creator lobby'},{icon:'🏆',name:'Tournament',desc:'Timed Geometry Dash bracket.',details:'Same levels for all players. Fastest clean clears advance through the bracket.',server:'NexForge GD bracket'}],
 };
 
 const DEFAULT_MODES = [
@@ -1549,6 +1575,8 @@ function initMatchmaking() {
   mmCurrentStep = 1;
   renderGameGrid();
   goToMatchmakingStep(1, false);
+  loadOpenDuels();
+  refreshMyDuelState();
 }
 
 function goToMatchmakingStep(step, scroll = true) {
@@ -1751,35 +1779,483 @@ async function sendDuoRequest(tag) {
   showToast(`Duo request sent to ${tag}! 🎯 They'll get notified.`, 'success');
 }
 
-function toggleSearch() {
+// ── PUBLIC DUEL QUEUES ──
+const LOCAL_DUELS_KEY = 'nexforge_duels_v1';
+let myOpenDuelId = null;
+let myActiveDuelId = null;
+let duelPollTimer = null;
+
+function readLocalDuels() {
+  try {
+    const raw = localStorage.getItem(LOCAL_DUELS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalDuels(list) {
+  localStorage.setItem(LOCAL_DUELS_KEY, JSON.stringify(list.slice(0, 80)));
+}
+
+function upsertLocalDuel(duel) {
+  const list = readLocalDuels().filter((d) => d.id !== duel.id);
+  list.unshift(duel);
+  writeLocalDuels(list);
+}
+
+function stopDuelPolling() {
+  if (duelPollTimer) {
+    clearInterval(duelPollTimer);
+    duelPollTimer = null;
+  }
+}
+
+function startDuelPolling() {
+  stopDuelPolling();
+  duelPollTimer = setInterval(() => {
+    const screen = document.getElementById('screen-matchmaking');
+    if (!screen?.classList.contains('active')) return;
+    loadOpenDuels({ silent: true });
+    refreshMyDuelState({ silent: true });
+  }, 4000);
+}
+
+async function toggleSearch() {
   if (requireAccount('matchmaking')) return;
+  if (!currentUser || !currentProfile) {
+    showToast('Sign in to post a queue.', 'error');
+    return;
+  }
+
   const config = syncSelectedModeFromForm();
   if (!config.title) {
-    showToast('Enter a queue title before finding a match.', 'error');
+    showToast('Enter a queue title before posting.', 'error');
     document.getElementById('mm-input-title').focus();
     return;
   }
-  searching = !searching;
+
   const btn = document.getElementById('mm-btn');
   const dots = document.getElementById('mm-dots');
-  if (searching) {
-    btn.textContent='Cancel'; btn.className='action-btn danger'; dots.classList.add('show');
-    secs=0;
-    timer = setInterval(async () => {
-      secs++;
-      const m=Math.floor(secs/60), s=secs%60;
-      document.getElementById('mm-timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
-      if (secs >= 5 + Math.floor(Math.random()*8)) {
-        clearInterval(timer); searching=false;
-        btn.textContent='Find Match'; btn.className='action-btn primary'; dots.classList.remove('show');
-        await simulateMatch();
-      }
-    }, 1000);
-  } else {
-    clearInterval(timer); dots.classList.remove('show');
-    btn.textContent='Find Match'; btn.className='action-btn primary';
-    secs=0; document.getElementById('mm-timer').textContent='0:00';
+
+  // Cancel existing open queue
+  if (myOpenDuelId) {
+    await cancelMyOpenQueue();
+    return;
   }
+
+  if (myActiveDuelId) {
+    showToast('Finish or wait on your active duel before posting another queue.', 'error');
+    return;
+  }
+
+  const duel = {
+    id: (crypto.randomUUID && crypto.randomUUID()) || `local-${Date.now()}`,
+    host_id: currentUser.id,
+    host_tag: currentProfile.gamer_tag || 'Player',
+    host_mmr: currentProfile.mmr || 1200,
+    challenger_id: null,
+    challenger_tag: null,
+    challenger_mmr: null,
+    game: config.game || getSelectedGame(),
+    mode: config.title,
+    details: config.details || null,
+    server: config.server || null,
+    status: 'open',
+    host_winner_pick: null,
+    challenger_winner_pick: null,
+    winner_id: null,
+    loser_id: null,
+    mmr_change: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  let cloudOk = false;
+  try {
+    const { data, error } = await sb.from('duels').insert({
+      host_id: duel.host_id,
+      host_tag: duel.host_tag,
+      host_mmr: duel.host_mmr,
+      game: duel.game,
+      mode: duel.mode,
+      details: duel.details,
+      server: duel.server,
+      status: 'open',
+    }).select('*').single();
+    if (!error && data) {
+      Object.assign(duel, data);
+      cloudOk = true;
+    }
+  } catch (err) {
+    console.warn('duels insert failed:', err);
+  }
+
+  upsertLocalDuel(duel);
+  myOpenDuelId = duel.id;
+  searching = true;
+  btn.textContent = 'Cancel Queue';
+  btn.className = 'action-btn danger';
+  dots.classList.add('show');
+  document.getElementById('mm-timer').textContent = 'Waiting for challenger…';
+  startDuelPolling();
+  loadOpenDuels();
+  showToast(cloudOk ? 'Queue posted — waiting for someone to accept.' : 'Queue posted locally (run duels.sql in Supabase for cloud).', 'success');
+}
+
+async function cancelMyOpenQueue() {
+  const id = myOpenDuelId;
+  if (!id) return;
+
+  try {
+    const { error } = await sb.rpc('cancel_duel', { p_duel_id: id });
+    if (error) {
+      await sb.from('duels').update({ status: 'cancelled', updated_at: new Date().toISOString() }).eq('id', id).eq('host_id', currentUser.id);
+    }
+  } catch (_) { /* local fallback */ }
+
+  const list = readLocalDuels().map((d) => d.id === id ? { ...d, status: 'cancelled' } : d);
+  writeLocalDuels(list);
+
+  myOpenDuelId = null;
+  searching = false;
+  const btn = document.getElementById('mm-btn');
+  const dots = document.getElementById('mm-dots');
+  if (btn) { btn.textContent = 'Post Open Queue'; btn.className = 'action-btn primary'; }
+  if (dots) dots.classList.remove('show');
+  loadOpenDuels();
+  showToast('Queue cancelled.', 'success');
+}
+
+function mergeDuelLists(cloud, local) {
+  const map = new Map();
+  [...(local || []), ...(cloud || [])].forEach((d) => {
+    if (!d?.id) return;
+    const prev = map.get(d.id);
+    if (!prev || new Date(d.updated_at || d.created_at || 0) >= new Date(prev.updated_at || prev.created_at || 0)) {
+      map.set(d.id, d);
+    }
+  });
+  return [...map.values()].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+}
+
+async function loadOpenDuels({ silent = false } = {}) {
+  const el = document.getElementById('mm-open-queues');
+  if (!el) return;
+
+  let cloud = [];
+  try {
+    const { data, error } = await sb
+      .from('duels')
+      .select('*')
+      .in('status', ['open', 'active'])
+      .order('created_at', { ascending: false })
+      .limit(40);
+    if (!error && data) cloud = data;
+  } catch (err) {
+    if (!silent) console.warn('loadOpenDuels:', err);
+  }
+
+  const all = mergeDuelLists(cloud, readLocalDuels()).filter((d) => d.status === 'open' || d.status === 'active');
+  const open = all.filter((d) => d.status === 'open');
+
+  // Sync my open/active ids from data
+  if (currentUser) {
+    const mineOpen = all.find((d) => d.status === 'open' && d.host_id === currentUser.id);
+    const mineActive = all.find((d) => d.status === 'active' && (d.host_id === currentUser.id || d.challenger_id === currentUser.id));
+    myOpenDuelId = mineOpen?.id || null;
+    if (mineActive) {
+      myActiveDuelId = mineActive.id;
+      renderActiveDuel(mineActive);
+    } else if (!myActiveDuelId) {
+      document.getElementById('mm-active-duel').style.display = 'none';
+    }
+
+    const btn = document.getElementById('mm-btn');
+    const dots = document.getElementById('mm-dots');
+    if (myOpenDuelId) {
+      searching = true;
+      if (btn) { btn.textContent = 'Cancel Queue'; btn.className = 'action-btn danger'; }
+      if (dots) { dots.classList.add('show'); document.getElementById('mm-timer').textContent = 'Waiting for challenger…'; }
+      startDuelPolling();
+    } else if (!myActiveDuelId) {
+      searching = false;
+      if (btn) { btn.textContent = 'Post Open Queue'; btn.className = 'action-btn primary'; }
+      if (dots) dots.classList.remove('show');
+    }
+  }
+
+  if (!open.length) {
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--muted2);padding:12px 0;text-align:center">No open queues right now — post one and wait for a challenger.</div>';
+    return;
+  }
+
+  el.innerHTML = open.map((d) => {
+    const isMine = currentUser && d.host_id === currentUser.id;
+    const when = d.created_at ? new Date(d.created_at).toLocaleTimeString() : '';
+    return `<div class="duel-row">
+      <div style="min-width:0">
+        <div class="duel-title">${d.mode || 'Open Queue'} · ${d.game}</div>
+        <div class="duel-meta">
+          Host ${d.host_tag || 'Player'} · ${d.host_mmr || 1200} MMR<br>
+          ${d.details ? `${d.details}<br>` : ''}
+          ${d.server ? `Server ${d.server} · ` : ''}${when}
+        </div>
+      </div>
+      <div class="duel-actions">
+        ${isMine
+          ? `<button class="action-btn danger" style="padding:8px 12px" onclick="cancelMyOpenQueue()">Cancel</button>`
+          : `<button class="action-btn primary" style="padding:8px 12px" onclick="acceptDuel('${d.id}')">Accept Duel</button>`
+        }
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function acceptDuel(duelId) {
+  if (requireAccount('matchmaking')) return;
+  if (!currentUser || !currentProfile) return;
+  if (myOpenDuelId || myActiveDuelId) {
+    showToast('Cancel your open queue or finish your active duel first.', 'error');
+    return;
+  }
+
+  let duel = null;
+  try {
+    const { data, error } = await sb.rpc('accept_duel', { p_duel_id: duelId });
+    if (error) throw error;
+    duel = data;
+  } catch (err) {
+    // Local fallback
+    const list = readLocalDuels();
+    const idx = list.findIndex((d) => d.id === duelId && d.status === 'open');
+    if (idx < 0) {
+      showToast(err.message || 'Could not accept duel.', 'error');
+      return;
+    }
+    if (list[idx].host_id === currentUser.id) {
+      showToast('Cannot accept your own queue.', 'error');
+      return;
+    }
+    duel = {
+      ...list[idx],
+      challenger_id: currentUser.id,
+      challenger_tag: currentProfile.gamer_tag || 'Player',
+      challenger_mmr: currentProfile.mmr || 1200,
+      status: 'active',
+      updated_at: new Date().toISOString(),
+    };
+    list[idx] = duel;
+    writeLocalDuels(list);
+  }
+
+  if (duel) upsertLocalDuel(duel);
+  myActiveDuelId = duel.id;
+  myOpenDuelId = null;
+  searching = false;
+  const btn = document.getElementById('mm-btn');
+  const dots = document.getElementById('mm-dots');
+  if (btn) { btn.textContent = 'Post Open Queue'; btn.className = 'action-btn primary'; }
+  if (dots) dots.classList.remove('show');
+  renderActiveDuel(duel);
+  loadOpenDuels();
+  startDuelPolling();
+  showToast(`Duel accepted vs ${duel.host_tag}. Play, then both pick the winner.`, 'success');
+}
+
+async function refreshMyDuelState({ silent = false } = {}) {
+  if (!currentUser) return;
+  let cloud = [];
+  try {
+    const { data, error } = await sb
+      .from('duels')
+      .select('*')
+      .eq('status', 'active')
+      .or(`host_id.eq.${currentUser.id},challenger_id.eq.${currentUser.id}`)
+      .order('updated_at', { ascending: false })
+      .limit(5);
+    if (!error && data) cloud = data;
+  } catch (err) {
+    if (!silent) console.warn(err);
+  }
+
+  const localActive = readLocalDuels().filter(
+    (d) => d.status === 'active' && (d.host_id === currentUser.id || d.challenger_id === currentUser.id)
+  );
+  const active = mergeDuelLists(cloud, localActive)[0];
+  if (active) {
+    myActiveDuelId = active.id;
+    renderActiveDuel(active);
+    startDuelPolling();
+  } else {
+    myActiveDuelId = null;
+    const box = document.getElementById('mm-active-duel');
+    if (box) box.style.display = 'none';
+  }
+}
+
+function renderActiveDuel(d) {
+  const box = document.getElementById('mm-active-duel');
+  if (!box || !d || !currentUser) return;
+  const iAmHost = d.host_id === currentUser.id;
+  const myPick = iAmHost ? d.host_winner_pick : d.challenger_winner_pick;
+  const theirPick = iAmHost ? d.challenger_winner_pick : d.host_winner_pick;
+  const waiting = myPick && !theirPick;
+  const hostLabel = `${d.host_tag} (${d.host_mmr || 1200} MMR)`;
+  const chalLabel = `${d.challenger_tag || 'Challenger'} (${d.challenger_mmr || 1200} MMR)`;
+
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="card-title" style="margin-bottom:8px">Active Duel</div>
+    <div style="font-size:15px;font-weight:800;margin-bottom:6px">${d.mode || 'Duel'} · ${d.game}</div>
+    <div class="duel-meta" style="margin-bottom:14px">
+      ${d.host_tag} vs ${d.challenger_tag || '—'}${d.server ? `<br>Server ${d.server}` : ''}
+      ${d.details ? `<br>${d.details}` : ''}
+    </div>
+    <div class="field">
+      <label for="duel-winner-select">Who won? (both players must pick the same winner)</label>
+      <select id="duel-winner-select">
+        <option value="">Select winner…</option>
+        <option value="${d.host_id}">${hostLabel}</option>
+        <option value="${d.challenger_id}">${chalLabel}</option>
+      </select>
+    </div>
+    <div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin:8px 0 12px;line-height:1.5">
+      ${waiting ? 'Waiting for the other player to submit the same winner…'
+        : theirPick && !myPick ? 'Opponent already submitted — pick the same winner to confirm.'
+        : 'Only the two players in this duel can report the result.'}
+    </div>
+    <button class="action-btn primary full" onclick="submitDuelWinner('${d.id}')">Submit Result</button>
+  `;
+  if (myPick) {
+    const sel = document.getElementById('duel-winner-select');
+    if (sel) sel.value = myPick;
+  }
+}
+
+async function submitDuelWinner(duelId) {
+  if (!currentUser) return;
+  const sel = document.getElementById('duel-winner-select');
+  const winnerId = sel?.value;
+  if (!winnerId) {
+    showToast('Select who won.', 'error');
+    return;
+  }
+
+  let duel = null;
+  try {
+    const { data, error } = await sb.rpc('submit_duel_winner', {
+      p_duel_id: duelId,
+      p_winner_id: winnerId,
+    });
+    if (error) throw error;
+    duel = data;
+  } catch (err) {
+    const msg = err?.message || String(err);
+    if (/do not match|Results do not match/i.test(msg)) {
+      showToast('Results do not match — both players must select the same winner.', 'error');
+      // Clear local picks
+      const list = readLocalDuels().map((d) => d.id === duelId ? {
+        ...d, host_winner_pick: null, challenger_winner_pick: null, updated_at: new Date().toISOString(),
+      } : d);
+      writeLocalDuels(list);
+      refreshMyDuelState();
+      return;
+    }
+
+    // Local finalize fallback
+    duel = await submitDuelWinnerLocal(duelId, winnerId);
+    if (!duel) {
+      if (!/duels|function|schema|PGRST/i.test(msg)) showToast(msg, 'error');
+      else showToast('Could not submit. If cloud is missing, run duels.sql in Supabase.', 'error');
+      return;
+    }
+  }
+
+  upsertLocalDuel(duel);
+  if (duel.status === 'completed') {
+    myActiveDuelId = null;
+    document.getElementById('mm-active-duel').style.display = 'none';
+    await loadProfile();
+    await loadDashboard();
+    loadLeaderboard();
+    loadOpenDuels();
+    const iWon = duel.winner_id === currentUser.id;
+    showToast(iWon ? `WIN +${duel.mmr_change || 15} MMR` : `LOSS -${duel.mmr_change || 15} MMR`, iWon ? 'success' : 'error');
+  } else if (!duel.host_winner_pick && !duel.challenger_winner_pick) {
+    renderActiveDuel(duel);
+    showToast('Results do not match — both players must select the same winner.', 'error');
+  } else {
+    renderActiveDuel(duel);
+    showToast('Result submitted — waiting for opponent to confirm the same winner.', 'success');
+  }
+}
+
+async function submitDuelWinnerLocal(duelId, winnerId) {
+  const list = readLocalDuels();
+  const idx = list.findIndex((d) => d.id === duelId && d.status === 'active');
+  if (idx < 0) return null;
+  const d = { ...list[idx] };
+  if (currentUser.id !== d.host_id && currentUser.id !== d.challenger_id) return null;
+  if (winnerId !== d.host_id && winnerId !== d.challenger_id) return null;
+
+  if (currentUser.id === d.host_id) d.host_winner_pick = winnerId;
+  else d.challenger_winner_pick = winnerId;
+  d.updated_at = new Date().toISOString();
+
+  if (d.host_winner_pick && d.challenger_winner_pick && d.host_winner_pick !== d.challenger_winner_pick) {
+    d.host_winner_pick = null;
+    d.challenger_winner_pick = null;
+    list[idx] = d;
+    writeLocalDuels(list);
+    showToast('Results do not match — both players must select the same winner.', 'error');
+    renderActiveDuel(d);
+    return null;
+  }
+
+  if (d.host_winner_pick && d.challenger_winner_pick && d.host_winner_pick === d.challenger_winner_pick) {
+    const change = 15;
+    const winnerIdFinal = d.host_winner_pick;
+    const loserId = winnerIdFinal === d.host_id ? d.challenger_id : d.host_id;
+    d.status = 'completed';
+    d.winner_id = winnerIdFinal;
+    d.loser_id = loserId;
+    d.mmr_change = change;
+    d.completed_at = new Date().toISOString();
+    list[idx] = d;
+    writeLocalDuels(list);
+
+    // Update my profile / match locally via supabase if possible
+    const iWon = winnerIdFinal === currentUser.id;
+    const mmrChange = iWon ? change : -change;
+    const newMMR = Math.max(800, (currentProfile.mmr || 1200) + mmrChange);
+    const wins = (currentProfile.wins || 0) + (iWon ? 1 : 0);
+    const losses = (currentProfile.losses || 0) + (iWon ? 0 : 1);
+    try {
+      await sb.from('matches').insert({
+        user_id: currentUser.id,
+        game: d.game,
+        mode: d.mode,
+        result: iWon ? 'win' : 'loss',
+        mmr_change: mmrChange,
+        stats: {
+          duel_id: d.id,
+          opponent: iWon ? (loserId === d.host_id ? d.host_tag : d.challenger_tag) : (winnerIdFinal === d.host_id ? d.host_tag : d.challenger_tag),
+          server: d.server,
+          queue_details: d.details,
+        },
+        played_at: new Date().toISOString(),
+      });
+      await sb.from('profiles').update({ mmr: newMMR, wins, losses }).eq('id', currentUser.id);
+    } catch (_) { /* ignore */ }
+    currentProfile = { ...currentProfile, mmr: newMMR, wins, losses };
+    updateSidebar();
+  } else {
+    list[idx] = d;
+    writeLocalDuels(list);
+  }
+  return d;
 }
 
 function rnd(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
@@ -1879,51 +2355,6 @@ function formatStats(stats) {
     if (typeof v === 'boolean') return v ? `<span style="color:var(--neon);font-weight:700">${labels[k]||k} ✓</span>` : '';
     return `<span><b style="color:var(--muted2);font-size:10px">${labels[k]||k}</b><br><b>${v}</b></span>`;
   }).filter(Boolean).join('');
-}
-
-async function simulateMatch() {
-  if (!currentUser || !currentProfile) return;
-  const queue = syncSelectedModeFromForm();
-  const win = Math.random() > 0.45;
-  const change = win ? rnd(10,22) : -rnd(5,16);
-  const newMMR = Math.max(800, (currentProfile.mmr||1200) + change);
-  const mode = queue.title || getSelectedModeName();
-  const game = queue.game || getSelectedGame();
-  const stats = generateGameStats(game, mode, win);
-  const duration = stats.duration || rnd(15,40)+'m';
-  if (queue.details) stats.queue_details = queue.details;
-  if (queue.server) stats.server = queue.server;
-
-  // Save full match record
-  await sb.from('matches').insert({
-    user_id: currentUser.id, game, mode,
-    result: win?'win':'loss', mmr_change: change,
-    stats: stats, duration,
-    played_at: new Date().toISOString()
-  });
-
-  // Update profile totals
-  const wins  = (currentProfile.wins||0)  + (win?1:0);
-  const losses = (currentProfile.losses||0) + (win?0:1);
-  const total_kills   = (currentProfile.total_kills||0)   + (stats.kills||0);
-  const total_deaths  = (currentProfile.total_deaths||0)  + (stats.deaths||0);
-  const total_assists = (currentProfile.total_assists||0) + (stats.assists||0);
-  const total_damage  = (currentProfile.total_damage||0)  + (stats.damage||0);
-
-  await sb.from('profiles').update({
-    mmr: newMMR, wins, losses,
-    total_kills, total_deaths, total_assists, total_damage
-  }).eq('id', currentUser.id);
-
-  currentProfile = { ...currentProfile, mmr:newMMR, wins, losses, total_kills, total_deaths, total_assists, total_damage };
-
-  updateSidebar();
-  await loadDashboard();
-  loadLeaderboard();
-
-  // Show rich result toast
-  const statStr = stats.kda ? ` · KDA ${stats.kda}` : stats.placement ? ` · ${stats.placement}` : stats.goals ? ` · ${stats.goals} goals` : '';
-  showToast(win ? `WIN +${change} MMR${statStr} 🔥` : `LOSS ${change} MMR${statStr} — keep grinding`, win?'success':'error');
 }
 
 // ── LEADERBOARD ──

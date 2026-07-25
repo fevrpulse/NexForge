@@ -30,6 +30,7 @@ const PROCESS_GAME_MAP = {
   'RobloxPlayerBeta': 'Roblox',
   'GTA5': 'GTA Online',
   'PlayGTAV': 'GTA Online',
+  'GeometryDash': 'Geometry Dash',
 };
 
 const GAME_PROBE_HOSTS = {
@@ -50,6 +51,7 @@ const GAME_PROBE_HOSTS = {
   'Minecraft': '1.1.1.1',
   'Roblox': '1.1.1.1',
   'GTA Online': '1.1.1.1',
+  'Geometry Dash': '1.1.1.1',
 };
 
 function execPs(script, timeoutMs = 8000) {
