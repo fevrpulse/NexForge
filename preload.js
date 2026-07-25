@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('nexforge', {
   platform: process.platform,
   openAuthBrowser: (mode) => ipcRenderer.invoke('open-auth-browser', mode),
   getPendingAuth: () => ipcRenderer.invoke('get-pending-auth'),
+  getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   onAuthCallback: (callback) => {
     ipcRenderer.on('auth-callback', (_event, tokens) => callback(tokens));
   },
@@ -19,5 +20,8 @@ contextBridge.exposeInMainWorld('nexforge', {
   },
   onGameSessionEnded: (callback) => {
     ipcRenderer.on('game-session-ended', (_event, summary) => callback(summary));
+  },
+  onGameSessionCancelled: (callback) => {
+    ipcRenderer.on('game-session-cancelled', (_event, payload) => callback(payload));
   },
 });

@@ -10,17 +10,22 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#080808;--surface:#101010;--panel:#181818;--card:#1C1C1C;
-  --border:#242424;--border2:#2E2E2E;
-  --text:#EFEFEF;--muted:#555;--muted2:#888;
+  --bg:#090909;--surface:#121212;--panel:#1A1A1A;--card:#1E1E1E;
+  --border:#2A2A2A;--border2:#363636;
+  --text:#F4F4F4;--muted:#6E6E6E;--muted2:#A8A8A8;
   --neon:#C9FF00;--neon2:rgba(201,255,0,0.08);
   --red:#FF3D1F;--blue:#3B7EFF;--purple:#9B5CFF;
   --font:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;
-  --radius:10px;
+  --radius:12px;
+  --text-sm:13px;--text-base:15px;--text-lg:16px;
 }
 
 html{scroll-behavior:smooth}
-body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh;overflow-x:hidden}
+body{
+  background:var(--bg);color:var(--text);font-family:var(--font);
+  font-size:var(--text-base);line-height:1.55;min-height:100vh;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
 
 /* ── AUTH SCREEN ── */
 #auth-screen{
@@ -43,29 +48,29 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
   background:var(--surface);border:1px solid var(--border);
   border-radius:16px;padding:40px;
 }
-.auth-logo{font-size:24px;font-weight:800;letter-spacing:-1px;margin-bottom:8px}
+.auth-logo{font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:10px}
 .auth-logo span{color:var(--neon)}
-.auth-tagline{font-family:var(--mono);font-size:11px;color:var(--muted2);letter-spacing:1px;margin-bottom:32px}
-.auth-tabs{display:flex;gap:0;margin-bottom:28px;background:var(--panel);border-radius:8px;padding:3px}
-.auth-tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:600;border-radius:6px;cursor:pointer;transition:all .15s;color:var(--muted2)}
+.auth-tagline{font-family:var(--mono);font-size:13px;color:var(--muted2);letter-spacing:.4px;margin-bottom:32px;line-height:1.5}
+.auth-tabs{display:flex;gap:0;margin-bottom:28px;background:var(--panel);border-radius:10px;padding:4px}
+.auth-tab{flex:1;padding:10px;text-align:center;font-size:14px;font-weight:600;border-radius:8px;cursor:pointer;transition:all .15s;color:var(--muted2)}
 .auth-tab.active{background:var(--neon);color:#000}
-.field{margin-bottom:14px}
-.field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--muted2);margin-bottom:6px;text-transform:uppercase}
+.field{margin-bottom:16px}
+.field label{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.4px;color:var(--muted2);margin-bottom:8px;text-transform:uppercase}
 .field input{
   width:100%;background:var(--panel);border:1px solid var(--border2);
-  border-radius:8px;padding:11px 14px;font-size:13px;font-family:var(--font);
+  border-radius:10px;padding:12px 14px;font-size:15px;font-family:var(--font);
   color:var(--text);outline:none;transition:border-color .2s;
 }
 .field input::placeholder{color:var(--muted)}
 .field input:focus{border-color:var(--neon)}
 .auth-btn{
-  width:100%;padding:12px;background:var(--neon);color:#000;border:none;
-  border-radius:8px;font-family:var(--font);font-size:14px;font-weight:700;
-  cursor:pointer;transition:all .15s;letter-spacing:.3px;margin-top:4px;
+  width:100%;padding:13px;background:var(--neon);color:#000;border:none;
+  border-radius:10px;font-family:var(--font);font-size:15px;font-weight:700;
+  cursor:pointer;transition:all .15s;letter-spacing:.2px;margin-top:4px;
 }
 .auth-btn:hover{background:#b8ef00;transform:translateY(-1px)}
 .auth-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-.auth-msg{font-family:var(--mono);font-size:11px;text-align:center;margin-top:12px;min-height:16px}
+.auth-msg{font-family:var(--mono);font-size:13px;text-align:center;margin-top:14px;min-height:18px;line-height:1.5}
 .auth-msg.error{color:var(--red)}
 .auth-msg.success{color:var(--neon)}
 
@@ -76,37 +81,37 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 
 /* SIDEBAR */
 .sidebar{
-  width:210px;background:var(--surface);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;padding:16px 0;flex-shrink:0;
+  width:228px;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;padding:18px 0;flex-shrink:0;
 }
-.sb-logo{padding:0 18px 20px;font-size:17px;font-weight:800;letter-spacing:-0.5px}
+.sb-logo{padding:0 20px 22px;font-size:19px;font-weight:800;letter-spacing:-0.5px}
 .sb-logo span{color:var(--neon)}
 .nav-item{
-  display:flex;align-items:center;gap:10px;padding:10px 18px;
-  cursor:pointer;transition:all .15s;color:var(--muted2);font-size:13px;
+  display:flex;align-items:center;gap:12px;padding:12px 20px;
+  cursor:pointer;transition:all .15s;color:var(--muted2);font-size:14px;
   font-weight:600;border-left:2px solid transparent;
 }
 .nav-item:hover{color:var(--text);background:var(--panel)}
 .nav-item.active{color:var(--neon);background:var(--neon2);border-left-color:var(--neon)}
-.nav-icon{font-size:15px;width:18px;text-align:center}
-.nav-div{height:1px;background:var(--border);margin:8px 18px}
-.sb-bottom{margin-top:auto;padding:12px 14px}
+.nav-icon{font-size:16px;width:20px;text-align:center}
+.nav-div{height:1px;background:var(--border);margin:10px 20px}
+.sb-bottom{margin-top:auto;padding:14px 16px}
 .user-pill{
-  display:flex;align-items:center;gap:10px;padding:10px;
-  background:var(--panel);border-radius:10px;border:1px solid var(--border);
+  display:flex;align-items:center;gap:12px;padding:12px;
+  background:var(--panel);border-radius:12px;border:1px solid var(--border);
   cursor:pointer;transition:border-color .15s;
 }
 .user-pill:hover{border-color:var(--border2)}
 .avatar{
-  width:32px;height:32px;border-radius:50%;background:var(--neon);
+  width:36px;height:36px;border-radius:50%;background:var(--neon);
   display:flex;align-items:center;justify-content:center;
-  font-size:12px;font-weight:800;color:#000;flex-shrink:0;
+  font-size:13px;font-weight:800;color:#000;flex-shrink:0;
 }
-.user-name{font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.user-rank{font-family:var(--mono);font-size:10px;color:var(--neon)}
+.user-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.user-rank{font-family:var(--mono);font-size:12px;color:var(--neon)}
 .signout-btn{
-  margin-top:8px;width:100%;padding:7px;border-radius:7px;border:1px solid var(--border);
-  background:transparent;color:var(--muted2);font-size:11px;font-family:var(--font);
+  margin-top:10px;width:100%;padding:9px;border-radius:9px;border:1px solid var(--border);
+  background:transparent;color:var(--muted2);font-size:13px;font-family:var(--font);
   cursor:pointer;transition:all .15s;
 }
 .signout-btn:hover{border-color:var(--red);color:var(--red)}
@@ -114,20 +119,20 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 /* MAIN */
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
 .topbar{
-  height:52px;border-bottom:1px solid var(--border);display:flex;
-  align-items:center;justify-content:space-between;padding:0 22px;
+  height:58px;border-bottom:1px solid var(--border);display:flex;
+  align-items:center;justify-content:space-between;padding:0 28px;
   background:var(--surface);flex-shrink:0;
 }
-.topbar-title{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.topbar-title{font-size:18px;font-weight:700;letter-spacing:-.3px}
 .topbar-right{display:flex;align-items:center;gap:8px}
-.badge{font-size:10px;font-weight:700;padding:3px 9px;border-radius:100px;letter-spacing:.5px;font-family:var(--mono)}
+.badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:100px;letter-spacing:.4px;font-family:var(--mono)}
 .badge-neon{background:rgba(201,255,0,.12);color:var(--neon);border:1px solid rgba(201,255,0,.2)}
 .badge-red{background:rgba(255,61,31,.12);color:var(--red);border:1px solid rgba(255,61,31,.2)}
 .badge-blue{background:rgba(59,126,255,.12);color:var(--blue);border:1px solid rgba(59,126,255,.2)}
 .badge-muted{background:var(--panel);color:var(--muted2);border:1px solid var(--border)}
 
-.content{flex:1;overflow-y:auto;padding:22px}
-.content::-webkit-scrollbar{width:4px}
+.content{flex:1;overflow-y:auto;padding:28px}
+.content::-webkit-scrollbar{width:6px}
 .content::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
 
 /* SCREENS */
@@ -135,37 +140,37 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .screen.active{display:block}
 
 /* CARDS & GRIDS */
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
-.three-col{display:grid;grid-template-columns:2fr 1fr;gap:12px;margin-bottom:18px}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
-.card-title{font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted2);margin-bottom:14px}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
-.stat-label{font-family:var(--mono);font-size:10px;color:var(--muted2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px}
-.stat-val{font-size:22px;font-weight:800;line-height:1;margin-bottom:4px;letter-spacing:-1px}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px}
+.three-col{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:20px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+.card-title{font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;color:var(--muted2);margin-bottom:16px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px}
+.stat-label{font-family:var(--mono);font-size:12px;color:var(--muted2);letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px}
+.stat-val{font-size:26px;font-weight:800;line-height:1.1;margin-bottom:6px;letter-spacing:-.8px}
 .stat-val.neon{color:var(--neon)}
-.stat-sub{font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.stat-sub{font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.45}
 .stat-sub.up{color:#4ade80}.stat-sub.dn{color:var(--red)}
 
 /* ROWS */
-.row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);gap:12px}
 .row:last-child{border-bottom:none}
-.row-title{font-size:13px;font-weight:600}
-.row-sub{font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:2px}
-.result{font-size:13px;font-weight:700;font-family:var(--mono)}
+.row-title{font-size:15px;font-weight:600}
+.row-sub{font-family:var(--mono);font-size:12px;color:var(--muted2);margin-top:3px;line-height:1.45}
+.result{font-size:14px;font-weight:700;font-family:var(--mono)}
 .result.win{color:#4ade80}.result.loss{color:var(--red)}
 
 /* RANK BARS */
-.rank-section{margin-bottom:12px}
-.rank-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
-.rank-name{font-size:12px;font-weight:600}
-.rank-pts{font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.rank-bar{height:5px;background:var(--panel);border-radius:3px;overflow:hidden}
+.rank-section{margin-bottom:14px}
+.rank-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.rank-name{font-size:14px;font-weight:600}
+.rank-pts{font-family:var(--mono);font-size:12px;color:var(--muted2)}
+.rank-bar{height:6px;background:var(--panel);border-radius:3px;overflow:hidden}
 .rank-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1)}
 
 /* MATCHMAKING */
-.mm-steps{display:flex;align-items:center;gap:8px;margin-bottom:18px;font-family:var(--mono);font-size:10px;color:var(--muted2);letter-spacing:.5px;text-transform:uppercase}
-.mm-step-dot{width:8px;height:8px;border-radius:50%;background:var(--border2);transition:background .2s}
+.mm-steps{display:flex;align-items:center;gap:10px;margin-bottom:20px;font-family:var(--mono);font-size:12px;color:var(--muted2);letter-spacing:.4px;text-transform:uppercase}
+.mm-step-dot{width:9px;height:9px;border-radius:50%;background:var(--border2);transition:background .2s}
 .mm-step-dot.active{background:var(--neon)}
 .mm-step-dot.done{background:rgba(201,255,0,.35)}
 .mm-step-label.active{color:var(--neon)}
@@ -173,55 +178,55 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .mm-step{display:none}
 .mm-step.active{display:block}
 .mm-back{
-  display:inline-flex;align-items:center;gap:6px;margin-bottom:14px;padding:0;border:none;
-  background:transparent;color:var(--muted2);font-family:var(--mono);font-size:11px;
+  display:inline-flex;align-items:center;gap:6px;margin-bottom:16px;padding:0;border:none;
+  background:transparent;color:var(--muted2);font-family:var(--mono);font-size:13px;
   cursor:pointer;transition:color .15s;
 }
 .mm-back:hover{color:var(--text)}
-.game-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.game-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
 .game-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-  padding:14px;cursor:pointer;transition:all .15s;text-align:left;
-}
-.game-card:hover,.game-card.selected{border-color:var(--neon);background:var(--neon2)}
-.game-icon{font-size:22px;margin-bottom:8px}
-.game-name{font-size:13px;font-weight:700;margin-bottom:2px}
-.game-cat{font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.mode-grid{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:16px}
-.mode-card{
   background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
   padding:16px;cursor:pointer;transition:all .15s;text-align:left;
 }
-.mode-card:hover,.mode-card.selected{border-color:var(--neon);background:var(--neon2)}
-.mode-icon{font-size:20px;margin-bottom:8px}
-.mode-name{font-size:15px;font-weight:700;margin-bottom:4px;letter-spacing:-.2px}
-.mode-desc{font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.5}
-.mm-details{
-  background:var(--surface);border:1px solid var(--border);border-radius:10px;
-  padding:16px;margin-bottom:18px;text-align:left;
+.game-card:hover,.game-card.selected{border-color:var(--neon);background:var(--neon2)}
+.game-icon{font-size:24px;margin-bottom:10px}
+.game-name{font-size:15px;font-weight:700;margin-bottom:4px}
+.game-cat{font-family:var(--mono);font-size:12px;color:var(--muted2)}
+.mode-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:18px}
+.mode-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;cursor:pointer;transition:all .15s;text-align:left;
 }
-.mm-details-title{font-family:var(--mono);font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px}
-.mm-details-body{font-size:13px;line-height:1.6;color:var(--text);margin-bottom:12px}
-.mm-details-meta{display:flex;flex-direction:column;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.mode-card:hover,.mode-card.selected{border-color:var(--neon);background:var(--neon2)}
+.mode-icon{font-size:22px;margin-bottom:10px}
+.mode-name{font-size:16px;font-weight:700;margin-bottom:6px;letter-spacing:-.2px}
+.mode-desc{font-family:var(--mono);font-size:13px;color:var(--muted2);line-height:1.55}
+.mm-details{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;margin-bottom:18px;text-align:left;
+}
+.mm-details-title{font-family:var(--mono);font-size:12px;color:var(--muted2);letter-spacing:.6px;text-transform:uppercase;margin-bottom:10px}
+.mm-details-body{font-size:15px;line-height:1.65;color:var(--text);margin-bottom:12px}
+.mm-details-meta{display:flex;flex-direction:column;gap:8px;font-family:var(--mono);font-size:13px;color:var(--muted2);line-height:1.5}
 .mm-details-meta span b{color:var(--text);font-weight:600}
-.mm-form .field{margin-bottom:14px;text-align:left}
-.mm-form .field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--muted2);margin-bottom:6px;text-transform:uppercase}
+.mm-form .field{margin-bottom:16px;text-align:left}
+.mm-form .field label{display:block;font-family:var(--mono);font-size:12px;letter-spacing:.4px;color:var(--muted2);margin-bottom:8px;text-transform:uppercase}
 .mm-form .field input,.mm-form .field textarea{
-  width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:8px;
-  padding:11px 14px;font-size:13px;font-family:var(--font);color:var(--text);outline:none;
+  width:100%;background:var(--surface);border:1px solid var(--border2);border-radius:10px;
+  padding:12px 14px;font-size:15px;font-family:var(--font);color:var(--text);outline:none;
   transition:border-color .2s;
 }
 .mm-form .field input:focus,.mm-form .field textarea:focus{border-color:var(--neon)}
-.mm-form .field textarea{resize:vertical;min-height:96px;line-height:1.5}
-.mm-form .field-hint{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px}
+.mm-form .field textarea{resize:vertical;min-height:104px;line-height:1.55}
+.mm-form .field-hint{font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:7px;line-height:1.45}
 .mm-box{
-  background:var(--panel);border:1px solid var(--border);border-radius:12px;
-  padding:24px;text-align:center;margin-bottom:16px;
+  background:var(--panel);border:1px solid var(--border);border-radius:14px;
+  padding:28px;text-align:center;margin-bottom:18px;
 }
-.mm-box-actions{text-align:center;margin-top:4px}
+.mm-box-actions{text-align:center;margin-top:6px}
 .action-btn{
-  padding:11px 28px;border-radius:8px;border:none;font-size:13px;
-  font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:.3px;font-family:var(--font);
+  padding:12px 28px;border-radius:10px;border:none;font-size:14px;
+  font-weight:700;cursor:pointer;transition:all .15s;letter-spacing:.2px;font-family:var(--font);
 }
 .action-btn.primary{background:var(--neon);color:#000}
 .action-btn.primary:hover{background:#b8ef00;transform:translateY(-1px)}
@@ -229,81 +234,81 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .action-btn.ghost{background:transparent;color:var(--muted2);border:1px solid var(--border)}
 .action-btn.ghost:hover{border-color:var(--text);color:var(--text)}
 .action-btn.full{width:100%}
-.dots{display:none;align-items:center;gap:8px;justify-content:center;margin-top:14px}
+.dots{display:none;align-items:center;gap:8px;justify-content:center;margin-top:16px}
 .dots.show{display:flex}
 .dot{width:7px;height:7px;border-radius:50%;background:var(--neon);animation:pulse 1.2s ease-in-out infinite}
 .dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.6)}}
-.mm-timer{font-family:var(--mono);font-size:12px;color:var(--muted2)}
+.mm-timer{font-family:var(--mono);font-size:13px;color:var(--muted2)}
 
 /* TOURNAMENTS */
 .tourney-card{
   background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
-  padding:14px;margin-bottom:10px;cursor:pointer;transition:border-color .15s;
+  padding:16px;margin-bottom:12px;cursor:pointer;transition:border-color .15s;
 }
 .tourney-card:hover{border-color:var(--neon)}
-.tourney-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.tourney-name{font-size:13px;font-weight:700;margin-bottom:3px}
-.tourney-game{font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.prize{color:var(--neon);font-weight:800;font-size:14px;font-family:var(--mono)}
-.tourney-meta{display:flex;gap:14px;font-family:var(--mono);font-size:10px;color:var(--muted2);flex-wrap:wrap}
+.tourney-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;gap:12px}
+.tourney-name{font-size:15px;font-weight:700;margin-bottom:4px}
+.tourney-game{font-family:var(--mono);font-size:12px;color:var(--muted2)}
+.prize{color:var(--neon);font-weight:800;font-size:15px;font-family:var(--mono)}
+.tourney-meta{display:flex;gap:14px;font-family:var(--mono);font-size:12px;color:var(--muted2);flex-wrap:wrap;line-height:1.5}
 .tourney-empty{
-  text-align:center;padding:36px 20px;border:1px dashed var(--border2);border-radius:12px;
-  font-family:var(--mono);font-size:12px;color:var(--muted2);margin-bottom:16px;
+  text-align:center;padding:40px 24px;border:1px dashed var(--border2);border-radius:14px;
+  font-family:var(--mono);font-size:14px;color:var(--muted2);margin-bottom:18px;line-height:1.55;
 }
-.prize-type-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.prize-type-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px}
 .prize-type-btn{
-  padding:12px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel);
-  color:var(--muted2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;
+  padding:14px 12px;border-radius:10px;border:1px solid var(--border);background:var(--panel);
+  color:var(--muted2);font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;
 }
 .prize-type-btn.active{border-color:var(--neon);background:var(--neon2);color:var(--neon)}
-.tourney-filter{cursor:pointer;padding:5px 12px}
+.tourney-filter{cursor:pointer;padding:6px 14px;font-size:13px}
 .tourney-filter.active{background:rgba(201,255,0,.12);color:var(--neon);border:1px solid rgba(201,255,0,.2)}
 #tourney-create-panel{display:none;margin-bottom:18px}
 #tourney-create-panel.open{display:block}
 .bank-box{
   border:1px solid rgba(255,61,31,.25);background:rgba(255,61,31,.05);
-  border-radius:10px;padding:14px;margin-bottom:14px;
+  border-radius:12px;padding:16px;margin-bottom:16px;
 }
-.bank-box .bank-title{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--red);text-transform:uppercase;margin-bottom:8px}
-.bank-box .bank-note{font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.6;margin-bottom:12px}
+.bank-box .bank-title{font-family:var(--mono);font-size:12px;letter-spacing:.5px;color:var(--red);text-transform:uppercase;margin-bottom:8px}
+.bank-box .bank-note{font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.6;margin-bottom:14px}
 
 /* LEADERBOARD */
-.player-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.player-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--border)}
 .player-row:last-child{border-bottom:none}
-.player-num{width:22px;font-family:var(--mono);font-size:12px;color:var(--muted2);text-align:center;flex-shrink:0}
-.player-av{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0}
+.player-num{width:24px;font-family:var(--mono);font-size:13px;color:var(--muted2);text-align:center;flex-shrink:0}
+.player-av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex-shrink:0}
 .player-info{flex:1;min-width:0}
-.player-tag{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.player-game{font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.player-mmr{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--neon);flex-shrink:0}
+.player-tag{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-game{font-family:var(--mono);font-size:12px;color:var(--muted2);margin-top:2px}
+.player-mmr{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--neon);flex-shrink:0}
 
 /* PROFILE */
 .profile-hero{
-  display:flex;align-items:center;gap:18px;padding:20px;
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:16px;
+  display:flex;align-items:center;gap:20px;padding:24px;
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:18px;
 }
 .profile-av{
-  width:64px;height:64px;border-radius:50%;background:var(--neon);
+  width:72px;height:72px;border-radius:50%;background:var(--neon);
   display:flex;align-items:center;justify-content:center;
-  font-size:24px;font-weight:800;color:#000;flex-shrink:0;
+  font-size:26px;font-weight:800;color:#000;flex-shrink:0;
 }
-.profile-name{font-size:20px;font-weight:800;letter-spacing:-.5px;margin-bottom:3px}
-.profile-sub{font-family:var(--mono);font-size:11px;color:var(--muted2)}
-.profile-tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.profile-name{font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:4px}
+.profile-sub{font-family:var(--mono);font-size:13px;color:var(--muted2);line-height:1.5}
+.profile-tags{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 
 /* ANALYTICS CHART */
-.chart-bars{display:flex;align-items:flex-end;gap:5px;height:90px;padding-bottom:2px}
-.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
-.bar{width:100%;border-radius:3px 3px 0 0;background:var(--neon);opacity:.65;transition:opacity .2s;cursor:pointer;min-height:3px}
+.chart-bars{display:flex;align-items:flex-end;gap:6px;height:100px;padding-bottom:2px}
+.bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px}
+.bar{width:100%;border-radius:4px 4px 0 0;background:var(--neon);opacity:.7;transition:opacity .2s;cursor:pointer;min-height:3px}
 .bar:hover{opacity:1}
-.bar-lbl{font-family:var(--mono);font-size:9px;color:var(--muted2)}
+.bar-lbl{font-family:var(--mono);font-size:11px;color:var(--muted2)}
 
 /* SQUAD */
-.filter-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.filter-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
 select{
   background:var(--panel);color:var(--text);border:1px solid var(--border);
-  border-radius:8px;padding:9px 12px;font-size:12px;font-family:var(--font);outline:none;
+  border-radius:10px;padding:11px 14px;font-size:14px;font-family:var(--font);outline:none;
 }
 select:focus{border-color:var(--neon)}
 
@@ -315,23 +320,23 @@ select:focus{border-color:var(--neon)}
 .modal-overlay.hidden{display:none}
 .modal{
   background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:32px;width:100%;max-width:440px;
+  padding:36px;width:100%;max-width:480px;
 }
-.modal h2{font-size:18px;font-weight:800;margin-bottom:6px}
-.modal p{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-bottom:24px;line-height:1.6}
-.modal-step{font-family:var(--mono);font-size:10px;color:var(--neon);letter-spacing:1px;margin-bottom:8px}
-.modal .field{margin-bottom:14px}
+.modal h2{font-size:22px;font-weight:800;margin-bottom:8px}
+.modal p{font-family:var(--mono);font-size:13px;color:var(--muted2);margin-bottom:24px;line-height:1.65}
+.modal-step{font-family:var(--mono);font-size:12px;color:var(--neon);letter-spacing:.5px;margin-bottom:10px}
+.modal .field{margin-bottom:16px}
 .modal .field label{
-  display:block;font-family:var(--mono);font-size:10px;color:var(--muted2);
-  letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;
+  display:block;font-family:var(--mono);font-size:12px;color:var(--muted2);
+  letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px;
 }
 .modal .field select,
 .modal .field input,
 .modal .field textarea{
   width:100%;background:var(--panel);color:var(--text);border:1px solid var(--border2);
-  border-radius:8px;padding:11px 14px;font-size:13px;font-family:var(--font);outline:none;
+  border-radius:10px;padding:12px 14px;font-size:15px;font-family:var(--font);outline:none;
 }
-.modal .field textarea{min-height:72px;resize:vertical;line-height:1.45}
+.modal .field textarea{min-height:80px;resize:vertical;line-height:1.55}
 .modal .field select:focus,
 .modal .field input:focus,
 .modal .field textarea:focus{border-color:var(--neon)}
@@ -340,12 +345,23 @@ select:focus{border-color:var(--neon)}
 /* TOAST */
 .toast{
   position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--border);
-  border-radius:10px;padding:12px 18px;font-size:13px;z-index:2000;
+  border-radius:12px;padding:14px 20px;font-size:14px;z-index:2000;line-height:1.45;
   transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none;
 }
 .toast.show{transform:translateY(0);opacity:1}
 .toast.success{border-color:rgba(201,255,0,.3);color:var(--neon)}
 .toast.error{border-color:rgba(255,61,31,.3);color:var(--red)}
+
+.combat-stat-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+}
+.combat-stat-grid .field input,
+.combat-stat-grid input{
+  width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;
+  border:1px solid var(--border);background:var(--panel);color:var(--text);
+  font-family:var(--mono);font-size:14px;
+}
+.combat-stat-grid .field input:focus{border-color:var(--neon);outline:none}
 
 /* LOADING */
 .loading-screen{
@@ -353,28 +369,35 @@ select:focus{border-color:var(--neon)}
   align-items:center;justify-content:center;z-index:500;transition:opacity .4s;
 }
 .loading-screen.hidden{opacity:0;pointer-events:none}
-.loading-logo{font-size:28px;font-weight:800;letter-spacing:-1px;margin-bottom:20px}
+.loading-logo{font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:22px}
 .loading-logo span{color:var(--neon)}
-.loading-bar{width:200px;height:2px;background:var(--border);border-radius:1px;overflow:hidden}
-.loading-fill{height:100%;background:var(--neon);border-radius:1px;animation:load 1.2s ease-in-out infinite}
+.loading-bar{width:220px;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.loading-fill{height:100%;background:var(--neon);border-radius:2px;animation:load 1.2s ease-in-out infinite}
 @keyframes load{0%{width:0%;margin-left:0}50%{width:60%;margin-left:20%}100%{width:0%;margin-left:100%}}
 
 /* GUEST */
 .guest-banner{
   background:rgba(255,61,31,.08);border-bottom:1px solid rgba(255,61,31,.2);
-  padding:8px 22px;display:flex;align-items:center;justify-content:space-between;
-  font-family:var(--mono);font-size:11px;color:var(--red);flex-shrink:0;
+  padding:10px 24px;display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--mono);font-size:13px;color:var(--red);flex-shrink:0;line-height:1.45;
 }
 .guest-banner b{color:var(--text)}
 .guest-banner button{
-  padding:5px 14px;border-radius:6px;border:1px solid var(--red);
-  background:transparent;color:var(--red);font-family:var(--font);font-size:11px;
+  padding:7px 14px;border-radius:8px;border:1px solid var(--red);
+  background:transparent;color:var(--red);font-family:var(--font);font-size:13px;
   font-weight:700;cursor:pointer;transition:all .15s;
 }
 .guest-banner button:hover{background:var(--red);color:#fff}
+.offline-banner{
+  background:rgba(255,140,66,.1);border-bottom:1px solid rgba(255,140,66,.35);
+  padding:10px 24px;display:none;align-items:center;justify-content:space-between;
+  font-family:var(--mono);font-size:13px;color:#FF8C42;flex-shrink:0;line-height:1.45;
+}
+.offline-banner.show{display:flex}
+.offline-banner b{color:var(--text)}
 
 .locked-nav{opacity:.35;pointer-events:none;position:relative}
-.locked-nav::after{content:'🔒';position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11px}
+.locked-nav::after{content:'🔒';position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:12px}
 
 .lock-modal{
   position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;
@@ -383,58 +406,69 @@ select:focus{border-color:var(--neon)}
 .lock-modal.hidden{display:none}
 .lock-box{
   background:var(--surface);border:1px solid var(--border);border-radius:16px;
-  padding:32px;width:100%;max-width:380px;text-align:center;
+  padding:36px;width:100%;max-width:400px;text-align:center;
 }
 .lock-icon{font-size:40px;margin-bottom:16px}
-.lock-box h3{font-size:18px;font-weight:800;margin-bottom:8px}
-.lock-box p{font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.7;margin-bottom:24px}
-.lock-actions{display:flex;flex-direction:column;gap:8px}
+.lock-box h3{font-size:20px;font-weight:800;margin-bottom:10px}
+.lock-box p{font-family:var(--mono);font-size:13px;color:var(--muted2);line-height:1.7;margin-bottom:24px}
+.lock-actions{display:flex;flex-direction:column;gap:10px}
 
 /* GAME SESSION TRACKING */
 .track-banner{
-  display:none;align-items:center;justify-content:space-between;gap:16px;
-  margin-bottom:16px;padding:12px 16px;border-radius:12px;
+  display:none;align-items:center;justify-content:space-between;gap:18px;
+  margin-bottom:18px;padding:14px 18px;border-radius:14px;
   background:rgba(201,255,0,.06);border:1px solid rgba(201,255,0,.22);
 }
 .track-banner.active{display:flex}
 .track-banner-left{display:flex;flex-direction:column;gap:4px;min-width:0}
-.track-banner-title{font-size:13px;font-weight:700}
+.track-banner-title{font-size:15px;font-weight:700}
 .track-banner-title span{color:var(--neon)}
-.track-banner-sub{font-family:var(--mono);font-size:10px;color:var(--muted2)}
-.track-metrics{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11px}
+.track-banner-sub{font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.45}
+.track-metrics{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:13px}
 .track-metrics b{color:var(--text);font-weight:600}
 .session-metric-grid{
-  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0 16px;
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 16px;
 }
 .session-metric{
-  background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;
+  background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;
 }
-.session-metric .lbl{font-family:var(--mono);font-size:9px;color:var(--muted2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
-.session-metric .val{font-size:18px;font-weight:800}
-.session-tips{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.session-metric .lbl{font-family:var(--mono);font-size:11px;color:var(--muted2);letter-spacing:.4px;text-transform:uppercase;margin-bottom:6px}
+.session-metric .val{font-size:20px;font-weight:800}
+.session-tips{display:flex;flex-direction:column;gap:10px;margin-bottom:18px}
 .session-tip{
-  font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.55;
-  padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);
+  font-family:var(--mono);font-size:13px;color:var(--muted2);line-height:1.6;
+  padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--panel);
 }
 .session-row{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:12px 0;border-bottom:1px solid var(--border);
-}
-.session-row:last-child{border-bottom:none}
-.session-row-game{font-size:13px;font-weight:700}
-.session-row-meta{font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:3px}
-.session-row-stats{font-family:var(--mono);font-size:10px;color:var(--text);text-align:right;line-height:1.6}
-.duel-row{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  display:flex;align-items:center;justify-content:space-between;gap:14px;
   padding:14px 0;border-bottom:1px solid var(--border);
 }
+.session-row:last-child{border-bottom:none}
+.session-row-game{font-size:15px;font-weight:700}
+.session-row-meta{font-family:var(--mono);font-size:12px;color:var(--muted2);margin-top:4px;line-height:1.45}
+.session-row-stats{font-family:var(--mono);font-size:12px;color:var(--text);text-align:right;line-height:1.65}
+.duel-row{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:16px 0;border-bottom:1px solid var(--border);
+}
 .duel-row:last-child{border-bottom:none}
-.duel-title{font-size:14px;font-weight:700;margin-bottom:4px}
-.duel-meta{font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.55}
-.duel-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:120px}
+.duel-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.duel-meta{font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.6}
+.duel-actions{display:flex;flex-direction:column;gap:8px;align-items:stretch;min-width:130px}
 .duel-active-box{
   border:1px solid rgba(201,255,0,.25);background:rgba(201,255,0,.05);
-  border-radius:12px;padding:16px;margin-bottom:16px;
+  border-radius:14px;padding:20px;margin-bottom:18px;
+}
+/* Soften common tiny inline empty-state text */
+#mm-open-queues > div,
+#d-matches-list > div,
+#a-sessions-list > div,
+#leaderboard-list > div,
+#squad-list > div,
+#p-history > div,
+#fn-duo-results > div,
+#mm-stats-list > div{
+  font-size:13px!important;line-height:1.6!important;
 }
 @media (max-width:900px){
   .track-banner{flex-direction:column;align-items:flex-start}
@@ -620,9 +654,20 @@ select:focus{border-color:var(--neon)}
       <div class="session-metric"><div class="lbl">Avg RAM</div><div class="val" id="sf-ram">—</div></div>
       <div class="session-metric"><div class="lbl">Avg CPU</div><div class="val" id="sf-cpu">—</div></div>
     </div>
+    <div id="sf-combat-block" style="display:none;margin:16px 0 4px">
+      <div class="card-title" style="margin-bottom:8px">Combat Stats</div>
+      <p style="font-family:var(--mono);font-size:11px;color:var(--muted2);margin:0 0 12px;line-height:1.45">
+        Enter kills / deaths / assists from this shooter session. Live in-game feeds need each game’s API — this saves what you report.
+      </p>
+      <div class="combat-stat-grid">
+        <div class="field" style="margin:0"><label for="sf-kills">Kills</label><input id="sf-kills" type="number" min="0" step="1" placeholder="0" /></div>
+        <div class="field" style="margin:0"><label for="sf-deaths">Deaths</label><input id="sf-deaths" type="number" min="0" step="1" placeholder="0" /></div>
+        <div class="field" style="margin:0"><label for="sf-assists">Assists</label><input id="sf-assists" type="number" min="0" step="1" placeholder="0" /></div>
+      </div>
+    </div>
     <div class="card-title" style="margin-bottom:8px">Feedback</div>
     <div class="session-tips" id="sf-tips"></div>
-    <button class="action-btn primary full" onclick="closeSessionFeedback()">Got it</button>
+    <button class="action-btn primary full" onclick="saveSessionFeedback()">Save</button>
   </div>
 </div>
 
@@ -631,6 +676,10 @@ select:focus{border-color:var(--neon)}
   <div id="guest-banner" class="guest-banner" style="display:none">
     <span>👁 <b>Guest Mode</b> — Stats not saved · Limited access</span>
     <button onclick="openBrowserAuthFromGuest()">Create Account</button>
+  </div>
+  <div id="offline-banner" class="offline-banner">
+    <span>☁ <b>Local-only mode</b> — Cloud sync unavailable. Duels/tournaments may not sync until Supabase is reachable.</span>
+    <button onclick="retryCloudSync()" style="padding:7px 14px;border-radius:8px;border:1px solid #FF8C42;background:transparent;color:#FF8C42;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer">Retry</button>
   </div>
   <div class="app">
     <aside class="sidebar">
@@ -749,7 +798,8 @@ select:focus{border-color:var(--neon)}
 
               <div class="field">
                 <label for="mm-input-server">Server IP / Address <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(optional)</span></label>
-                <input type="text" id="mm-input-server" placeholder="e.g. play.nexforge.gg or 192.168.1.50:25565" maxlength="120" />
+                <input type="text" id="mm-input-server" placeholder="Your lobby code, IP, or Discord voice channel" maxlength="120" />
+                <div class="field-hint">Queues are player-hosted / self-organized — NexForge does not run game servers.</div>
                 <div class="field-hint">Leave blank if NexForge hosts the lobby for you.</div>
               </div>
 
@@ -1070,6 +1120,31 @@ const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 let currentUser = null;
 let currentProfile = null;
 let searching = false, timer = null, secs = 0;
+let cloudOffline = false;
+
+function setCloudOffline(offline, reason) {
+  cloudOffline = !!offline;
+  const el = document.getElementById('offline-banner');
+  if (el) el.classList.toggle('show', cloudOffline);
+  if (offline && reason) console.warn('Cloud offline:', reason);
+}
+
+async function retryCloudSync() {
+  try {
+    const { error } = await sb.from('profiles').select('id').limit(1);
+    if (error) throw error;
+    setCloudOffline(false);
+    showToast('Cloud sync restored', 'success');
+    if (currentUser) {
+      await loadProfile();
+      loadTournaments();
+      loadOpenDuels?.();
+    }
+  } catch (err) {
+    setCloudOffline(true, err?.message || err);
+    showToast('Still cannot reach Supabase', 'error');
+  }
+}
 
 // ── INIT ──
 let isGuest = false;
@@ -1526,6 +1601,54 @@ const GAME_CATALOG = [
   { category: 'Other', games: ['Minecraft', 'Roblox', 'GTA Online', 'Geometry Dash'] },
 ];
 
+/** Games where kills / deaths / assists are tracked (manual entry — no live game API). */
+const SHOOTER_GAMES = new Set([
+  'Valorant', 'CS2', 'Call of Duty: Warzone', 'Overwatch 2', 'Halo Infinite',
+  'Apex Legends', 'Fortnite', 'PUBG', 'GTA Online',
+]);
+
+function isShooterGame(game) {
+  return SHOOTER_GAMES.has(game);
+}
+
+function readCombatStats(prefix) {
+  const kEl = document.getElementById(`${prefix}-kills`);
+  const dEl = document.getElementById(`${prefix}-deaths`);
+  const aEl = document.getElementById(`${prefix}-assists`);
+  if (!kEl && !dEl && !aEl) return { ok: true, stats: null };
+  const rawK = (kEl?.value ?? '').trim();
+  const rawD = (dEl?.value ?? '').trim();
+  const rawA = (aEl?.value ?? '').trim();
+  if (!rawK && !rawD && !rawA) return { ok: true, stats: null };
+  if (!rawK || !rawD || !rawA) {
+    return { ok: false, error: 'Enter kills, deaths, and assists together (or leave all blank).' };
+  }
+  const kills = parseInt(rawK, 10);
+  const deaths = parseInt(rawD, 10);
+  const assists = parseInt(rawA, 10);
+  if (![kills, deaths, assists].every((n) => Number.isFinite(n) && n >= 0)) {
+    return { ok: false, error: 'Combat stats must be non-negative numbers.' };
+  }
+  const kda = ((kills + assists) / Math.max(deaths, 1)).toFixed(2);
+  return { ok: true, stats: { kills, deaths, assists, kda } };
+}
+
+function combatInputsHtml(prefix, existing) {
+  const k = existing?.kills ?? '';
+  const d = existing?.deaths ?? '';
+  const a = existing?.assists ?? '';
+  return `
+    <div class="field" style="margin-bottom:10px">
+      <label>Your K / D / A</label>
+      <div class="combat-stat-grid">
+        <input id="${prefix}-kills" type="number" min="0" step="1" placeholder="K" value="${k}" />
+        <input id="${prefix}-deaths" type="number" min="0" step="1" placeholder="D" value="${d}" />
+        <input id="${prefix}-assists" type="number" min="0" step="1" placeholder="A" value="${a}" />
+      </div>
+      <div class="field-hint" style="margin-top:8px">Optional — enter your scoreboard line so kills and assists count toward Analytics.</div>
+    </div>`;
+}
+
 const GAME_ICONS = {
   'Valorant': '🎯', 'CS2': '🔫', 'Call of Duty: Warzone': '🪖', 'Overwatch 2': '🛡', 'Halo Infinite': '🤖',
   'Apex Legends': '🪂', 'Fortnite': '🏗', 'PUBG': '🎯', 'Fall Guys': '🏃',
@@ -1619,6 +1742,15 @@ function selectGame(game) {
   goToMatchmakingStep(2);
 }
 
+function honestServerLabel(server) {
+  if (!server) return 'Player-hosted lobby';
+  const s = String(server).toLowerCase();
+  if (s.includes('nexforge') || s.includes('custom') || s.includes('tournament bracket')) {
+    return 'Player-hosted / self-organized';
+  }
+  return server;
+}
+
 function renderQueues(game) {
   const modes = GAME_MODES[game] || DEFAULT_MODES;
   const grid = document.getElementById('mode-grid');
@@ -1643,7 +1775,12 @@ function renderQueues(game) {
 function fillQueueForm({ title = '', details = '', server = '' } = {}) {
   document.getElementById('mm-input-title').value = title;
   document.getElementById('mm-input-details').value = details;
-  document.getElementById('mm-input-server').value = server;
+  // Prefill is a hint only — catalog "NexForge server" labels are not real hosts
+  const hint = honestServerLabel(server);
+  document.getElementById('mm-input-server').value = hint.startsWith('Player-hosted') ? '' : server;
+  document.getElementById('mm-input-server').placeholder = hint.startsWith('Player-hosted')
+    ? 'Your lobby code, IP, or Discord link'
+    : server;
 }
 
 function getQueueConfig() {
@@ -1724,53 +1861,56 @@ async function searchFnDuo() {
     </div>
   </div>`;
 
-  // Pull real players from Supabase + show mock Fortnite players
-  const { data: realPlayers } = await sb.from('profiles')
-    .select('gamer_tag,mmr,platform,main_game')
-    .neq('id', currentUser?.id || '00000000-0000-0000-0000-000000000000')
-    .limit(4);
+  let realPlayers = [];
+  try {
+    const { data, error } = await sb.from('profiles')
+      .select('gamer_tag,mmr,platform,main_game,wins')
+      .neq('id', currentUser?.id || '00000000-0000-0000-0000-000000000000')
+      .limit(8);
+    if (error) throw error;
+    realPlayers = data || [];
+    setCloudOffline(false);
+  } catch (err) {
+    setCloudOffline(true, err?.message || err);
+  }
 
-  // Mock Fortnite-specific players to flesh out results
-  const mockPlayers = [
-    { gamer_tag:'VibeKing_FN', mmr:2400, platform:'PC', style:'Aggressive', skill:'Champion', wins:312, kd:'4.2', note:'IGL · Shot calls · Highlands' },
-    { gamer_tag:'BoxFightPro', mmr:2200, platform:'Console', style:'Passive / Box', skill:'Contender', wins:188, kd:'3.1', note:'Box fighter · Patient plays' },
-    { gamer_tag:'NightBuilder9', mmr:1900, platform:'PC', style:'Balanced', skill:'Open', wins:97, kd:'2.4', note:'Builder/fragger · Flexible role' },
-    { gamer_tag:'ZeroWallZ',    mmr:2600, platform:'PC', style:'Aggressive', skill:'Elite', wins:540, kd:'6.8', note:'Zone wars specialist · High elim' },
-  ];
+  const allPlayers = realPlayers.map(p => ({
+    gamer_tag: p.gamer_tag, mmr: p.mmr, platform: p.platform || 'PC',
+    style: style || 'Any', skill: skill || 'Any', wins: p.wins || 0,
+    note: `NexForge player · ${p.main_game || 'Fortnite'} · ${plat}`,
+  }));
 
-  const allPlayers = [
-    ...(realPlayers||[]).map(p => ({
-      gamer_tag: p.gamer_tag, mmr: p.mmr, platform: p.platform,
-      style: 'Balanced', skill: 'Open', wins: p.wins||0, kd: '—', note: `NexForge player · ${p.main_game||'Fortnite'}`
-    })),
-    ...mockPlayers
-  ].slice(0, 6);
+  if (!allPlayers.length) {
+    el.innerHTML = `<div style="font-family:var(--mono);font-size:12px;color:var(--muted2);text-align:center;padding:20px 0;line-height:1.5">
+      No real players found yet for ${skill} · ${style} · ${plat}.<br>
+      Invite friends to NexForge or open a public duel queue.
+    </div>`;
+    return;
+  }
 
   const colors = ['#C9FF00','#3B7EFF','#9B5CFF','#4ade80','#FF8C42','#FF3D1F'];
 
   el.innerHTML = allPlayers.map((p, i) => {
     const col = colors[i % colors.length];
     const init = (p.gamer_tag||'?').slice(0,2).toUpperCase();
-    const skillColor = p.skill==='Elite'?'#FF8C42':p.skill==='Champion'?'#C9FF00':p.skill==='Contender'?'#3B7EFF':'var(--muted2)';
     return `
     <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--panel);border-radius:10px;margin-bottom:8px;border:1px solid var(--border)">
       <div style="width:36px;height:36px;border-radius:50%;background:${col}22;color:${col};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">${init}</div>
       <div style="flex:1;min-width:0">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
           <span style="font-size:13px;font-weight:700">${p.gamer_tag}</span>
-          <span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:${skillColor}22;color:${skillColor}">${p.skill}</span>
+          <span style="font-family:var(--mono);font-size:9px;font-weight:700;padding:2px 6px;border-radius:4px;background:var(--neon)22;color:var(--neon)">${p.mmr || 1200} MMR</span>
         </div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted2)">${p.style} · ${p.platform} · KD ${p.kd}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted2)">${p.style} · ${p.platform}</div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:2px">${p.note}</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;flex-shrink:0">
         <button class="action-btn primary" style="padding:5px 12px;font-size:11px" onclick="sendDuoRequest('${p.gamer_tag}')">Invite</button>
-        <button class="action-btn ghost" style="padding:5px 12px;font-size:11px" onclick="showToast('Viewing ${p.gamer_tag} profile coming soon','success')">Profile</button>
       </div>
     </div>`;
   }).join('') + `
     <div style="font-family:var(--mono);font-size:10px;color:var(--muted2);text-align:center;margin-top:8px">
-      ${allPlayers.length} duo partners found · Filters: ${skill} · ${style} · ${plat}
+      ${allPlayers.length} players · Filters: ${skill} · ${style} · ${plat}
     </div>`;
 }
 
@@ -2101,9 +2241,11 @@ function renderActiveDuel(d) {
   const iAmHost = d.host_id === currentUser.id;
   const myPick = iAmHost ? d.host_winner_pick : d.challenger_winner_pick;
   const theirPick = iAmHost ? d.challenger_winner_pick : d.host_winner_pick;
+  const myCombat = iAmHost ? d.host_combat_stats : d.challenger_combat_stats;
   const waiting = myPick && !theirPick;
   const hostLabel = `${d.host_tag} (${d.host_mmr || 1200} MMR)`;
   const chalLabel = `${d.challenger_tag || 'Challenger'} (${d.challenger_mmr || 1200} MMR)`;
+  const shooter = isShooterGame(d.game);
 
   box.style.display = 'block';
   box.innerHTML = `
@@ -2121,6 +2263,7 @@ function renderActiveDuel(d) {
         <option value="${d.challenger_id}">${chalLabel}</option>
       </select>
     </div>
+    ${shooter ? combatInputsHtml('duel', myCombat) : ''}
     <div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin:8px 0 12px;line-height:1.5">
       ${waiting ? 'Waiting for the other player to submit the same winner…'
         : theirPick && !myPick ? 'Opponent already submitted — pick the same winner to confirm.'
@@ -2143,12 +2286,25 @@ async function submitDuelWinner(duelId) {
     return;
   }
 
+  const combat = readCombatStats('duel');
+  if (!combat.ok) {
+    showToast(combat.error, 'error');
+    return;
+  }
+
+  const rpcArgs = {
+    p_duel_id: duelId,
+    p_winner_id: winnerId,
+  };
+  if (combat.stats) {
+    rpcArgs.p_kills = combat.stats.kills;
+    rpcArgs.p_deaths = combat.stats.deaths;
+    rpcArgs.p_assists = combat.stats.assists;
+  }
+
   let duel = null;
   try {
-    const { data, error } = await sb.rpc('submit_duel_winner', {
-      p_duel_id: duelId,
-      p_winner_id: winnerId,
-    });
+    const { data, error } = await sb.rpc('submit_duel_winner', rpcArgs);
     if (error) throw error;
     duel = data;
   } catch (err) {
@@ -2157,7 +2313,9 @@ async function submitDuelWinner(duelId) {
       showToast('Results do not match — both players must select the same winner.', 'error');
       // Clear local picks
       const list = readLocalDuels().map((d) => d.id === duelId ? {
-        ...d, host_winner_pick: null, challenger_winner_pick: null, updated_at: new Date().toISOString(),
+        ...d, host_winner_pick: null, challenger_winner_pick: null,
+        host_combat_stats: null, challenger_combat_stats: null,
+        updated_at: new Date().toISOString(),
       } : d);
       writeLocalDuels(list);
       refreshMyDuelState();
@@ -2165,10 +2323,10 @@ async function submitDuelWinner(duelId) {
     }
 
     // Local finalize fallback
-    duel = await submitDuelWinnerLocal(duelId, winnerId);
+    duel = await submitDuelWinnerLocal(duelId, winnerId, combat.stats);
     if (!duel) {
       if (!/duels|function|schema|PGRST/i.test(msg)) showToast(msg, 'error');
-      else showToast('Could not submit. If cloud is missing, run duels.sql in Supabase.', 'error');
+      else showToast('Could not submit. If cloud is missing, run duels.sql + combat-stats.sql in Supabase.', 'error');
       return;
     }
   }
@@ -2192,7 +2350,7 @@ async function submitDuelWinner(duelId) {
   }
 }
 
-async function submitDuelWinnerLocal(duelId, winnerId) {
+async function submitDuelWinnerLocal(duelId, winnerId, combatStats) {
   const list = readLocalDuels();
   const idx = list.findIndex((d) => d.id === duelId && d.status === 'active');
   if (idx < 0) return null;
@@ -2200,13 +2358,20 @@ async function submitDuelWinnerLocal(duelId, winnerId) {
   if (currentUser.id !== d.host_id && currentUser.id !== d.challenger_id) return null;
   if (winnerId !== d.host_id && winnerId !== d.challenger_id) return null;
 
-  if (currentUser.id === d.host_id) d.host_winner_pick = winnerId;
-  else d.challenger_winner_pick = winnerId;
+  if (currentUser.id === d.host_id) {
+    d.host_winner_pick = winnerId;
+    if (combatStats) d.host_combat_stats = combatStats;
+  } else {
+    d.challenger_winner_pick = winnerId;
+    if (combatStats) d.challenger_combat_stats = combatStats;
+  }
   d.updated_at = new Date().toISOString();
 
   if (d.host_winner_pick && d.challenger_winner_pick && d.host_winner_pick !== d.challenger_winner_pick) {
     d.host_winner_pick = null;
     d.challenger_winner_pick = null;
+    d.host_combat_stats = null;
+    d.challenger_combat_stats = null;
     list[idx] = d;
     writeLocalDuels(list);
     showToast('Results do not match — both players must select the same winner.', 'error');
@@ -2226,31 +2391,24 @@ async function submitDuelWinnerLocal(duelId, winnerId) {
     list[idx] = d;
     writeLocalDuels(list);
 
-    // Update my profile / match locally via supabase if possible
+    // Local-only preview when cloud RPC unavailable — MMR/matches are server-authoritative
     const iWon = winnerIdFinal === currentUser.id;
     const mmrChange = iWon ? change : -change;
     const newMMR = Math.max(800, (currentProfile.mmr || 1200) + mmrChange);
     const wins = (currentProfile.wins || 0) + (iWon ? 1 : 0);
     const losses = (currentProfile.losses || 0) + (iWon ? 0 : 1);
-    try {
-      await sb.from('matches').insert({
-        user_id: currentUser.id,
-        game: d.game,
-        mode: d.mode,
-        result: iWon ? 'win' : 'loss',
-        mmr_change: mmrChange,
-        stats: {
-          duel_id: d.id,
-          opponent: iWon ? (loserId === d.host_id ? d.host_tag : d.challenger_tag) : (winnerIdFinal === d.host_id ? d.host_tag : d.challenger_tag),
-          server: d.server,
-          queue_details: d.details,
-        },
-        played_at: new Date().toISOString(),
-      });
-      await sb.from('profiles').update({ mmr: newMMR, wins, losses }).eq('id', currentUser.id);
-    } catch (_) { /* ignore */ }
-    currentProfile = { ...currentProfile, mmr: newMMR, wins, losses };
+    const myCombat = (currentUser.id === d.host_id ? d.host_combat_stats : d.challenger_combat_stats) || {};
+    currentProfile = {
+      ...currentProfile,
+      mmr: newMMR,
+      wins,
+      losses,
+      total_kills: (currentProfile.total_kills || 0) + (myCombat.kills || 0),
+      total_deaths: (currentProfile.total_deaths || 0) + (myCombat.deaths || 0),
+      total_assists: (currentProfile.total_assists || 0) + (myCombat.assists || 0),
+    };
     updateSidebar();
+    setCloudOffline(true, 'Duel finalized locally — cloud submit_duel_winner unavailable');
   } else {
     list[idx] = d;
     writeLocalDuels(list);
@@ -2442,16 +2600,27 @@ function loadAnalytics(matches) {
   const total = (p.wins||0)+(p.losses||0);
   const wr = total>0?Math.round((p.wins/total)*100)+'%':'—';
 
-  // Compute real KDA from match history
-  let totalK=0,totalD=0,totalA=0,totalDmg=0,kdaMatches=0;
+  // Prefer career totals on profile (duels + sessions); fall back to recent match sum
+  let totalK = p.total_kills || 0;
+  let totalD = p.total_deaths || 0;
+  let totalA = p.total_assists || 0;
+  let totalDmg = 0, kdaMatches = 0;
   if (matches) {
     matches.forEach(m => {
       const st = m.stats||{};
-      if (st.kills!==undefined){ totalK+=st.kills||0; totalD+=st.deaths||0; totalA+=st.assists||0; kdaMatches++; }
+      if (st.kills!==undefined) kdaMatches++;
       if (st.damage) totalDmg+=st.damage;
     });
   }
-  const kda = kdaMatches>0 ? ((totalK+totalA)/Math.max(totalD,1)).toFixed(2) : '—';
+  if (!totalK && !totalD && !totalA && matches) {
+    matches.forEach(m => {
+      const st = m.stats||{};
+      if (st.kills!==undefined){ totalK+=st.kills||0; totalD+=st.deaths||0; totalA+=st.assists||0; }
+    });
+  }
+  const kda = (totalK || totalD || totalA)
+    ? ((totalK + totalA) / Math.max(totalD, 1)).toFixed(2)
+    : '—';
   const avgDmg = kdaMatches>0 ? Math.round(totalDmg/kdaMatches).toLocaleString() : '—';
 
   document.getElementById('a-kda').textContent = kda;
@@ -2545,7 +2714,9 @@ function writeLocalSessions(list) {
   localStorage.setItem(LOCAL_SESSIONS_KEY, JSON.stringify(list.slice(0, 20)));
 }
 
-async function persistGameSession(summary) {
+let pendingSessionSummary = null;
+
+async function persistGameSession(summary, combatStats) {
   const row = {
     game: summary.game,
     process_name: summary.processName || null,
@@ -2558,6 +2729,9 @@ async function persistGameSession(summary) {
     max_ping_ms: summary.maxPingMs,
     tips: summary.tips || [],
     samples: summary.samples || [],
+    kills: combatStats?.kills ?? null,
+    deaths: combatStats?.deaths ?? null,
+    assists: combatStats?.assists ?? null,
     started_at: summary.startedAt,
     ended_at: summary.endedAt,
   };
@@ -2571,6 +2745,61 @@ async function persistGameSession(summary) {
       await sb.from('game_sessions').insert({ ...row, user_id: currentUser.id });
     } catch (err) {
       console.warn('Could not save game session to cloud:', err);
+    }
+  }
+  return row;
+}
+
+async function attachSessionCombatStats(summary, combatStats) {
+  if (!summary || !combatStats) return;
+
+  const local = readLocalSessions();
+  const idx = local.findIndex((s) => s.started_at === summary.startedAt && s.game === summary.game);
+  if (idx >= 0) {
+    local[idx] = { ...local[idx], kills: combatStats.kills, deaths: combatStats.deaths, assists: combatStats.assists };
+    writeLocalSessions(local);
+  }
+
+  if (currentUser && !isGuest) {
+    try {
+      await sb.from('game_sessions')
+        .update({ kills: combatStats.kills, deaths: combatStats.deaths, assists: combatStats.assists })
+        .eq('user_id', currentUser.id)
+        .eq('started_at', summary.startedAt)
+        .eq('game', summary.game);
+    } catch (err) {
+      console.warn('Could not attach combat stats to session:', err);
+    }
+
+    try {
+      const { data, error } = await sb.rpc('add_session_combat', {
+        p_kills: combatStats.kills,
+        p_deaths: combatStats.deaths,
+        p_assists: combatStats.assists,
+      });
+      if (error) throw error;
+      if (data) {
+        currentProfile = { ...currentProfile, ...data };
+      } else if (currentProfile) {
+        currentProfile = {
+          ...currentProfile,
+          total_kills: (currentProfile.total_kills || 0) + combatStats.kills,
+          total_deaths: (currentProfile.total_deaths || 0) + combatStats.deaths,
+          total_assists: (currentProfile.total_assists || 0) + combatStats.assists,
+        };
+      }
+      setCloudOffline(false);
+    } catch (err) {
+      console.warn('Could not update combat totals:', err);
+      setCloudOffline(true, err?.message || err);
+      if (currentProfile) {
+        currentProfile = {
+          ...currentProfile,
+          total_kills: (currentProfile.total_kills || 0) + combatStats.kills,
+          total_deaths: (currentProfile.total_deaths || 0) + combatStats.deaths,
+          total_assists: (currentProfile.total_assists || 0) + combatStats.assists,
+        };
+      }
     }
   }
 }
@@ -2587,10 +2816,13 @@ function renderPerformanceSessions(sessions) {
     const ping = s.avg_ping_ms != null ? `${Math.round(s.avg_ping_ms)} ms` : '—';
     const ram = s.avg_ram_mb != null ? `${Math.round(s.avg_ram_mb)} MB` : '—';
     const cpu = s.avg_cpu_pct != null ? `${Number(s.avg_cpu_pct).toFixed(0)}%` : '—';
+    const kda = (s.kills != null)
+      ? `${s.kills}/${s.deaths ?? 0}/${s.assists ?? 0}`
+      : null;
     return `<div class="session-row">
       <div>
         <div class="session-row-game">${s.game || 'Unknown'}</div>
-        <div class="session-row-meta">${formatDuration(s.duration_sec)} · ${when}</div>
+        <div class="session-row-meta">${formatDuration(s.duration_sec)} · ${when}${kda ? ` · ${kda} K/D/A` : ''}</div>
       </div>
       <div class="session-row-stats">Ping ${ping}<br>RAM ${ram}<br>CPU ${cpu}</div>
     </div>`;
@@ -2619,6 +2851,7 @@ async function loadPerformanceSessions() {
 }
 
 function showSessionFeedback(summary) {
+  pendingSessionSummary = summary;
   document.getElementById('sf-title').textContent = `${summary.game} session feedback`;
   document.getElementById('sf-sub').textContent =
     'Averages from this play session. Ping is measured to a network probe (or your server IP), not in-game tick latency.';
@@ -2629,10 +2862,48 @@ function showSessionFeedback(summary) {
   document.getElementById('sf-tips').innerHTML = (summary.tips || [])
     .map((t) => `<div class="session-tip">${t}</div>`)
     .join('');
+
+  const combatBlock = document.getElementById('sf-combat-block');
+  const shooter = isShooterGame(summary.game);
+  if (combatBlock) combatBlock.style.display = shooter ? 'block' : 'none';
+  ['sf-kills', 'sf-deaths', 'sf-assists'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
   document.getElementById('session-feedback-modal').classList.remove('hidden');
 }
 
+async function saveSessionFeedback() {
+  const summary = pendingSessionSummary;
+  if (!summary) {
+    document.getElementById('session-feedback-modal').classList.add('hidden');
+    return;
+  }
+
+  let combatStats = null;
+  if (isShooterGame(summary.game)) {
+    const combat = readCombatStats('sf');
+    if (!combat.ok) {
+      showToast(combat.error, 'error');
+      return;
+    }
+    combatStats = combat.stats;
+  }
+
+  if (combatStats) {
+    await attachSessionCombatStats(summary, combatStats);
+    showToast(`Saved ${combatStats.kills}/${combatStats.deaths}/${combatStats.assists} K/D/A`, 'success');
+    try { await loadDashboard(); } catch (_) { /* ignore */ }
+  }
+
+  pendingSessionSummary = null;
+  document.getElementById('session-feedback-modal').classList.add('hidden');
+  loadPerformanceSessions();
+}
+
 function closeSessionFeedback() {
+  pendingSessionSummary = null;
   document.getElementById('session-feedback-modal').classList.add('hidden');
 }
 
@@ -2647,6 +2918,12 @@ function setupGameSessionTracking() {
   if (gameTrackingWired || !window.nexforge) return;
   gameTrackingWired = true;
 
+  if (window.nexforge.platform && window.nexforge.platform !== 'win32') {
+    const banner = document.getElementById('tracking-banner');
+    // Soft notice once — process tracking is Windows-only
+    console.info('Game session tracking unavailable on', window.nexforge.platform);
+  }
+
   window.nexforge.onGameSessionStarted?.((session) => {
     updateTrackingBanner(session);
     showToast(`Tracking ${session.game}`, 'success');
@@ -2658,15 +2935,23 @@ function setupGameSessionTracking() {
 
   window.nexforge.onGameSessionEnded?.(async (summary) => {
     hideTrackingBanner();
-    await persistGameSession(summary);
+    await persistGameSession(summary, null);
     showSessionFeedback(summary);
     loadPerformanceSessions();
+  });
+
+  window.nexforge.onGameSessionCancelled?.((payload) => {
+    hideTrackingBanner();
+    if (payload?.game) {
+      showToast(`${payload.game} session discarded (too short)`, 'error');
+    }
   });
 
   const serverInput = document.getElementById('mm-input-server');
   if (serverInput) {
     serverInput.addEventListener('change', syncPingProbeFromMatchmaking);
     serverInput.addEventListener('blur', syncPingProbeFromMatchmaking);
+    serverInput.addEventListener('input', syncPingProbeFromMatchmaking);
   }
 }
 
@@ -2750,8 +3035,26 @@ function loadLocalTournaments() {
   }
 }
 
+function sanitizeTournamentForLocal(t) {
+  if (!t || typeof t !== 'object') return t;
+  const copy = { ...t };
+  // Never keep full bank/PII on disk — last4 only
+  delete copy.bank_routing;
+  delete copy.bank_account;
+  delete copy.payout_email;
+  delete copy.payout_phone;
+  delete copy.bank_holder;
+  delete copy.bank_name;
+  delete copy.bank_type;
+  delete copy.bank_country;
+  if (t.bank_account_last4) copy.bank_account_last4 = t.bank_account_last4;
+  else if (t.bank_account) copy.bank_account_last4 = String(t.bank_account).slice(-4);
+  return copy;
+}
+
 function saveLocalTournaments(list) {
-  localStorage.setItem(TOURNEY_LOCAL_KEY, JSON.stringify(list));
+  const safe = (Array.isArray(list) ? list : []).map(sanitizeTournamentForLocal);
+  localStorage.setItem(TOURNEY_LOCAL_KEY, JSON.stringify(safe));
 }
 
 function maskAccount(num) {
@@ -2790,11 +3093,24 @@ async function loadTournaments() {
 
   let remote = [];
   try {
-    const { data, error } = await sb.from('tournaments')
-      .select('*')
+    const { data, error } = await sb.from('tournaments_public')
+      .select('id,host_id,host_tag,name,game,format,max_slots,starts_at,rules,prize_type,cash_amount,inapp_reward,status,registrations,created_at,bank_account_last4')
       .order('starts_at', { ascending: true });
-    if (!error && data) remote = data;
-  } catch (_) {}
+    if (error) throw error;
+    if (data) remote = data;
+    setCloudOffline(false);
+  } catch (err) {
+    // Fallback for DBs that have not applied security-hardening.sql yet
+    try {
+      const { data, error } = await sb.from('tournaments')
+        .select('id,host_id,host_tag,name,game,format,max_slots,starts_at,rules,prize_type,cash_amount,inapp_reward,status,registrations,created_at,bank_account_last4')
+        .order('starts_at', { ascending: true });
+      if (!error && data) remote = data;
+      else setCloudOffline(true, err?.message || error?.message);
+    } catch (err2) {
+      setCloudOffline(true, err2?.message || err?.message);
+    }
+  }
 
   const local = loadLocalTournaments();
   const byId = new Map();
@@ -2977,8 +3293,9 @@ async function createTournament() {
     if (!error) savedRemote = true;
   } catch (_) {}
 
+  // Local cache never stores full bank numbers
   const local = loadLocalTournaments();
-  local.unshift(tournament);
+  local.unshift(sanitizeTournamentForLocal(tournament));
   saveLocalTournaments(local);
 
   btn.disabled = false;
@@ -2986,7 +3303,8 @@ async function createTournament() {
   msg.className = 'auth-msg success';
   msg.textContent = savedRemote
     ? 'Tournament published.'
-    : 'Tournament published on this device. (Cloud sync needs a tournaments table in Supabase.)';
+    : 'Saved on this device only (cloud insert failed). Bank details were not stored locally.';
+  if (!savedRemote) setCloudOffline(true, 'Tournament cloud insert failed');
 
   document.getElementById('t-name').value = '';
   document.getElementById('t-rules').value = '';
@@ -3023,13 +3341,17 @@ async function registerForTournament(id) {
   const { data, error } = await sb.rpc('register_for_tournament', { tournament_id: id });
   if (!error && data) {
     Object.assign(t, data);
+    const local = loadLocalTournaments();
+    const idx = local.findIndex((x) => x.id === t.id);
+    if (idx >= 0) local[idx] = sanitizeTournamentForLocal(t);
+    saveLocalTournaments(local);
+    renderTournaments();
+    showToast('Registered for ' + t.name, 'success');
+    setCloudOffline(false);
   } else {
-    regs.push(currentUser.id);
-    t.registrations = regs;
-    await persistTournament(t);
+    setCloudOffline(true, error?.message);
+    showToast(error?.message || 'Could not register — cloud required.', 'error');
   }
-  renderTournaments();
-  showToast('Registered for ' + t.name, 'success');
 }
 
 async function unregisterFromTournament(id) {
@@ -3040,49 +3362,17 @@ async function unregisterFromTournament(id) {
   const { data, error } = await sb.rpc('unregister_from_tournament', { tournament_id: id });
   if (!error && data) {
     Object.assign(t, data);
+    const local = loadLocalTournaments();
+    const idx = local.findIndex((x) => x.id === t.id);
+    if (idx >= 0) local[idx] = sanitizeTournamentForLocal(t);
+    saveLocalTournaments(local);
+    renderTournaments();
+    showToast('Left tournament', 'success');
+    setCloudOffline(false);
   } else {
-    t.registrations = (t.registrations || []).filter((uid) => uid !== currentUser.id);
-    await persistTournament(t);
+    setCloudOffline(true, error?.message);
+    showToast(error?.message || 'Could not leave — cloud required.', 'error');
   }
-  renderTournaments();
-  showToast('Left tournament', 'success');
-}
-
-async function persistTournament(t) {
-  const local = loadLocalTournaments();
-  const idx = local.findIndex((x) => x.id === t.id);
-  if (idx >= 0) local[idx] = t;
-  else local.unshift(t);
-  saveLocalTournaments(local);
-
-  try {
-    await sb.from('tournaments').upsert({
-      id: t.id,
-      host_id: t.host_id,
-      host_tag: t.host_tag,
-      name: t.name,
-      game: t.game,
-      format: t.format,
-      max_slots: t.max_slots,
-      starts_at: t.starts_at,
-      rules: t.rules,
-      prize_type: t.prize_type,
-      cash_amount: t.cash_amount,
-      inapp_reward: t.inapp_reward,
-      status: t.status,
-      registrations: t.registrations,
-      created_at: t.created_at,
-      bank_holder: t.bank_holder || null,
-      bank_name: t.bank_name || null,
-      bank_routing: t.bank_routing || null,
-      bank_account: t.bank_account || null,
-      bank_account_last4: t.bank_account_last4 || null,
-      bank_type: t.bank_type || null,
-      bank_country: t.bank_country || null,
-      payout_email: t.payout_email || null,
-      payout_phone: t.payout_phone || null,
-    });
-  } catch (_) {}
 }
 
 // ── NAV ──

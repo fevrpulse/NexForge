@@ -233,9 +233,16 @@ create table if not exists public.game_sessions (
   max_ping_ms numeric,
   tips text[] default '{}',
   samples jsonb default '[]'::jsonb,
+  kills integer,
+  deaths integer,
+  assists integer,
   started_at timestamptz not null,
   ended_at timestamptz not null default now()
 );
+
+alter table public.game_sessions add column if not exists kills integer;
+alter table public.game_sessions add column if not exists deaths integer;
+alter table public.game_sessions add column if not exists assists integer;
 
 create index if not exists game_sessions_user_id_ended_at_idx
   on public.game_sessions (user_id, ended_at desc);
@@ -250,6 +257,12 @@ create policy "Users can view own game sessions"
 drop policy if exists "Users can insert own game sessions" on public.game_sessions;
 create policy "Users can insert own game sessions"
   on public.game_sessions for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own game sessions" on public.game_sessions;
+create policy "Users can update own game sessions"
+  on public.game_sessions for update
+  using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 -- Additive: public duel queues + mutual result reporting
 -- Paste into Supabase SQL editor
@@ -272,6 +285,8 @@ create table if not exists public.duels (
     check (status in ('open', 'active', 'completed', 'cancelled')),
   host_winner_pick uuid,
   challenger_winner_pick uuid,
+  host_combat_stats jsonb,
+  challenger_combat_stats jsonb,
   winner_id uuid,
   loser_id uuid,
   mmr_change integer default 0,
@@ -279,6 +294,9 @@ create table if not exists public.duels (
   updated_at timestamptz not null default now(),
   completed_at timestamptz
 );
+
+alter table public.duels add column if not exists host_combat_stats jsonb;
+alter table public.duels add column if not exists challenger_combat_stats jsonb;
 
 create index if not exists duels_status_created_idx
   on public.duels (status, created_at desc);
@@ -387,8 +405,18 @@ begin
 end;
 $$;
 
--- Participants submit who won. When both agree, MMR + match history are written.
-create or replace function public.submit_duel_winner(p_duel_id uuid, p_winner_id uuid)
+-- Participants submit who won (+ optional K/D/A). When both agree, MMR + match history are written.
+-- See combat-stats.sql for the full replace on existing databases.
+drop function if exists public.submit_duel_winner(uuid, uuid);
+drop function if exists public.submit_duel_winner(uuid, uuid, integer, integer, integer);
+
+create or replace function public.submit_duel_winner(
+  p_duel_id uuid,
+  p_winner_id uuid,
+  p_kills integer default null,
+  p_deaths integer default null,
+  p_assists integer default null
+)
 returns public.duels
 language plpgsql
 security definer
@@ -402,6 +430,15 @@ declare
   change integer := 15;
   host_new integer;
   chal_new integer;
+  my_stats jsonb;
+  host_stats jsonb;
+  chal_stats jsonb;
+  host_k integer;
+  host_d integer;
+  host_a integer;
+  chal_k integer;
+  chal_d integer;
+  chal_a integer;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -421,30 +458,51 @@ begin
     raise exception 'Winner must be one of the duel players';
   end if;
 
+  if p_kills is not null or p_deaths is not null or p_assists is not null then
+    if p_kills is null or p_deaths is null or p_assists is null then
+      raise exception 'Provide kills, deaths, and assists together';
+    end if;
+    if p_kills < 0 or p_deaths < 0 or p_assists < 0 then
+      raise exception 'Combat stats cannot be negative';
+    end if;
+    my_stats := jsonb_build_object(
+      'kills', p_kills,
+      'deaths', p_deaths,
+      'assists', p_assists,
+      'kda', round(((p_kills + p_assists)::numeric / greatest(p_deaths, 1)), 2)
+    );
+  else
+    my_stats := null;
+  end if;
+
   if auth.uid() = d.host_id then
     update public.duels
-      set host_winner_pick = p_winner_id, updated_at = now()
+      set host_winner_pick = p_winner_id,
+          host_combat_stats = coalesce(my_stats, host_combat_stats),
+          updated_at = now()
       where id = p_duel_id
       returning * into d;
     other_pick := d.challenger_winner_pick;
   else
     update public.duels
-      set challenger_winner_pick = p_winner_id, updated_at = now()
+      set challenger_winner_pick = p_winner_id,
+          challenger_combat_stats = coalesce(my_stats, challenger_combat_stats),
+          updated_at = now()
       where id = p_duel_id
       returning * into d;
     other_pick := d.host_winner_pick;
   end if;
 
-  -- Waiting on the other player
   if other_pick is null then
     return d;
   end if;
 
-  -- Disagreement: clear picks so both re-select (do not RAISE — that would roll back the clear)
   if other_pick is distinct from p_winner_id then
     update public.duels
       set host_winner_pick = null,
           challenger_winner_pick = null,
+          host_combat_stats = null,
+          challenger_combat_stats = null,
           updated_at = now()
       where id = p_duel_id
       returning * into d;
@@ -461,13 +519,16 @@ begin
   host_new := greatest(800, d.host_mmr + case when agreed_winner = d.host_id then change else -change end);
   chal_new := greatest(800, coalesce(d.challenger_mmr, 1200) + case when agreed_winner = d.challenger_id then change else -change end);
 
+  host_stats := coalesce(d.host_combat_stats, '{}'::jsonb);
+  chal_stats := coalesce(d.challenger_combat_stats, '{}'::jsonb);
+
   insert into public.matches (user_id, game, mode, result, mmr_change, stats, duration, played_at)
   values
     (
       d.host_id, d.game, d.mode,
       case when agreed_winner = d.host_id then 'win' else 'loss' end,
       case when agreed_winner = d.host_id then change else -change end,
-      jsonb_build_object(
+      host_stats || jsonb_build_object(
         'duel_id', d.id,
         'opponent', d.challenger_tag,
         'server', d.server,
@@ -480,7 +541,7 @@ begin
       d.challenger_id, d.game, d.mode,
       case when agreed_winner = d.challenger_id then 'win' else 'loss' end,
       case when agreed_winner = d.challenger_id then change else -change end,
-      jsonb_build_object(
+      chal_stats || jsonb_build_object(
         'duel_id', d.id,
         'opponent', d.host_tag,
         'server', d.server,
@@ -490,16 +551,29 @@ begin
       now()
     );
 
+  host_k := coalesce((host_stats->>'kills')::integer, 0);
+  host_d := coalesce((host_stats->>'deaths')::integer, 0);
+  host_a := coalesce((host_stats->>'assists')::integer, 0);
+  chal_k := coalesce((chal_stats->>'kills')::integer, 0);
+  chal_d := coalesce((chal_stats->>'deaths')::integer, 0);
+  chal_a := coalesce((chal_stats->>'assists')::integer, 0);
+
   update public.profiles
     set mmr = host_new,
         wins = wins + case when agreed_winner = d.host_id then 1 else 0 end,
-        losses = losses + case when agreed_winner = d.host_id then 0 else 1 end
+        losses = losses + case when agreed_winner = d.host_id then 0 else 1 end,
+        total_kills = total_kills + host_k,
+        total_deaths = total_deaths + host_d,
+        total_assists = total_assists + host_a
     where id = d.host_id;
 
   update public.profiles
     set mmr = chal_new,
         wins = wins + case when agreed_winner = d.challenger_id then 1 else 0 end,
-        losses = losses + case when agreed_winner = d.challenger_id then 0 else 1 end
+        losses = losses + case when agreed_winner = d.challenger_id then 0 else 1 end,
+        total_kills = total_kills + chal_k,
+        total_deaths = total_deaths + chal_d,
+        total_assists = total_assists + chal_a
     where id = d.challenger_id;
 
   update public.duels
@@ -518,5 +592,8 @@ $$;
 
 grant execute on function public.accept_duel(uuid) to authenticated;
 grant execute on function public.cancel_duel(uuid) to authenticated;
-grant execute on function public.submit_duel_winner(uuid, uuid) to authenticated;
+grant execute on function public.submit_duel_winner(uuid, uuid, integer, integer, integer) to authenticated;
+
+-- After initial setup, also run security-hardening.sql (bank/PII view, duel cancel
+-- policy, profile column grants, add_session_combat).
 

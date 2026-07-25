@@ -2,14 +2,21 @@ const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
 const { GameTracker } = require('./game-tracker');
 
 const AUTH_PORT = 17890;
 const AUTH_HOST = '127.0.0.1';
+const ALLOWED_EXTERNAL_HOSTS = new Set([
+  'nfaxokwpmaxyhnvatrwf.supabase.co',
+  'github.com',
+  'www.github.com',
+]);
 
 let mainWindow = null;
 let authServer = null;
 let pendingAuthTokens = null;
+let authNonce = null;
 const gameTracker = new GameTracker();
 
 function sendToRenderer(channel, payload) {
@@ -18,10 +25,16 @@ function sendToRenderer(channel, payload) {
   }
 }
 
+function rotateAuthNonce() {
+  authNonce = crypto.randomBytes(24).toString('hex');
+  return authNonce;
+}
+
 function setupGameTracker() {
   gameTracker.on('started', (session) => sendToRenderer('game-session-started', session));
   gameTracker.on('sample', (payload) => sendToRenderer('game-session-sample', payload));
   gameTracker.on('ended', (summary) => sendToRenderer('game-session-ended', summary));
+  gameTracker.on('cancelled', (payload) => sendToRenderer('game-session-cancelled', payload || {}));
 }
 
 function setupAutoUpdater() {
@@ -107,7 +120,23 @@ function startAuthServer() {
         req.on('end', () => {
           try {
             const tokens = JSON.parse(body);
-            deliverAuthTokens(tokens);
+            if (!authNonce || tokens.nonce !== authNonce) {
+              res.writeHead(403, { 'Content-Type': 'text/plain' });
+              res.end('Invalid auth nonce');
+              return;
+            }
+            if (!tokens.access_token || !tokens.refresh_token) {
+              res.writeHead(400, { 'Content-Type': 'text/plain' });
+              res.end('Missing tokens');
+              return;
+            }
+            // One-time use
+            authNonce = null;
+            deliverAuthTokens({
+              access_token: tokens.access_token,
+              refresh_token: tokens.refresh_token,
+              needs_onboarding: !!tokens.needs_onboarding,
+            });
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(fs.readFileSync(getAuthFile('auth-success.html')));
           } catch {
@@ -131,12 +160,34 @@ function startAuthServer() {
         return;
       }
 
+      // Inject current nonce into auth.html so the browser page can prove it was opened by this app
+      let html = fs.readFileSync(getAuthFile(fileName), 'utf8');
+      if (fileName === 'auth.html') {
+        const nonce = authNonce || rotateAuthNonce();
+        html = html.replace(
+          '/*__NEXFORGE_AUTH_NONCE__*/',
+          `window.__NEXFORGE_AUTH_NONCE__ = ${JSON.stringify(nonce)};`
+        );
+      }
+
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(fs.readFileSync(getAuthFile(fileName)));
+      res.end(html);
     });
 
     authServer.listen(AUTH_PORT, AUTH_HOST, () => resolve(authServer));
   });
+}
+
+function isAllowedNavigation(urlString) {
+  try {
+    const u = new URL(urlString);
+    if (u.protocol === 'file:') return true;
+    if (u.hostname === AUTH_HOST && String(u.port) === String(AUTH_PORT)) return true;
+    if (u.protocol === 'https:' && ALLOWED_EXTERNAL_HOSTS.has(u.hostname)) return true;
+    return false;
+  } catch {
+    return false;
+  }
 }
 
 function createWindow() {
@@ -150,8 +201,23 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // sandbox kept false: GameTracker + native process polling need Node in main;
+      // renderer stays isolated via contextIsolation + preload bridge.
       sandbox: false,
     },
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedNavigation(url)) {
+      shell.openExternal(url);
+    }
+    return { action: 'deny' };
+  });
+
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isAllowedNavigation(url)) {
+      event.preventDefault();
+    }
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -172,13 +238,14 @@ ipcMain.handle('get-pending-auth', () => {
 
 ipcMain.handle('open-auth-browser', async (_event, mode) => {
   await startAuthServer();
+  rotateAuthNonce();
   const tab = mode === 'signup' ? 'signup' : 'login';
   await shell.openExternal(`http://${AUTH_HOST}:${AUTH_PORT}/auth?mode=${tab}`);
 });
 
 ipcMain.handle('start-game-tracking', () => {
   gameTracker.start();
-  return { ok: true };
+  return { ok: true, platform: process.platform };
 });
 
 ipcMain.handle('stop-game-tracking', () => {
@@ -193,12 +260,20 @@ ipcMain.handle('set-ping-probe-host', (_event, host) => {
   return { ok: true, host: host || null };
 });
 
+ipcMain.handle('get-app-info', () => ({
+  platform: process.platform,
+  version: app.getVersion(),
+  packaged: app.isPackaged,
+}));
+
 app.whenReady().then(async () => {
   await startAuthServer();
   createWindow();
   setupGameTracker();
   setupAutoUpdater();
-  gameTracker.start();
+  if (process.platform === 'win32') {
+    gameTracker.start();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

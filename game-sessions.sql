@@ -15,9 +15,16 @@ create table if not exists public.game_sessions (
   max_ping_ms numeric,
   tips text[] default '{}',
   samples jsonb default '[]'::jsonb,
+  kills integer,
+  deaths integer,
+  assists integer,
   started_at timestamptz not null,
   ended_at timestamptz not null default now()
 );
+
+alter table public.game_sessions add column if not exists kills integer;
+alter table public.game_sessions add column if not exists deaths integer;
+alter table public.game_sessions add column if not exists assists integer;
 
 create index if not exists game_sessions_user_id_ended_at_idx
   on public.game_sessions (user_id, ended_at desc);
@@ -32,4 +39,10 @@ create policy "Users can view own game sessions"
 drop policy if exists "Users can insert own game sessions" on public.game_sessions;
 create policy "Users can insert own game sessions"
   on public.game_sessions for insert
+  with check (auth.uid() = user_id);
+
+drop policy if exists "Users can update own game sessions" on public.game_sessions;
+create policy "Users can update own game sessions"
+  on public.game_sessions for update
+  using (auth.uid() = user_id)
   with check (auth.uid() = user_id);

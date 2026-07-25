@@ -5,3 +5,5 @@ dist/
 .env
 *.exe
 *.blockmap
+NexForgeNew*.html
+nexforge-test-run.html

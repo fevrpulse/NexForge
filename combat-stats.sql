@@ -1,146 +1,22 @@
--- Additive: public duel queues + mutual result reporting
--- Paste into Supabase SQL editor
+-- Additive: combat stats (kills / deaths / assists) for shooter duels + sessions
+-- Paste into Supabase SQL editor after duels.sql / game-sessions.sql
 
-create extension if not exists pgcrypto;
+alter table public.duels
+  add column if not exists host_combat_stats jsonb,
+  add column if not exists challenger_combat_stats jsonb;
 
-create table if not exists public.duels (
-  id uuid primary key default gen_random_uuid(),
-  host_id uuid not null references auth.users(id) on delete cascade,
-  host_tag text not null,
-  host_mmr integer not null default 1200,
-  challenger_id uuid references auth.users(id) on delete set null,
-  challenger_tag text,
-  challenger_mmr integer,
-  game text not null,
-  mode text,
-  details text,
-  server text,
-  status text not null default 'open'
-    check (status in ('open', 'active', 'completed', 'cancelled')),
-  host_winner_pick uuid,
-  challenger_winner_pick uuid,
-  host_combat_stats jsonb,
-  challenger_combat_stats jsonb,
-  winner_id uuid,
-  loser_id uuid,
-  mmr_change integer default 0,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  completed_at timestamptz
-);
+alter table public.game_sessions
+  add column if not exists kills integer,
+  add column if not exists deaths integer,
+  add column if not exists assists integer;
 
-alter table public.duels add column if not exists host_combat_stats jsonb;
-alter table public.duels add column if not exists challenger_combat_stats jsonb;
+drop policy if exists "Users can update own game sessions" on public.game_sessions;
+create policy "Users can update own game sessions"
+  on public.game_sessions for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
-create index if not exists duels_status_created_idx
-  on public.duels (status, created_at desc);
-
-create index if not exists duels_host_id_idx on public.duels (host_id);
-create index if not exists duels_challenger_id_idx on public.duels (challenger_id);
-
-alter table public.duels enable row level security;
-
-drop policy if exists "Anyone can view duels" on public.duels;
-create policy "Anyone can view duels"
-  on public.duels for select
-  using (true);
-
-drop policy if exists "Users can create open duels" on public.duels;
-create policy "Users can create open duels"
-  on public.duels for insert
-  to authenticated
-  with check (auth.uid() = host_id and status = 'open');
-
-drop policy if exists "Hosts can cancel own open duels" on public.duels;
-create policy "Hosts can cancel own open duels"
-  on public.duels for update
-  to authenticated
-  using (auth.uid() = host_id)
-  with check (auth.uid() = host_id);
-
--- Accept an open queue (sets challenger, status active)
-create or replace function public.accept_duel(p_duel_id uuid)
-returns public.duels
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  d public.duels;
-  my_tag text;
-  my_mmr integer;
-begin
-  if auth.uid() is null then
-    raise exception 'Not authenticated';
-  end if;
-
-  select gamer_tag, mmr into my_tag, my_mmr
-  from public.profiles where id = auth.uid();
-
-  if my_tag is null then
-    raise exception 'Profile required';
-  end if;
-
-  select * into d from public.duels where id = p_duel_id for update;
-  if not found then
-    raise exception 'Queue not found';
-  end if;
-  if d.status <> 'open' then
-    raise exception 'Queue is no longer open';
-  end if;
-  if d.host_id = auth.uid() then
-    raise exception 'Cannot accept your own queue';
-  end if;
-
-  update public.duels
-    set challenger_id = auth.uid(),
-        challenger_tag = my_tag,
-        challenger_mmr = coalesce(my_mmr, 1200),
-        status = 'active',
-        updated_at = now()
-    where id = p_duel_id
-    returning * into d;
-
-  return d;
-end;
-$$;
-
--- Host cancels an open queue
-create or replace function public.cancel_duel(p_duel_id uuid)
-returns public.duels
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  d public.duels;
-begin
-  if auth.uid() is null then
-    raise exception 'Not authenticated';
-  end if;
-
-  select * into d from public.duels where id = p_duel_id for update;
-  if not found then
-    raise exception 'Queue not found';
-  end if;
-  if d.host_id <> auth.uid() then
-    raise exception 'Only the host can cancel';
-  end if;
-  if d.status <> 'open' then
-    raise exception 'Only open queues can be cancelled';
-  end if;
-
-  update public.duels
-    set status = 'cancelled', updated_at = now()
-    where id = p_duel_id
-    returning * into d;
-
-  return d;
-end;
-$$;
-
--- Participants submit who won (+ optional K/D/A). When both agree, MMR + match history are written.
--- See combat-stats.sql for the full replace on existing databases.
+-- Replace 2-arg submit with optional combat stats
 drop function if exists public.submit_duel_winner(uuid, uuid);
 drop function if exists public.submit_duel_winner(uuid, uuid, integer, integer, integer);
 
@@ -324,6 +200,4 @@ begin
 end;
 $$;
 
-grant execute on function public.accept_duel(uuid) to authenticated;
-grant execute on function public.cancel_duel(uuid) to authenticated;
 grant execute on function public.submit_duel_winner(uuid, uuid, integer, integer, integer) to authenticated;

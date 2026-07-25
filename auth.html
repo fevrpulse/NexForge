@@ -123,6 +123,7 @@
   </div>
 
   <script>
+    /*__NEXFORGE_AUTH_NONCE__*/
     const SUPABASE_URL = 'https://nfaxokwpmaxyhnvatrwf.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mYXhva3dwbWF4eWhudmF0cndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDc3NTcsImV4cCI6MjA5NDEyMzc1N30.22fLTgCxh5ne9zrod9gc2-idnw6biFUIDNZLEZkJUSk';
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -143,6 +144,11 @@
         throw new Error('Your account was created, but email confirmation may be required before you can sign in.');
       }
 
+      const nonce = window.__NEXFORGE_AUTH_NONCE__;
+      if (!nonce) {
+        throw new Error('Auth session expired. Close this tab and sign in again from the NexForge app.');
+      }
+
       const response = await fetch('/callback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -150,11 +156,12 @@
           access_token: session.access_token,
           refresh_token: session.refresh_token,
           needs_onboarding: needsOnboarding,
+          nonce,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Could not connect to the NexForge app. Make sure it is running.');
+        throw new Error('Could not connect to the NexForge app. Make sure it is running, then try again.');
       }
 
       window.location.href = '/success';
