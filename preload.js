@@ -7,4 +7,17 @@ contextBridge.exposeInMainWorld('nexforge', {
   onAuthCallback: (callback) => {
     ipcRenderer.on('auth-callback', (_event, tokens) => callback(tokens));
   },
+  startGameTracking: () => ipcRenderer.invoke('start-game-tracking'),
+  stopGameTracking: () => ipcRenderer.invoke('stop-game-tracking'),
+  getActiveGameSession: () => ipcRenderer.invoke('get-active-game-session'),
+  setPingProbeHost: (host) => ipcRenderer.invoke('set-ping-probe-host', host),
+  onGameSessionStarted: (callback) => {
+    ipcRenderer.on('game-session-started', (_event, session) => callback(session));
+  },
+  onGameSessionSample: (callback) => {
+    ipcRenderer.on('game-session-sample', (_event, payload) => callback(payload));
+  },
+  onGameSessionEnded: (callback) => {
+    ipcRenderer.on('game-session-ended', (_event, summary) => callback(summary));
+  },
 });

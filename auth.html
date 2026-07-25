@@ -185,8 +185,20 @@
         return;
       }
 
+      let needsOnboarding = false;
       try {
-        await sendSessionToApp(data.session, false);
+        const { data: profile } = await sb
+          .from('profiles')
+          .select('onboarding_done')
+          .eq('id', data.user.id)
+          .maybeSingle();
+        needsOnboarding = profile ? profile.onboarding_done === false : false;
+      } catch (_) {
+        needsOnboarding = false;
+      }
+
+      try {
+        await sendSessionToApp(data.session, needsOnboarding);
       } catch (err) {
         msg.className = 'auth-msg error';
         msg.textContent = err.message;
@@ -240,6 +252,8 @@
         wins: 0,
         losses: 0,
         main_game: 'Valorant',
+        main_game_description: null,
+        onboarding_done: false,
         created_at: new Date().toISOString(),
       });
 

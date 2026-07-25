@@ -246,7 +246,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14
 .tourney-name{font-size:13px;font-weight:700;margin-bottom:3px}
 .tourney-game{font-family:var(--mono);font-size:10px;color:var(--muted2)}
 .prize{color:var(--neon);font-weight:800;font-size:14px;font-family:var(--mono)}
-.tourney-meta{display:flex;gap:14px;font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.tourney-meta{display:flex;gap:14px;font-family:var(--mono);font-size:10px;color:var(--muted2);flex-wrap:wrap}
+.tourney-empty{
+  text-align:center;padding:36px 20px;border:1px dashed var(--border2);border-radius:12px;
+  font-family:var(--mono);font-size:12px;color:var(--muted2);margin-bottom:16px;
+}
+.prize-type-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
+.prize-type-btn{
+  padding:12px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel);
+  color:var(--muted2);font-family:var(--font);font-size:12px;font-weight:700;cursor:pointer;transition:all .15s;
+}
+.prize-type-btn.active{border-color:var(--neon);background:var(--neon2);color:var(--neon)}
+.tourney-filter{cursor:pointer;padding:5px 12px}
+.tourney-filter.active{background:rgba(201,255,0,.12);color:var(--neon);border:1px solid rgba(201,255,0,.2)}
+#tourney-create-panel{display:none;margin-bottom:18px}
+#tourney-create-panel.open{display:block}
+.bank-box{
+  border:1px solid rgba(255,61,31,.25);background:rgba(255,61,31,.05);
+  border-radius:10px;padding:14px;margin-bottom:14px;
+}
+.bank-box .bank-title{font-family:var(--mono);font-size:10px;letter-spacing:1px;color:var(--red);text-transform:uppercase;margin-bottom:8px}
+.bank-box .bank-note{font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.6;margin-bottom:12px}
 
 /* LEADERBOARD */
 .player-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
@@ -300,6 +320,22 @@ select:focus{border-color:var(--neon)}
 .modal h2{font-size:18px;font-weight:800;margin-bottom:6px}
 .modal p{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-bottom:24px;line-height:1.6}
 .modal-step{font-family:var(--mono);font-size:10px;color:var(--neon);letter-spacing:1px;margin-bottom:8px}
+.modal .field{margin-bottom:14px}
+.modal .field label{
+  display:block;font-family:var(--mono);font-size:10px;color:var(--muted2);
+  letter-spacing:.5px;text-transform:uppercase;margin-bottom:6px;
+}
+.modal .field select,
+.modal .field input,
+.modal .field textarea{
+  width:100%;background:var(--panel);color:var(--text);border:1px solid var(--border2);
+  border-radius:8px;padding:11px 14px;font-size:13px;font-family:var(--font);outline:none;
+}
+.modal .field textarea{min-height:72px;resize:vertical;line-height:1.45}
+.modal .field select:focus,
+.modal .field input:focus,
+.modal .field textarea:focus{border-color:var(--neon)}
+.hidden{display:none!important}
 
 /* TOAST */
 .toast{
@@ -353,6 +389,45 @@ select:focus{border-color:var(--neon)}
 .lock-box h3{font-size:18px;font-weight:800;margin-bottom:8px}
 .lock-box p{font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.7;margin-bottom:24px}
 .lock-actions{display:flex;flex-direction:column;gap:8px}
+
+/* GAME SESSION TRACKING */
+.track-banner{
+  display:none;align-items:center;justify-content:space-between;gap:16px;
+  margin-bottom:16px;padding:12px 16px;border-radius:12px;
+  background:rgba(201,255,0,.06);border:1px solid rgba(201,255,0,.22);
+}
+.track-banner.active{display:flex}
+.track-banner-left{display:flex;flex-direction:column;gap:4px;min-width:0}
+.track-banner-title{font-size:13px;font-weight:700}
+.track-banner-title span{color:var(--neon)}
+.track-banner-sub{font-family:var(--mono);font-size:10px;color:var(--muted2)}
+.track-metrics{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11px}
+.track-metrics b{color:var(--text);font-weight:600}
+.session-metric-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:18px 0 16px;
+}
+.session-metric{
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px;
+}
+.session-metric .lbl{font-family:var(--mono);font-size:9px;color:var(--muted2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
+.session-metric .val{font-size:18px;font-weight:800}
+.session-tips{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.session-tip{
+  font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.55;
+  padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);
+}
+.session-row{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:12px 0;border-bottom:1px solid var(--border);
+}
+.session-row:last-child{border-bottom:none}
+.session-row-game{font-size:13px;font-weight:700}
+.session-row-meta{font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:3px}
+.session-row-stats{font-family:var(--mono);font-size:10px;color:var(--text);text-align:right;line-height:1.6}
+@media (max-width:900px){
+  .track-banner{flex-direction:column;align-items:flex-start}
+  .session-metric-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -396,12 +471,11 @@ select:focus{border-color:var(--neon)}
 <div class="modal-overlay hidden" id="onboarding-modal">
   <div class="modal">
     <div class="modal-step">STEP 1 OF 1 — ALMOST THERE</div>
-    <h2>Welcome to NexForge ⚡</h2>
-    <p>Your account is live. Pick your main game to get matched with the right players and tournaments from day one.</p>
+    <h2>Welcome to NexForge</h2>
+    <p>Your account is live. Pick your main game so we can match you with the right players and tournaments.</p>
     <div class="field">
-      <label>Your Main Game</label>
-      <select id="onboard-game" style="width:100%;background:var(--panel);color:var(--text);border:1px solid var(--border2);border-radius:8px;padding:11px 14px;font-size:13px;font-family:var(--font);outline:none;margin-bottom:16px">
-
+      <label for="onboard-game">Your Main Game</label>
+      <select id="onboard-game" onchange="toggleCustomGameFields('onboard')">
         <optgroup label="Shooters">
           <option value="Valorant">Valorant</option>
           <option value="CS2">CS2</option>
@@ -424,15 +498,85 @@ select:focus{border-color:var(--neon)}
           <option value="League of Legends">League of Legends</option>
           <option value="Dota 2">Dota 2</option>
         </optgroup>
-        <optgroup label="Other">
+        <optgroup label="Sandbox &amp; Open World">
           <option value="Minecraft">Minecraft</option>
           <option value="Roblox">Roblox</option>
           <option value="GTA Online">GTA Online</option>
         </optgroup>
-
+        <optgroup label="Not listed">
+          <option value="__other__">Other — type your own</option>
+        </optgroup>
       </select>
     </div>
+    <div id="onboard-other-fields" class="hidden" style="margin-top:4px">
+      <div class="field">
+        <label for="onboard-custom-name">Game name</label>
+        <input type="text" id="onboard-custom-name" placeholder="e.g. Deadlock, Helldivers 2" maxlength="60" />
+      </div>
+      <div class="field">
+        <label for="onboard-custom-desc">Description <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(optional)</span></label>
+        <textarea id="onboard-custom-desc" placeholder="What do you usually play — ranked, casual, role, etc." maxlength="280"></textarea>
+      </div>
+    </div>
     <button class="auth-btn" onclick="completeOnboarding()">Let's Go →</button>
+  </div>
+</div>
+
+<!-- CHANGE MAIN GAME MODAL -->
+<div class="modal-overlay hidden" id="change-game-modal">
+  <div class="modal">
+    <div class="modal-step">PROFILE</div>
+    <h2>Change main game</h2>
+    <p>Update the game that shows on your profile and helps matchmaking recommendations.</p>
+    <div class="field">
+      <label for="change-game">Main Game</label>
+      <select id="change-game" onchange="toggleCustomGameFields('change')">
+        <optgroup label="Shooters">
+          <option value="Valorant">Valorant</option>
+          <option value="CS2">CS2</option>
+          <option value="Call of Duty: Warzone">Call of Duty: Warzone</option>
+          <option value="Overwatch 2">Overwatch 2</option>
+          <option value="Halo Infinite">Halo Infinite</option>
+        </optgroup>
+        <optgroup label="Battle Royale">
+          <option value="Apex Legends">Apex Legends</option>
+          <option value="Fortnite">Fortnite</option>
+          <option value="PUBG">PUBG</option>
+          <option value="Fall Guys">Fall Guys</option>
+        </optgroup>
+        <optgroup label="Sports &amp; Racing">
+          <option value="Rocket League">Rocket League</option>
+          <option value="FIFA 25">FIFA 25</option>
+          <option value="NBA 2K25">NBA 2K25</option>
+        </optgroup>
+        <optgroup label="MOBA &amp; Strategy">
+          <option value="League of Legends">League of Legends</option>
+          <option value="Dota 2">Dota 2</option>
+        </optgroup>
+        <optgroup label="Sandbox &amp; Open World">
+          <option value="Minecraft">Minecraft</option>
+          <option value="Roblox">Roblox</option>
+          <option value="GTA Online">GTA Online</option>
+        </optgroup>
+        <optgroup label="Not listed">
+          <option value="__other__">Other — type your own</option>
+        </optgroup>
+      </select>
+    </div>
+    <div id="change-other-fields" class="hidden" style="margin-top:4px">
+      <div class="field">
+        <label for="change-custom-name">Game name</label>
+        <input type="text" id="change-custom-name" placeholder="e.g. Deadlock, Helldivers 2" maxlength="60" />
+      </div>
+      <div class="field">
+        <label for="change-custom-desc">Description <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(optional)</span></label>
+        <textarea id="change-custom-desc" placeholder="What do you usually play — ranked, casual, role, etc." maxlength="280"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="action-btn ghost full" onclick="closeChangeMainGame()">Cancel</button>
+      <button class="action-btn primary full" onclick="saveChangedMainGame()">Save</button>
+    </div>
   </div>
 </div>
 
@@ -446,6 +590,24 @@ select:focus{border-color:var(--neon)}
       <button class="auth-btn" onclick="openBrowserAuthFromGuest()" style="margin-top:0">Create Free Account →</button>
       <button onclick="document.getElementById('lock-modal').classList.add('hidden')" style="padding:10px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--muted2);font-family:var(--font);font-size:13px;cursor:pointer;">Maybe later</button>
     </div>
+  </div>
+</div>
+
+<!-- SESSION FEEDBACK MODAL -->
+<div class="modal-overlay hidden" id="session-feedback-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-step">SESSION COMPLETE</div>
+    <h2 id="sf-title">How your game went</h2>
+    <p id="sf-sub">Performance summary from this play session.</p>
+    <div class="session-metric-grid">
+      <div class="session-metric"><div class="lbl">Duration</div><div class="val" id="sf-duration">—</div></div>
+      <div class="session-metric"><div class="lbl">Avg Ping</div><div class="val" id="sf-ping">—</div></div>
+      <div class="session-metric"><div class="lbl">Avg RAM</div><div class="val" id="sf-ram">—</div></div>
+      <div class="session-metric"><div class="lbl">Avg CPU</div><div class="val" id="sf-cpu">—</div></div>
+    </div>
+    <div class="card-title" style="margin-bottom:8px">Feedback</div>
+    <div class="session-tips" id="sf-tips"></div>
+    <button class="action-btn primary full" onclick="closeSessionFeedback()">Got it</button>
   </div>
 </div>
 
@@ -492,6 +654,17 @@ select:focus{border-color:var(--neon)}
 
         <!-- DASHBOARD -->
         <div class="screen active" id="screen-dashboard">
+          <div class="track-banner" id="track-banner">
+            <div class="track-banner-left">
+              <div class="track-banner-title">Tracking <span id="track-game-name">—</span></div>
+              <div class="track-banner-sub" id="track-duration">Session in progress · network ping is a probe, not in-game tick latency</div>
+            </div>
+            <div class="track-metrics">
+              <div>RAM <b id="track-ram">—</b></div>
+              <div>CPU <b id="track-cpu">—</b></div>
+              <div>Ping <b id="track-ping">—</b></div>
+            </div>
+          </div>
           <div class="stats-grid">
             <div class="stat-card"><div class="stat-label">MMR Rating</div><div class="stat-val neon" id="d-mmr">—</div><div class="stat-sub up">Your rank score</div></div>
             <div class="stat-card"><div class="stat-label">Win Rate</div><div class="stat-val" id="d-wr">—</div><div class="stat-sub" id="d-wr-sub">No matches yet</div></div>
@@ -645,28 +818,134 @@ select:focus{border-color:var(--neon)}
 
         <!-- TOURNAMENTS -->
         <div class="screen" id="screen-tournaments">
-          <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
-            <span class="badge badge-neon" style="cursor:pointer;padding:5px 12px">Open</span>
-            <span class="badge badge-muted" style="cursor:pointer;padding:5px 12px">Registered</span>
-            <span class="badge badge-muted" style="cursor:pointer;padding:5px 12px">Completed</span>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+            <div style="display:flex;gap:8px;flex-wrap:wrap" id="tourney-filters">
+              <span class="badge badge-neon tourney-filter active" data-filter="open" onclick="setTournamentFilter('open',this)">Open</span>
+              <span class="badge badge-muted tourney-filter" data-filter="registered" onclick="setTournamentFilter('registered',this)">Registered</span>
+              <span class="badge badge-muted tourney-filter" data-filter="completed" onclick="setTournamentFilter('completed',this)">Completed</span>
+            </div>
+            <button class="action-btn primary" onclick="toggleTournamentCreate()">+ Create Tournament</button>
           </div>
-          <div class="tourney-card">
-            <div class="tourney-top"><div><div class="tourney-name">NexForge Open #12</div><div class="tourney-game">Valorant · 5v5 · PC</div></div><div class="prize">$500</div></div>
-            <div class="tourney-meta"><span>📅 Starts May 20</span><span>👥 64/128 teams</span><span>⏱ 2 days left</span></div>
+
+          <div id="tourney-create-panel" class="card mm-form">
+            <div class="card-title">Create a Tournament</div>
+
+            <div class="field">
+              <label for="t-name">Tournament Title</label>
+              <input type="text" id="t-name" maxlength="80" placeholder="e.g. Friday Night Valorant Cup" />
+            </div>
+
+            <div class="filter-row" style="margin-bottom:14px">
+              <div class="field" style="margin:0">
+                <label for="t-game">Game</label>
+                <select id="t-game">
+                  <option>Valorant</option><option>CS2</option><option>Call of Duty: Warzone</option>
+                  <option>Overwatch 2</option><option>Halo Infinite</option><option>Apex Legends</option>
+                  <option>Fortnite</option><option>PUBG</option><option>Fall Guys</option>
+                  <option>Rocket League</option><option>FIFA 25</option><option>NBA 2K25</option>
+                  <option>League of Legends</option><option>Dota 2</option><option>Minecraft</option>
+                  <option>Roblox</option><option>GTA Online</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0">
+                <label for="t-format">Format</label>
+                <select id="t-format">
+                  <option>1v1</option><option>2v2</option><option selected>5v5</option>
+                  <option>Solo BR</option><option>Squad BR</option><option>Custom</option>
+                </select>
+              </div>
+              <div class="field" style="margin:0">
+                <label for="t-slots">Max Players / Teams</label>
+                <input type="number" id="t-slots" min="2" max="256" value="16" />
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="t-start">Start Date &amp; Time</label>
+              <input type="datetime-local" id="t-start" />
+            </div>
+
+            <div class="field">
+              <label for="t-rules">Rules / Details</label>
+              <textarea id="t-rules" placeholder="Bracket type, check-in window, map pool, eligibility rules..."></textarea>
+            </div>
+
+            <div style="font-family:var(--mono);font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Prize Type</div>
+            <div class="prize-type-row">
+              <button type="button" class="prize-type-btn active" id="prize-btn-cash" onclick="setPrizeType('cash')">Cash</button>
+              <button type="button" class="prize-type-btn" id="prize-btn-inapp" onclick="setPrizeType('inapp')">In-App Reward</button>
+              <button type="button" class="prize-type-btn" id="prize-btn-both" onclick="setPrizeType('both')">Cash + In-App</button>
+            </div>
+
+            <div id="prize-cash-fields">
+              <div class="field">
+                <label for="t-cash">Cash Prize Amount (USD)</label>
+                <input type="number" id="t-cash" min="1" step="1" placeholder="e.g. 100" />
+              </div>
+
+              <div class="bank-box">
+                <div class="bank-title">Organizer bank info required for cash prizes</div>
+                <div class="bank-note">
+                  To offer a cash prize, you must provide bank details used to fund the payout so the winner can be paid.
+                  This information is only used for prize fulfillment and is never shown on the public tournament card.
+                </div>
+                <div class="field">
+                  <label for="t-bank-holder">Account Holder Full Legal Name</label>
+                  <input type="text" id="t-bank-holder" placeholder="Name on the bank account" />
+                </div>
+                <div class="field">
+                  <label for="t-bank-name">Bank Name</label>
+                  <input type="text" id="t-bank-name" placeholder="e.g. Chase, Bank of America" />
+                </div>
+                <div class="filter-row" style="margin-bottom:14px">
+                  <div class="field" style="margin:0">
+                    <label for="t-bank-routing">Routing Number</label>
+                    <input type="text" id="t-bank-routing" inputmode="numeric" maxlength="9" placeholder="9 digits" />
+                  </div>
+                  <div class="field" style="margin:0">
+                    <label for="t-bank-account">Account Number</label>
+                    <input type="text" id="t-bank-account" inputmode="numeric" maxlength="17" placeholder="Account number" />
+                  </div>
+                  <div class="field" style="margin:0">
+                    <label for="t-bank-type">Account Type</label>
+                    <select id="t-bank-type">
+                      <option value="checking">Checking</option>
+                      <option value="savings">Savings</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="filter-row" style="margin-bottom:0">
+                  <div class="field" style="margin:0">
+                    <label for="t-bank-country">Country</label>
+                    <input type="text" id="t-bank-country" value="United States" />
+                  </div>
+                  <div class="field" style="margin:0">
+                    <label for="t-bank-email">Payout Contact Email</label>
+                    <input type="email" id="t-bank-email" placeholder="you@email.com" />
+                  </div>
+                  <div class="field" style="margin:0">
+                    <label for="t-bank-phone">Payout Contact Phone</label>
+                    <input type="tel" id="t-bank-phone" placeholder="+1 555 000 0000" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="prize-inapp-fields" style="display:none">
+              <div class="field">
+                <label for="t-inapp">In-App Reward Details</label>
+                <textarea id="t-inapp" placeholder="e.g. 5,000 NexForge XP, exclusive badge, profile flair, or seasonal reward pack"></textarea>
+              </div>
+            </div>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="action-btn primary" id="t-create-btn" onclick="createTournament()">Publish Tournament</button>
+              <button class="action-btn ghost" onclick="toggleTournamentCreate(false)">Cancel</button>
+            </div>
+            <div class="auth-msg" id="t-create-msg" style="text-align:left;margin-top:10px"></div>
           </div>
-          <div class="tourney-card">
-            <div class="tourney-top"><div><div class="tourney-name">Apex Invitational S2</div><div class="tourney-game">Apex Legends · BR · All Platforms</div></div><div class="prize">$1,200</div></div>
-            <div class="tourney-meta"><span>📅 Starts May 25</span><span>👥 40/60 players</span><span>⏱ 7 days left</span></div>
-          </div>
-          <div class="tourney-card">
-            <div class="tourney-top"><div><div class="tourney-name">Rocket League 3v3 Cup</div><div class="tourney-game">Rocket League · All Platforms</div></div><div class="prize">$250</div></div>
-            <div class="tourney-meta"><span>📅 Starts May 22</span><span>👥 28/32 teams</span><span>⏱ 4 days left</span></div>
-          </div>
-          <div class="tourney-card">
-            <div class="tourney-top"><div><div class="tourney-name">Weekend Warriors #8</div><div class="tourney-game">Valorant · 5v5 · Open Skill</div></div><div class="prize">$100</div></div>
-            <div class="tourney-meta"><span>📅 Starts May 24</span><span>👥 12/32 teams</span><span>⏱ 6 days left</span></div>
-          </div>
-          <button class="action-btn primary" onclick="showToast('Tournament creation coming soon!','success')" style="margin-top:4px">+ Create Tournament</button>
+
+          <div id="tourney-list"></div>
         </div>
 
         <!-- LEADERBOARD -->
@@ -685,6 +964,16 @@ select:focus{border-color:var(--neon)}
               <div class="profile-name" id="p-name">Loading...</div>
               <div class="profile-sub" id="p-sub">Member since —</div>
               <div class="profile-tags" id="p-tags"></div>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-title">Main Game</div>
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+              <div style="min-width:0">
+                <div style="font-size:15px;font-weight:700" id="p-main-game">—</div>
+                <div style="font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:6px;line-height:1.5" id="p-main-game-desc">No description</div>
+              </div>
+              <button class="action-btn ghost" style="padding:8px 14px;flex-shrink:0" onclick="openChangeMainGame()">Change</button>
             </div>
           </div>
           <div class="stats-grid" style="grid-template-columns:repeat(3,1fr)">
@@ -717,6 +1006,10 @@ select:focus{border-color:var(--neon)}
               <div class="card-title">Profile Info</div>
               <div id="a-profile-info"><div style="font-family:var(--mono);font-size:11px;color:var(--muted2)">Loading...</div></div>
             </div>
+          </div>
+          <div class="card" style="margin-top:16px">
+            <div class="card-title">Performance Sessions</div>
+            <div id="a-sessions-list"><div style="font-family:var(--mono);font-size:11px;color:var(--muted2);padding:16px 0;text-align:center">Play a tracked game to see RAM, CPU, and ping summaries here</div></div>
           </div>
         </div>
 
@@ -766,6 +1059,8 @@ const GUEST_LOCKED_LABELS = {
 };
 
 async function init() {
+  setupGameSessionTracking();
+
   if (window.nexforge?.onAuthCallback) {
     window.nexforge.onAuthCallback(handleAuthCallback);
     const pending = await window.nexforge.getPendingAuth?.();
@@ -780,6 +1075,9 @@ async function init() {
     currentUser = session.user;
     await loadProfile();
     showApp();
+    if (currentProfile?.onboarding_done === false) {
+      openOnboardingModal();
+    }
   } else {
     showAuth();
   }
@@ -811,6 +1109,9 @@ function showApp() {
     loadLeaderboard();
   }
   setTimeout(renderModes, 200);
+  window.nexforge?.startGameTracking?.();
+  refreshActiveGameSessionBanner();
+  loadPerformanceSessions();
 }
 
 function showAuth() {
@@ -850,6 +1151,7 @@ function openBrowserAuthFromGuest(mode = 'signup') {
 
 function requireAccount(featureId) {
   if (!isGuest) return false; // not a guest, allow
+  if (!GUEST_LOCKED.includes(featureId)) return false; // guests can browse unlocked tabs
   const msg = GUEST_LOCKED_LABELS[featureId] || 'This feature requires an account';
   document.getElementById('lock-title').textContent = 'Account Required 🔒';
   document.getElementById('lock-msg').textContent = msg + '. Create a free NexForge account to unlock everything — it takes 30 seconds.';
@@ -932,19 +1234,131 @@ async function handleAuthCallback(tokens) {
   await loadProfile();
   showApp();
 
-  if (tokens.needs_onboarding) {
-    document.getElementById('onboarding-modal').classList.remove('hidden');
+  if (tokens.needs_onboarding || currentProfile?.onboarding_done === false) {
+    openOnboardingModal();
   }
 
   showToast('Signed in successfully', 'success');
 }
 
+const KNOWN_MAIN_GAMES = [
+  'Valorant','CS2','Call of Duty: Warzone','Overwatch 2','Halo Infinite',
+  'Apex Legends','Fortnite','PUBG','Fall Guys','Rocket League','FIFA 25','NBA 2K25',
+  'League of Legends','Dota 2','Minecraft','Roblox','GTA Online'
+];
+
+function toggleCustomGameFields(prefix) {
+  const select = document.getElementById(`${prefix}-game`);
+  const other = document.getElementById(`${prefix}-other-fields`);
+  if (!select || !other) return;
+  const isOther = select.value === '__other__';
+  other.classList.toggle('hidden', !isOther);
+}
+
+function readMainGameSelection(prefix) {
+  const select = document.getElementById(`${prefix}-game`);
+  const value = select?.value || '';
+  if (value === '__other__') {
+    const name = (document.getElementById(`${prefix}-custom-name`)?.value || '').trim();
+    const desc = (document.getElementById(`${prefix}-custom-desc`)?.value || '').trim();
+    if (!name) {
+      showToast('Enter your game name for Other.', 'error');
+      return null;
+    }
+    return { game: name, description: desc || null, isCustom: true };
+  }
+  return { game: value, description: null, isCustom: false };
+}
+
+function applyMainGameSelectionToForm(prefix, profile) {
+  const select = document.getElementById(`${prefix}-game`);
+  const nameInput = document.getElementById(`${prefix}-custom-name`);
+  const descInput = document.getElementById(`${prefix}-custom-desc`);
+  if (!select) return;
+
+  const game = profile?.main_game || 'Valorant';
+  const desc = profile?.main_game_description || '';
+  if (KNOWN_MAIN_GAMES.includes(game)) {
+    select.value = game;
+    if (nameInput) nameInput.value = '';
+    if (descInput) descInput.value = '';
+  } else {
+    select.value = '__other__';
+    if (nameInput) nameInput.value = game;
+    if (descInput) descInput.value = desc;
+  }
+  toggleCustomGameFields(prefix);
+}
+
+function openOnboardingModal() {
+  applyMainGameSelectionToForm('onboard', currentProfile);
+  document.getElementById('onboarding-modal').classList.remove('hidden');
+}
+
+async function saveMainGameToProfile({ game, description }, { finishOnboarding = false } = {}) {
+  if (!currentUser || !game) return false;
+  const patch = {
+    main_game: game,
+    main_game_description: description || null,
+  };
+  if (finishOnboarding) patch.onboarding_done = true;
+
+  const { error } = await sb.from('profiles').update(patch).eq('id', currentUser.id);
+  if (error) {
+    // Column may not exist yet — still save main_game so the UX works
+    const { error: fallbackErr } = await sb.from('profiles').update({ main_game: game }).eq('id', currentUser.id);
+    if (fallbackErr) {
+      showToast(fallbackErr.message || 'Could not save main game.', 'error');
+      return false;
+    }
+  }
+
+  if (currentProfile) {
+    currentProfile = {
+      ...currentProfile,
+      main_game: game,
+      main_game_description: description || null,
+      ...(finishOnboarding ? { onboarding_done: true } : {}),
+    };
+  }
+  updateSidebar();
+  return true;
+}
+
 async function completeOnboarding() {
-  const game = document.getElementById('onboard-game').value;
-  if (currentUser) await sb.from('profiles').update({ main_game: game }).eq('id', currentUser.id);
-  if (currentProfile) currentProfile.main_game = game;
+  const selection = readMainGameSelection('onboard');
+  if (!selection) return;
+  const ok = await saveMainGameToProfile(selection, { finishOnboarding: true });
+  if (!ok) return;
   document.getElementById('onboarding-modal').classList.add('hidden');
   showApp();
+  showToast(`Main game set to ${selection.game}`, 'success');
+}
+
+function openChangeMainGame() {
+  if (isGuest || !currentUser) {
+    requireAccount('profile');
+    return;
+  }
+  applyMainGameSelectionToForm('change', currentProfile);
+  document.getElementById('change-game-modal').classList.remove('hidden');
+}
+
+function closeChangeMainGame() {
+  document.getElementById('change-game-modal').classList.add('hidden');
+}
+
+async function saveChangedMainGame() {
+  const selection = readMainGameSelection('change');
+  if (!selection) return;
+  const ok = await saveMainGameToProfile(selection);
+  if (!ok) return;
+  closeChangeMainGame();
+  if (document.getElementById('screen-profile')?.classList.contains('active')) {
+    loadProfileScreen();
+  }
+  loadDashboard();
+  showToast(`Main game updated to ${selection.game}`, 'success');
 }
 
 async function handleSignOut() {
@@ -952,6 +1366,7 @@ async function handleSignOut() {
   currentUser = null;
   currentProfile = null;
   isGuest = false;
+  hideTrackingBanner();
   document.getElementById('app-screen').classList.remove('show');
   document.getElementById('app-screen').style.display = 'none';
   document.getElementById('auth-screen').style.display = 'flex';
@@ -969,7 +1384,18 @@ async function loadProfile() {
     // Create default profile if missing
     const tag = currentUser.user_metadata?.gamer_tag || currentUser.email.split('@')[0];
     const plat = currentUser.user_metadata?.platform || 'PC';
-    const newProfile = { id: currentUser.id, gamer_tag: tag, platform: plat, mmr: 1200, wins: 0, losses: 0, main_game: 'Valorant', created_at: new Date().toISOString() };
+    const newProfile = {
+      id: currentUser.id,
+      gamer_tag: tag,
+      platform: plat,
+      mmr: 1200,
+      wins: 0,
+      losses: 0,
+      main_game: 'Valorant',
+      main_game_description: null,
+      onboarding_done: false,
+      created_at: new Date().toISOString(),
+    };
     await sb.from('profiles').upsert(newProfile);
     currentProfile = newProfile;
   }
@@ -1017,11 +1443,21 @@ async function loadDashboard() {
   document.getElementById('d-since').textContent = since;
 
   // Profile summary
+  const gameDesc = p.main_game_description
+    ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:4px;line-height:1.4">${p.main_game_description}</div>`
+    : '';
   document.getElementById('d-profile-summary').innerHTML = `
     <div class="row"><span>Gamer Tag</span><span style="font-family:var(--mono);font-size:12px;color:var(--neon)">${p.gamer_tag}</span></div>
     <div class="row"><span>Platform</span><span style="font-family:var(--mono);font-size:12px">${p.platform||'PC'}</span></div>
-    <div class="row"><span>Main Game</span><span style="font-family:var(--mono);font-size:12px">${p.main_game||'—'}</span></div>
+    <div class="row" style="align-items:flex-start">
+      <span>Main Game</span>
+      <span style="text-align:right">
+        <span style="font-family:var(--mono);font-size:12px">${p.main_game||'—'}</span>
+        ${gameDesc}
+      </span>
+    </div>
     <div class="row"><span>Rank</span><span style="font-family:var(--mono);font-size:12px;color:var(--neon)">${mmrToRank(p.mmr)}</span></div>
+    <button class="action-btn ghost full" style="margin-top:10px;padding:8px" onclick="openChangeMainGame()">Change Main Game</button>
   `;
 
   // Matches
@@ -1523,6 +1959,8 @@ async function loadProfileScreen() {
   document.getElementById('p-avatar').textContent = tag.slice(0,2).toUpperCase();
   document.getElementById('p-name').textContent = tag;
   document.getElementById('p-sub').textContent = `Member since ${since} · ${p.platform||'PC'} · ${p.main_game||'—'}`;
+  document.getElementById('p-main-game').textContent = p.main_game || '—';
+  document.getElementById('p-main-game-desc').textContent = p.main_game_description || 'No description';
   document.getElementById('p-wins').textContent = p.wins||0;
   document.getElementById('p-wr').textContent = total>0?wr+' win rate':'No matches yet';
   document.getElementById('p-matches').textContent = total;
@@ -1591,6 +2029,7 @@ function loadAnalytics(matches) {
   document.getElementById('a-mmr').textContent = (p.mmr||1200).toLocaleString();
 
   document.getElementById('a-profile-info').innerHTML = `
+    <div class="row"><span>Main Game</span><span style="font-family:var(--mono);font-size:12px;color:var(--neon)">${p.main_game||'—'}</span></div>
     <div class="row"><span>Total Kills</span><span style="font-family:var(--mono);font-size:12px;color:var(--neon)">${totalK.toLocaleString()}</span></div>
     <div class="row"><span>Total Deaths</span><span style="font-family:var(--mono);font-size:12px;color:var(--red)">${totalD.toLocaleString()}</span></div>
     <div class="row"><span>Total Assists</span><span style="font-family:var(--mono);font-size:12px">${totalA.toLocaleString()}</span></div>
@@ -1598,6 +2037,7 @@ function loadAnalytics(matches) {
     <div class="row"><span>Wins</span><span style="font-family:var(--mono);font-size:12px;color:#4ade80">${p.wins||0}</span></div>
     <div class="row"><span>Losses</span><span style="font-family:var(--mono);font-size:12px;color:var(--red)">${p.losses||0}</span></div>
     <div class="row"><span>Platform</span><span style="font-family:var(--mono);font-size:12px">${p.platform||'PC'}</span></div>
+    <button class="action-btn ghost full" style="margin-top:12px;padding:8px" onclick="openChangeMainGame()">Change Main Game</button>
   `;
 
   if (matches && matches.length>0) {
@@ -1612,6 +2052,190 @@ function loadAnalytics(matches) {
         <div class="bar-lbl">${new Date(m.played_at).toLocaleDateString('en-US',{weekday:'narrow'})}</div>
       </div>`;
     }).join('');
+  }
+  loadPerformanceSessions();
+}
+
+// ── GAME SESSION PERFORMANCE TRACKING ──
+const LOCAL_SESSIONS_KEY = 'nexforge_game_sessions';
+let gameTrackingWired = false;
+
+function formatDuration(sec) {
+  const s = Math.max(0, Math.round(sec || 0));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m >= 60) {
+    const h = Math.floor(m / 60);
+    return `${h}h ${m % 60}m`;
+  }
+  return `${m}:${String(r).padStart(2, '0')}`;
+}
+
+function hideTrackingBanner() {
+  const banner = document.getElementById('track-banner');
+  if (banner) banner.classList.remove('active');
+}
+
+function updateTrackingBanner(session) {
+  const banner = document.getElementById('track-banner');
+  if (!banner || !session) return;
+  banner.classList.add('active');
+  document.getElementById('track-game-name').textContent = session.game || '—';
+  document.getElementById('track-duration').textContent =
+    `Live ${formatDuration(session.durationSec)} · probe ping (not in-game tick latency)`;
+  const live = session.live || {};
+  document.getElementById('track-ram').textContent = live.ramMb != null ? `${live.ramMb} MB` : '—';
+  document.getElementById('track-cpu').textContent = live.cpuPct != null ? `${live.cpuPct}%` : '—';
+  document.getElementById('track-ping').textContent = live.pingMs != null ? `${live.pingMs} ms` : '—';
+}
+
+async function refreshActiveGameSessionBanner() {
+  if (!window.nexforge?.getActiveGameSession) return;
+  try {
+    const session = await window.nexforge.getActiveGameSession();
+    if (session) updateTrackingBanner(session);
+    else hideTrackingBanner();
+  } catch {
+    hideTrackingBanner();
+  }
+}
+
+function readLocalSessions() {
+  try {
+    const raw = localStorage.getItem(LOCAL_SESSIONS_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalSessions(list) {
+  localStorage.setItem(LOCAL_SESSIONS_KEY, JSON.stringify(list.slice(0, 20)));
+}
+
+async function persistGameSession(summary) {
+  const row = {
+    game: summary.game,
+    process_name: summary.processName || null,
+    duration_sec: summary.durationSec,
+    avg_ram_mb: summary.avgRamMb,
+    max_ram_mb: summary.maxRamMb,
+    avg_cpu_pct: summary.avgCpuPct,
+    max_cpu_pct: summary.maxCpuPct,
+    avg_ping_ms: summary.avgPingMs,
+    max_ping_ms: summary.maxPingMs,
+    tips: summary.tips || [],
+    samples: summary.samples || [],
+    started_at: summary.startedAt,
+    ended_at: summary.endedAt,
+  };
+
+  const local = readLocalSessions();
+  local.unshift({ ...row, id: `local-${Date.now()}` });
+  writeLocalSessions(local);
+
+  if (currentUser && !isGuest) {
+    try {
+      await sb.from('game_sessions').insert({ ...row, user_id: currentUser.id });
+    } catch (err) {
+      console.warn('Could not save game session to cloud:', err);
+    }
+  }
+}
+
+function renderPerformanceSessions(sessions) {
+  const el = document.getElementById('a-sessions-list');
+  if (!el) return;
+  if (!sessions || !sessions.length) {
+    el.innerHTML = '<div style="font-family:var(--mono);font-size:11px;color:var(--muted2);padding:16px 0;text-align:center">Play a tracked game to see RAM, CPU, and ping summaries here</div>';
+    return;
+  }
+  el.innerHTML = sessions.slice(0, 12).map((s) => {
+    const when = s.ended_at ? new Date(s.ended_at).toLocaleString() : '—';
+    const ping = s.avg_ping_ms != null ? `${Math.round(s.avg_ping_ms)} ms` : '—';
+    const ram = s.avg_ram_mb != null ? `${Math.round(s.avg_ram_mb)} MB` : '—';
+    const cpu = s.avg_cpu_pct != null ? `${Number(s.avg_cpu_pct).toFixed(0)}%` : '—';
+    return `<div class="session-row">
+      <div>
+        <div class="session-row-game">${s.game || 'Unknown'}</div>
+        <div class="session-row-meta">${formatDuration(s.duration_sec)} · ${when}</div>
+      </div>
+      <div class="session-row-stats">Ping ${ping}<br>RAM ${ram}<br>CPU ${cpu}</div>
+    </div>`;
+  }).join('');
+}
+
+async function loadPerformanceSessions() {
+  const local = readLocalSessions();
+  if (currentUser && !isGuest) {
+    try {
+      const { data, error } = await sb
+        .from('game_sessions')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('ended_at', { ascending: false })
+        .limit(20);
+      if (!error && data && data.length) {
+        renderPerformanceSessions(data);
+        return;
+      }
+    } catch (err) {
+      console.warn('game_sessions load failed:', err);
+    }
+  }
+  renderPerformanceSessions(local);
+}
+
+function showSessionFeedback(summary) {
+  document.getElementById('sf-title').textContent = `${summary.game} session feedback`;
+  document.getElementById('sf-sub').textContent =
+    'Averages from this play session. Ping is measured to a network probe (or your server IP), not in-game tick latency.';
+  document.getElementById('sf-duration').textContent = formatDuration(summary.durationSec);
+  document.getElementById('sf-ping').textContent = summary.avgPingMs != null ? `${summary.avgPingMs} ms` : '—';
+  document.getElementById('sf-ram').textContent = summary.avgRamMb != null ? `${summary.avgRamMb} MB` : '—';
+  document.getElementById('sf-cpu').textContent = summary.avgCpuPct != null ? `${summary.avgCpuPct}%` : '—';
+  document.getElementById('sf-tips').innerHTML = (summary.tips || [])
+    .map((t) => `<div class="session-tip">${t}</div>`)
+    .join('');
+  document.getElementById('session-feedback-modal').classList.remove('hidden');
+}
+
+function closeSessionFeedback() {
+  document.getElementById('session-feedback-modal').classList.add('hidden');
+}
+
+function syncPingProbeFromMatchmaking() {
+  const input = document.getElementById('mm-input-server');
+  if (!input || !window.nexforge?.setPingProbeHost) return;
+  const raw = (input.value || '').trim();
+  window.nexforge.setPingProbeHost(raw || null);
+}
+
+function setupGameSessionTracking() {
+  if (gameTrackingWired || !window.nexforge) return;
+  gameTrackingWired = true;
+
+  window.nexforge.onGameSessionStarted?.((session) => {
+    updateTrackingBanner(session);
+    showToast(`Tracking ${session.game}`, 'success');
+  });
+
+  window.nexforge.onGameSessionSample?.((payload) => {
+    updateTrackingBanner(payload);
+  });
+
+  window.nexforge.onGameSessionEnded?.(async (summary) => {
+    hideTrackingBanner();
+    await persistGameSession(summary);
+    showSessionFeedback(summary);
+    loadPerformanceSessions();
+  });
+
+  const serverInput = document.getElementById('mm-input-server');
+  if (serverInput) {
+    serverInput.addEventListener('change', syncPingProbeFromMatchmaking);
+    serverInput.addEventListener('blur', syncPingProbeFromMatchmaking);
   }
 }
 
@@ -1642,6 +2266,394 @@ async function searchSquad() {
   }).join('');
 }
 
+// ── TOURNAMENTS ──
+let tournamentFilter = 'open';
+let tournamentPrizeType = 'cash';
+let cachedTournaments = [];
+const TOURNEY_LOCAL_KEY = 'nexforge_tournaments_v1';
+
+function toggleTournamentCreate(force) {
+  if (force !== false && (!currentUser || isGuest)) {
+    document.getElementById('lock-title').textContent = 'Account Required 🔒';
+    document.getElementById('lock-msg').textContent = 'Create a free NexForge account to host tournaments and offer prizes.';
+    document.getElementById('lock-modal').classList.remove('hidden');
+    return;
+  }
+  const panel = document.getElementById('tourney-create-panel');
+  const open = typeof force === 'boolean' ? force : !panel.classList.contains('open');
+  panel.classList.toggle('open', open);
+  if (open) {
+    setPrizeType(tournamentPrizeType);
+    if (!document.getElementById('t-bank-email').value && currentUser?.email) {
+      document.getElementById('t-bank-email').value = currentUser.email;
+    }
+  }
+}
+
+function setPrizeType(type) {
+  tournamentPrizeType = type;
+  ['cash', 'inapp', 'both'].forEach((t) => {
+    document.getElementById(`prize-btn-${t}`).classList.toggle('active', t === type);
+  });
+  const showCash = type === 'cash' || type === 'both';
+  const showInApp = type === 'inapp' || type === 'both';
+  document.getElementById('prize-cash-fields').style.display = showCash ? 'block' : 'none';
+  document.getElementById('prize-inapp-fields').style.display = showInApp ? 'block' : 'none';
+}
+
+function setTournamentFilter(filter, el) {
+  tournamentFilter = filter;
+  document.querySelectorAll('.tourney-filter').forEach((b) => {
+    b.classList.toggle('active', b.dataset.filter === filter);
+    b.classList.toggle('badge-neon', b.dataset.filter === filter);
+    b.classList.toggle('badge-muted', b.dataset.filter !== filter);
+  });
+  renderTournaments();
+}
+
+function loadLocalTournaments() {
+  try {
+    return JSON.parse(localStorage.getItem(TOURNEY_LOCAL_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalTournaments(list) {
+  localStorage.setItem(TOURNEY_LOCAL_KEY, JSON.stringify(list));
+}
+
+function maskAccount(num) {
+  const s = String(num || '');
+  if (s.length <= 4) return '••••';
+  return '••••' + s.slice(-4);
+}
+
+function formatPrizeLabel(t) {
+  const parts = [];
+  if ((t.prize_type === 'cash' || t.prize_type === 'both') && t.cash_amount) {
+    parts.push('$' + Number(t.cash_amount).toLocaleString());
+  }
+  if (t.prize_type === 'inapp' || t.prize_type === 'both') {
+    parts.push(t.inapp_reward ? 'In-App' : 'Reward');
+  }
+  return parts.join(' + ') || 'Prize TBD';
+}
+
+function tournamentStatus(t) {
+  if (t.status === 'completed') return 'completed';
+  const start = t.starts_at ? new Date(t.starts_at) : null;
+  if (start && start.getTime() < Date.now() - 6 * 60 * 60 * 1000) return 'completed';
+  return 'open';
+}
+
+function isRegistered(t) {
+  const regs = t.registrations || [];
+  return !!currentUser && regs.includes(currentUser.id);
+}
+
+async function loadTournaments() {
+  const el = document.getElementById('tourney-list');
+  if (!el) return;
+  el.innerHTML = '<div class="tourney-empty">Loading tournaments...</div>';
+
+  let remote = [];
+  try {
+    const { data, error } = await sb.from('tournaments')
+      .select('*')
+      .order('starts_at', { ascending: true });
+    if (!error && data) remote = data;
+  } catch (_) {}
+
+  const local = loadLocalTournaments();
+  const byId = new Map();
+  [...local, ...remote].forEach((t) => {
+    const id = t.id || `${t.name}-${t.starts_at}`;
+    byId.set(id, { ...t, id });
+  });
+  cachedTournaments = Array.from(byId.values()).sort((a, b) => {
+    return new Date(a.starts_at || 0) - new Date(b.starts_at || 0);
+  });
+  renderTournaments();
+}
+
+function renderTournaments() {
+  const el = document.getElementById('tourney-list');
+  if (!el) return;
+
+  const filtered = cachedTournaments.filter((t) => {
+    const status = tournamentStatus(t);
+    if (tournamentFilter === 'open') return status === 'open';
+    if (tournamentFilter === 'completed') return status === 'completed';
+    if (tournamentFilter === 'registered') return isRegistered(t);
+    return true;
+  });
+
+  if (!filtered.length) {
+    el.innerHTML = `<div class="tourney-empty">
+      No ${tournamentFilter} tournaments yet.<br><br>
+      Create one with a cash prize, in-app reward, or both.
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = filtered.map((t) => {
+    const status = tournamentStatus(t);
+    const filled = (t.registrations || []).length;
+    const slots = t.max_slots || 16;
+    const startLabel = t.starts_at
+      ? new Date(t.starts_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : 'TBD';
+    const prizeExtra = (t.prize_type === 'inapp' || t.prize_type === 'both') && t.inapp_reward
+      ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:8px">Reward · ${t.inapp_reward}</div>`
+      : '';
+    const cashNote = (t.prize_type === 'cash' || t.prize_type === 'both')
+      ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:6px">Cash payout funded by organizer · ${maskAccount(t.bank_account_last4 || t.bank_account)}</div>`
+      : '';
+
+    return `<div class="tourney-card">
+      <div class="tourney-top">
+        <div>
+          <div class="tourney-name">${t.name}</div>
+          <div class="tourney-game">${t.game || '—'} · ${t.format || 'Custom'} · Hosted by ${t.host_tag || 'Player'}</div>
+        </div>
+        <div class="prize">${formatPrizeLabel(t)}</div>
+      </div>
+      <div class="tourney-meta">
+        <span>📅 ${startLabel}</span>
+        <span>👥 ${filled}/${slots}</span>
+        <span>${status === 'open' ? '🟢 Open' : '⬛ Completed'}</span>
+        ${isRegistered(t) ? '<span class="badge badge-neon">REGISTERED</span>' : ''}
+      </div>
+      ${t.rules ? `<div style="font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:10px;line-height:1.5">${t.rules}</div>` : ''}
+      ${prizeExtra}
+      ${cashNote}
+      <div style="display:flex;gap:8px;margin-top:12px">
+        ${status === 'open' && !isRegistered(t)
+          ? `<button class="action-btn primary" style="padding:8px 14px;font-size:12px" onclick="registerForTournament('${t.id}')">Register</button>`
+          : ''}
+        ${status === 'open' && isRegistered(t)
+          ? `<button class="action-btn ghost" style="padding:8px 14px;font-size:12px" onclick="unregisterFromTournament('${t.id}')">Leave</button>`
+          : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function validateBankInfo() {
+  const holder = document.getElementById('t-bank-holder').value.trim();
+  const bank = document.getElementById('t-bank-name').value.trim();
+  const routing = document.getElementById('t-bank-routing').value.trim().replace(/\D/g, '');
+  const account = document.getElementById('t-bank-account').value.trim().replace(/\D/g, '');
+  const country = document.getElementById('t-bank-country').value.trim();
+  const email = document.getElementById('t-bank-email').value.trim();
+  const phone = document.getElementById('t-bank-phone').value.trim();
+
+  if (!holder || !bank || !routing || !account || !country || !email || !phone) {
+    return { error: 'Cash prizes require complete organizer bank and contact information.' };
+  }
+  if (routing.length !== 9) {
+    return { error: 'Routing number must be 9 digits.' };
+  }
+  if (account.length < 4 || account.length > 17) {
+    return { error: 'Enter a valid bank account number.' };
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return { error: 'Enter a valid payout contact email.' };
+  }
+
+  return {
+    bank_holder: holder,
+    bank_name: bank,
+    bank_routing: routing,
+    bank_account: account,
+    bank_account_last4: account.slice(-4),
+    bank_type: document.getElementById('t-bank-type').value,
+    bank_country: country,
+    payout_email: email,
+    payout_phone: phone,
+  };
+}
+
+async function createTournament() {
+  if (!currentUser || isGuest) {
+    toggleTournamentCreate();
+    return;
+  }
+
+  const msg = document.getElementById('t-create-msg');
+  const btn = document.getElementById('t-create-btn');
+  const name = document.getElementById('t-name').value.trim();
+  const game = document.getElementById('t-game').value;
+  const format = document.getElementById('t-format').value;
+  const slots = Number(document.getElementById('t-slots').value || 0);
+  const startsAt = document.getElementById('t-start').value;
+  const rules = document.getElementById('t-rules').value.trim();
+  const cashAmount = Number(document.getElementById('t-cash').value || 0);
+  const inappReward = document.getElementById('t-inapp').value.trim();
+
+  msg.className = 'auth-msg';
+  msg.textContent = '';
+
+  if (!name) { msg.className = 'auth-msg error'; msg.textContent = 'Enter a tournament title.'; return; }
+  if (!startsAt) { msg.className = 'auth-msg error'; msg.textContent = 'Pick a start date and time.'; return; }
+  if (slots < 2) { msg.className = 'auth-msg error'; msg.textContent = 'Max players/teams must be at least 2.'; return; }
+
+  const needsCash = tournamentPrizeType === 'cash' || tournamentPrizeType === 'both';
+  const needsInApp = tournamentPrizeType === 'inapp' || tournamentPrizeType === 'both';
+
+  if (needsCash && (!cashAmount || cashAmount < 1)) {
+    msg.className = 'auth-msg error'; msg.textContent = 'Enter a cash prize amount of at least $1.'; return;
+  }
+  if (needsInApp && !inappReward) {
+    msg.className = 'auth-msg error'; msg.textContent = 'Describe the in-app reward.'; return;
+  }
+
+  let bank = null;
+  if (needsCash) {
+    const bankResult = validateBankInfo();
+    if (bankResult.error) {
+      msg.className = 'auth-msg error'; msg.textContent = bankResult.error; return;
+    }
+    bank = bankResult;
+  }
+
+  const tournament = {
+    id: (crypto.randomUUID && crypto.randomUUID()) || (`t_${Date.now()}`),
+    host_id: currentUser.id,
+    host_tag: currentProfile?.gamer_tag || currentUser.email?.split('@')[0] || 'Host',
+    name,
+    game,
+    format,
+    max_slots: slots,
+    starts_at: new Date(startsAt).toISOString(),
+    rules,
+    prize_type: tournamentPrizeType,
+    cash_amount: needsCash ? cashAmount : null,
+    inapp_reward: needsInApp ? inappReward : null,
+    status: 'open',
+    registrations: [],
+    created_at: new Date().toISOString(),
+    ...(bank || {}),
+  };
+
+  btn.disabled = true;
+  btn.textContent = 'Publishing...';
+
+  let savedRemote = false;
+  try {
+    const { error } = await sb.from('tournaments').insert(tournament);
+    if (!error) savedRemote = true;
+  } catch (_) {}
+
+  const local = loadLocalTournaments();
+  local.unshift(tournament);
+  saveLocalTournaments(local);
+
+  btn.disabled = false;
+  btn.textContent = 'Publish Tournament';
+  msg.className = 'auth-msg success';
+  msg.textContent = savedRemote
+    ? 'Tournament published.'
+    : 'Tournament published on this device. (Cloud sync needs a tournaments table in Supabase.)';
+
+  document.getElementById('t-name').value = '';
+  document.getElementById('t-rules').value = '';
+  document.getElementById('t-cash').value = '';
+  document.getElementById('t-inapp').value = '';
+  document.getElementById('t-bank-holder').value = '';
+  document.getElementById('t-bank-name').value = '';
+  document.getElementById('t-bank-routing').value = '';
+  document.getElementById('t-bank-account').value = '';
+  document.getElementById('t-bank-phone').value = '';
+
+  toggleTournamentCreate(false);
+  await loadTournaments();
+  showToast('Tournament created', 'success');
+}
+
+async function registerForTournament(id) {
+  if (!currentUser || isGuest) {
+    document.getElementById('lock-title').textContent = 'Account Required 🔒';
+    document.getElementById('lock-msg').textContent = 'Create a free NexForge account to register for tournaments.';
+    document.getElementById('lock-modal').classList.remove('hidden');
+    return;
+  }
+
+  const t = cachedTournaments.find((x) => x.id === id);
+  if (!t) return;
+  const regs = Array.isArray(t.registrations) ? [...t.registrations] : [];
+  if (regs.includes(currentUser.id)) return;
+  if (regs.length >= (t.max_slots || 16)) {
+    showToast('This tournament is full.', 'error');
+    return;
+  }
+
+  const { data, error } = await sb.rpc('register_for_tournament', { tournament_id: id });
+  if (!error && data) {
+    Object.assign(t, data);
+  } else {
+    regs.push(currentUser.id);
+    t.registrations = regs;
+    await persistTournament(t);
+  }
+  renderTournaments();
+  showToast('Registered for ' + t.name, 'success');
+}
+
+async function unregisterFromTournament(id) {
+  if (!currentUser) return;
+  const t = cachedTournaments.find((x) => x.id === id);
+  if (!t) return;
+
+  const { data, error } = await sb.rpc('unregister_from_tournament', { tournament_id: id });
+  if (!error && data) {
+    Object.assign(t, data);
+  } else {
+    t.registrations = (t.registrations || []).filter((uid) => uid !== currentUser.id);
+    await persistTournament(t);
+  }
+  renderTournaments();
+  showToast('Left tournament', 'success');
+}
+
+async function persistTournament(t) {
+  const local = loadLocalTournaments();
+  const idx = local.findIndex((x) => x.id === t.id);
+  if (idx >= 0) local[idx] = t;
+  else local.unshift(t);
+  saveLocalTournaments(local);
+
+  try {
+    await sb.from('tournaments').upsert({
+      id: t.id,
+      host_id: t.host_id,
+      host_tag: t.host_tag,
+      name: t.name,
+      game: t.game,
+      format: t.format,
+      max_slots: t.max_slots,
+      starts_at: t.starts_at,
+      rules: t.rules,
+      prize_type: t.prize_type,
+      cash_amount: t.cash_amount,
+      inapp_reward: t.inapp_reward,
+      status: t.status,
+      registrations: t.registrations,
+      created_at: t.created_at,
+      bank_holder: t.bank_holder || null,
+      bank_name: t.bank_name || null,
+      bank_routing: t.bank_routing || null,
+      bank_account: t.bank_account || null,
+      bank_account_last4: t.bank_account_last4 || null,
+      bank_type: t.bank_type || null,
+      bank_country: t.bank_country || null,
+      payout_email: t.payout_email || null,
+      payout_phone: t.payout_phone || null,
+    });
+  } catch (_) {}
+}
+
 // ── NAV ──
 function goTo(id, el) {
   if (requireAccount(id)) return; // blocked for guests
@@ -1656,6 +2668,8 @@ function goTo(id, el) {
   if (id==='profile') loadProfileScreen();
   if (id==='leaderboard') loadLeaderboard();
   if (id==='matchmaking') initMatchmaking();
+  if (id==='tournaments') loadTournaments();
+  if (id==='analytics') loadPerformanceSessions();
 }
 
 // ── TOAST ──

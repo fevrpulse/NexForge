@@ -1,6 +1,6 @@
 {
   "name": "nexforge-desktop",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "NexForge Desktop",
   "main": "main.js",
   "author": "fevrpulse",
@@ -10,16 +10,18 @@
   },
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win",
-    "release": "electron-builder --win --publish always"
+    "build": "electron-builder --win -c.forceCodeSigning=false",
+    "release": "electron-builder --win --publish always -c.forceCodeSigning=false"
   },
   "build": {
     "appId": "com.nexforge.app",
     "productName": "NexForge",
+    "forceCodeSigning": false,
     "files": [
       "index.html",
       "main.js",
       "preload.js",
+      "game-tracker.js",
       "auth.html",
       "auth-success.html",
       "package.json",
@@ -45,8 +47,10 @@
         "repo": "NexForge"
       }
     ],
+    "artifactName": "${productName}-Setup-${version}.${ext}",
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg"

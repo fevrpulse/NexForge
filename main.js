@@ -2,6 +2,7 @@ const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
+const { GameTracker } = require('./game-tracker');
 
 const AUTH_PORT = 17890;
 const AUTH_HOST = '127.0.0.1';
@@ -9,9 +10,25 @@ const AUTH_HOST = '127.0.0.1';
 let mainWindow = null;
 let authServer = null;
 let pendingAuthTokens = null;
+const gameTracker = new GameTracker();
+
+function sendToRenderer(channel, payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send(channel, payload);
+  }
+}
+
+function setupGameTracker() {
+  gameTracker.on('started', (session) => sendToRenderer('game-session-started', session));
+  gameTracker.on('sample', (payload) => sendToRenderer('game-session-sample', payload));
+  gameTracker.on('ended', (summary) => sendToRenderer('game-session-ended', summary));
+}
 
 function setupAutoUpdater() {
-  if (!app.isPackaged) return;
+  if (!app.isPackaged) {
+    console.log('Auto-updater skipped (dev / unpackaged build)');
+    return;
+  }
 
   let autoUpdater;
   try {
@@ -23,6 +40,19 @@ function setupAutoUpdater() {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = console;
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Checking for updates...');
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    console.log('Update available:', info.version);
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    console.log('No update available. Current version:', app.getVersion(), 'Remote:', info && info.version);
+  });
 
   autoUpdater.on('update-downloaded', async () => {
     const result = await dialog.showMessageBox(mainWindow, {
@@ -146,10 +176,29 @@ ipcMain.handle('open-auth-browser', async (_event, mode) => {
   await shell.openExternal(`http://${AUTH_HOST}:${AUTH_PORT}/auth?mode=${tab}`);
 });
 
+ipcMain.handle('start-game-tracking', () => {
+  gameTracker.start();
+  return { ok: true };
+});
+
+ipcMain.handle('stop-game-tracking', () => {
+  gameTracker.stop();
+  return { ok: true };
+});
+
+ipcMain.handle('get-active-game-session', () => gameTracker.getActiveSession());
+
+ipcMain.handle('set-ping-probe-host', (_event, host) => {
+  gameTracker.setPingProbeHost(host);
+  return { ok: true, host: host || null };
+});
+
 app.whenReady().then(async () => {
   await startAuthServer();
   createWindow();
+  setupGameTracker();
   setupAutoUpdater();
+  gameTracker.start();
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -165,6 +214,7 @@ app.on('window-all-closed', () => {
 });
 
 app.on('will-quit', () => {
+  gameTracker.stop();
   if (authServer) {
     authServer.close();
     authServer = null;
