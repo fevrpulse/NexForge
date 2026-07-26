@@ -530,11 +530,15 @@ select:focus{border-color:var(--neon)}
           <option value="Overwatch 2">Overwatch 2</option>
           <option value="Halo Infinite">Halo Infinite</option>
         </optgroup>
+        <optgroup label="Casual">
+          <option value="Meccha Chameleon">Meccha Chameleon</option>
+          <option value="Fall Guys">Fall Guys</option>
+          <option value="Geometry Dash">Geometry Dash</option>
+        </optgroup>
         <optgroup label="Battle Royale">
           <option value="Apex Legends">Apex Legends</option>
           <option value="Fortnite">Fortnite</option>
           <option value="PUBG">PUBG</option>
-          <option value="Fall Guys">Fall Guys</option>
         </optgroup>
         <optgroup label="Sports &amp; Racing">
           <option value="Rocket League">Rocket League</option>
@@ -549,7 +553,6 @@ select:focus{border-color:var(--neon)}
           <option value="Minecraft">Minecraft</option>
           <option value="Roblox">Roblox</option>
           <option value="GTA Online">GTA Online</option>
-          <option value="Geometry Dash">Geometry Dash</option>
         </optgroup>
         <optgroup label="Not listed">
           <option value="__other__">Other — type your own</option>
@@ -586,11 +589,15 @@ select:focus{border-color:var(--neon)}
           <option value="Overwatch 2">Overwatch 2</option>
           <option value="Halo Infinite">Halo Infinite</option>
         </optgroup>
+        <optgroup label="Casual">
+          <option value="Meccha Chameleon">Meccha Chameleon</option>
+          <option value="Fall Guys">Fall Guys</option>
+          <option value="Geometry Dash">Geometry Dash</option>
+        </optgroup>
         <optgroup label="Battle Royale">
           <option value="Apex Legends">Apex Legends</option>
           <option value="Fortnite">Fortnite</option>
           <option value="PUBG">PUBG</option>
-          <option value="Fall Guys">Fall Guys</option>
         </optgroup>
         <optgroup label="Sports &amp; Racing">
           <option value="Rocket League">Rocket League</option>
@@ -605,7 +612,6 @@ select:focus{border-color:var(--neon)}
           <option value="Minecraft">Minecraft</option>
           <option value="Roblox">Roblox</option>
           <option value="GTA Online">GTA Online</option>
-          <option value="Geometry Dash">Geometry Dash</option>
         </optgroup>
         <optgroup label="Not listed">
           <option value="__other__">Other — type your own</option>
@@ -920,6 +926,7 @@ select:focus{border-color:var(--neon)}
                   <option>Rocket League</option><option>FIFA 25</option><option>NBA 2K25</option>
                   <option>League of Legends</option><option>Dota 2</option><option>Minecraft</option>
                   <option>Roblox</option><option>GTA Online</option><option>Geometry Dash</option>
+                  <option>Meccha Chameleon</option>
                 </select>
               </div>
               <div class="field" style="margin:0">
@@ -1093,7 +1100,7 @@ select:focus{border-color:var(--neon)}
           <div class="card" style="margin-bottom:16px">
             <div class="card-title">Find Squadmates</div>
             <div class="filter-row">
-              <select id="sq-game"><option>Any Game</option><option>Valorant</option><option>CS2</option><option>Call of Duty: Warzone</option><option>Overwatch 2</option><option>Halo Infinite</option><option>Apex Legends</option><option>Fortnite</option><option>PUBG</option><option>Fall Guys</option><option>Rocket League</option><option>FIFA 25</option><option>NBA 2K25</option><option>League of Legends</option><option>Dota 2</option><option>Minecraft</option><option>Roblox</option><option>GTA Online</option><option>Geometry Dash</option></select>
+              <select id="sq-game"><option>Any Game</option><option>Valorant</option><option>CS2</option><option>Call of Duty: Warzone</option><option>Overwatch 2</option><option>Halo Infinite</option><option>Apex Legends</option><option>Fortnite</option><option>PUBG</option><option>Fall Guys</option><option>Rocket League</option><option>FIFA 25</option><option>NBA 2K25</option><option>League of Legends</option><option>Dota 2</option><option>Minecraft</option><option>Roblox</option><option>GTA Online</option><option>Geometry Dash</option><option>Meccha Chameleon</option></select>
               <select id="sq-rank"><option>Any Rank</option><option>Bronze</option><option>Silver</option><option>Gold</option><option>Platinum</option><option>Diamond</option></select>
               <select id="sq-plat"><option>Any Platform</option><option>PC</option><option>PS5</option><option>Xbox</option><option>Mobile</option></select>
             </div>
@@ -1344,7 +1351,7 @@ async function handleAuthCallback(tokens) {
 const KNOWN_MAIN_GAMES = [
   'Valorant','CS2','Call of Duty: Warzone','Overwatch 2','Halo Infinite',
   'Apex Legends','Fortnite','PUBG','Fall Guys','Rocket League','FIFA 25','NBA 2K25',
-  'League of Legends','Dota 2','Minecraft','Roblox','GTA Online','Geometry Dash'
+  'League of Legends','Dota 2','Minecraft','Roblox','GTA Online','Geometry Dash','Meccha Chameleon'
 ];
 
 function toggleCustomGameFields(prefix) {
@@ -1595,10 +1602,11 @@ let mmCurrentStep = 1;
 
 const GAME_CATALOG = [
   { category: 'Shooters', games: ['Valorant', 'CS2', 'Call of Duty: Warzone', 'Overwatch 2', 'Halo Infinite'] },
-  { category: 'Battle Royale', games: ['Apex Legends', 'Fortnite', 'PUBG', 'Fall Guys'] },
+  { category: 'Casual', games: ['Meccha Chameleon', 'Fall Guys', 'Geometry Dash'] },
+  { category: 'Battle Royale', games: ['Apex Legends', 'Fortnite', 'PUBG'] },
   { category: 'Sports & Racing', games: ['Rocket League', 'FIFA 25', 'NBA 2K25'] },
   { category: 'MOBA & Strategy', games: ['League of Legends', 'Dota 2'] },
-  { category: 'Other', games: ['Minecraft', 'Roblox', 'GTA Online', 'Geometry Dash'] },
+  { category: 'Other', games: ['Minecraft', 'Roblox', 'GTA Online'] },
 ];
 
 /** Games where kills / deaths / assists are tracked (manual entry — no live game API). */
@@ -1654,7 +1662,7 @@ const GAME_ICONS = {
   'Apex Legends': '🪂', 'Fortnite': '🏗', 'PUBG': '🎯', 'Fall Guys': '🏃',
   'Rocket League': '⚽', 'FIFA 25': '⚽', 'NBA 2K25': '🏀',
   'League of Legends': '⚔', 'Dota 2': '⚔',
-  'Minecraft': '🌍', 'Roblox': '🎮', 'GTA Online': '🏎', 'Geometry Dash': '💎',
+  'Minecraft': '🌍', 'Roblox': '🎮', 'GTA Online': '🏎', 'Geometry Dash': '💎', 'Meccha Chameleon': '🦎',
 };
 
 const GAME_MODES = {
@@ -1676,6 +1684,7 @@ const GAME_MODES = {
   'Roblox':                [{icon:'🎮',name:'NexForge Hub',desc:'Join the NexForge Roblox experience.',details:'Central hub for all NexForge Roblox game modes. Party up before queuing.',server:'NexForge Roblox game'},{icon:'⚔',name:'Obby Race',desc:'Obstacle course tournament queue.',details:'Timed obby races with checkpoint tracking. Fastest times win.',server:'NexForge Obby'},{icon:'👥',name:'Team Battles',desc:'Custom team-vs-team matches.',details:'Red vs Blue team battles with round-based scoring.',server:'NexForge Battle'},{icon:'🏆',name:'Tournament',desc:'Ranked Roblox competition.',details:'Multi-round elimination across NexForge Roblox experiences.',server:'NexForge bracket'}],
   'GTA Online':            [{icon:'🏎',name:'Race Series',desc:'Custom hosted street races.',details:'Point-to-point and circuit races on custom tracks. Placement and lap times tracked.',server:'NexForge race lobby'},{icon:'🔫',name:'Deathmatch',desc:'Custom DM or team DM.',details:'GTA deathmatch on custom maps. K/D ratio affects MMR.',server:'NexForge DM lobby'},{icon:'👥',name:'Adversary Mode',desc:'Custom adversary match queue.',details:'Objective-based GTA modes — capture zones, hold areas, and more.',server:'NexForge lobby'},{icon:'🏆',name:'Tournament',desc:'Multi-event GTA bracket.',details:'Race + DM combined scoring across multiple event types.',server:'NexForge bracket'}],
   'Geometry Dash':         [{icon:'💎',name:'Rated Levels',desc:'Queue for rated demon and feature levels.',details:'Jump into popular rated levels with MMR based on clears, attempts, and consistency.',server:'NexForge GD lobby'},{icon:'⚡',name:'Demon Rush',desc:'Hard demon challenge queue.',details:'Focus on Hard / Insane / Extreme demons. Completions boost MMR; fails have lighter impact.',server:'NexForge demon lobby'},{icon:'🏗',name:'Create & Share',desc:'Custom level showcase sessions.',details:'Share levels with other NexForge players and get feedback. Light MMR for engagement.',server:'NexForge creator lobby'},{icon:'🏆',name:'Tournament',desc:'Timed Geometry Dash bracket.',details:'Same levels for all players. Fastest clean clears advance through the bracket.',server:'NexForge GD bracket'}],
+  'Meccha Chameleon':      [{icon:'🦎',name:'Public Lobby',desc:'Join or host a public hide-and-seek lobby.',details:'Player-hosted public match. Paint to blend in as a hider, or hunt as a seeker. Share your Steam lobby / server details so others can join.',server:'Player-hosted Steam lobby'},{icon:'🎨',name:'Private Friends',desc:'Invite-only lobby with friends.',details:'Self-organized private session. Host sets player count (about 2–10) and shares join info in NexForge chat.',server:'Private Steam lobby'},{icon:'📡',name:'Streamer Lobby',desc:'Host a viewer-participation show.',details:'Streamer or party host opens a joinable lobby. Viewers / friends drop in for paint hide-and-seek rounds.',server:'Streamer-hosted lobby'},{icon:'🏆',name:'Custom Challenge',desc:'House-rules seeker / paint challenge.',details:'Agree on map, round timer, and win conditions with your group. Report the result in NexForge after you finish.',server:'Custom player lobby'}],
 };
 
 const DEFAULT_MODES = [

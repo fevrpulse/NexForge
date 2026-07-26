@@ -31,6 +31,9 @@ const PROCESS_GAME_MAP = {
   'GTA5': 'GTA Online',
   'PlayGTAV': 'GTA Online',
   'GeometryDash': 'Geometry Dash',
+  'MecchaChameleon': 'Meccha Chameleon',
+  'MecchaChameleon-Win64-Shipping': 'Meccha Chameleon',
+  'MECCHA CHAMELEON': 'Meccha Chameleon',
 };
 
 const GAME_PROBE_HOSTS = {
@@ -52,6 +55,7 @@ const GAME_PROBE_HOSTS = {
   'Roblox': '1.1.1.1',
   'GTA Online': '1.1.1.1',
   'Geometry Dash': '1.1.1.1',
+  'Meccha Chameleon': '1.1.1.1',
 };
 
 function execPs(script, timeoutMs = 8000) {
