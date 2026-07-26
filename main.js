@@ -183,6 +183,13 @@ function isAllowedNavigation(urlString) {
     const u = new URL(urlString);
     if (u.protocol === 'file:') return true;
     if (u.hostname === AUTH_HOST && String(u.port) === String(AUTH_PORT)) return true;
+    if (
+      !app.isPackaged &&
+      (u.hostname === '127.0.0.1' || u.hostname === 'localhost') &&
+      (u.port === '5173' || u.port === '')
+    ) {
+      return true;
+    }
     if (u.protocol === 'https:' && ALLOWED_EXTERNAL_HOSTS.has(u.hostname)) return true;
     return false;
   } catch {
@@ -227,7 +234,12 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, 'index.html'));
+  const isDev = !app.isPackaged && process.env.NEXFORGE_DEV === '1';
+  if (isDev) {
+    mainWindow.loadURL(process.env.VITE_DEV_SERVER_URL || 'http://127.0.0.1:5173');
+  } else {
+    mainWindow.loadFile(path.join(__dirname, 'dist-renderer', 'index.html'));
+  }
 }
 
 ipcMain.handle('get-pending-auth', () => {

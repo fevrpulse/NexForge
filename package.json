@@ -1,6 +1,6 @@
 {
   "name": "nexforge-desktop",
-  "version": "1.0.7",
+  "version": "1.1.0",
   "description": "NexForge Desktop",
   "main": "main.js",
   "author": "fevrpulse",
@@ -9,16 +9,20 @@
     "url": "https://github.com/fevrpulse/NexForge.git"
   },
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder --win -c.forceCodeSigning=false",
-    "release": "electron-builder --win --publish always -c.forceCodeSigning=false"
+    "dev:renderer": "vite",
+    "dev:electron": "cross-env NEXFORGE_DEV=1 electron .",
+    "dev": "concurrently -k \"npm:dev:renderer\" \"wait-on http://127.0.0.1:5173 && npm:dev:electron\"",
+    "build:renderer": "vite build",
+    "start": "npm run build:renderer && electron .",
+    "build": "npm run build:renderer && electron-builder --win -c.forceCodeSigning=false",
+    "release": "npm run build:renderer && electron-builder --win --publish always -c.forceCodeSigning=false"
   },
   "build": {
     "appId": "com.nexforge.app",
     "productName": "NexForge",
     "forceCodeSigning": false,
     "files": [
-      "index.html",
+      "dist-renderer/**/*",
       "main.js",
       "preload.js",
       "game-tracker.js",
@@ -61,10 +65,18 @@
     }
   },
   "dependencies": {
-    "electron-updater": "^6.8.9"
+    "@supabase/supabase-js": "^2.110.8",
+    "electron-updater": "^6.8.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.4",
+    "concurrently": "^10.0.4",
+    "cross-env": "^10.1.0",
     "electron": "^35.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "vite": "^8.1.5",
+    "wait-on": "^9.1.0"
   }
 }

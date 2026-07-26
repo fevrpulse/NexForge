@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-renderer/
 *.log
 .DS_Store
 .env
@@ -7,3 +8,6 @@ dist/
 *.blockmap
 NexForgeNew*.html
 nexforge-test-run.html
+extracted-app.js
+extracted-styles.css
+legacy-index.html

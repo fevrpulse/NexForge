@@ -1,0 +1,101 @@
+import React from 'react';
+import { NexForgeProvider, useNexForge } from './context/NexForgeContext.jsx';
+import ToastStack from './components/ToastStack.jsx';
+import Sidebar from './components/Sidebar.jsx';
+import AuthScreen from './components/AuthScreen.jsx';
+import LockModal from './components/LockModal.jsx';
+import Dashboard from './screens/Dashboard.jsx';
+import Matchmaking from './screens/Matchmaking.jsx';
+import Tournaments from './screens/Tournaments.jsx';
+import Leaderboard from './screens/Leaderboard.jsx';
+import Profile from './screens/Profile.jsx';
+import Analytics from './screens/Analytics.jsx';
+import Squad from './screens/Squad.jsx';
+
+const SCREEN_META = {
+  dashboard: { title: 'Dashboard', badge: 'LIVE' },
+  matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
+  tournaments: { title: 'Tournaments', badge: 'OPEN' },
+  leaderboard: { title: 'Leaderboard', badge: 'GLOBAL' },
+  profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
+  analytics: { title: 'Analytics', badge: 'STATS' },
+  squad: { title: 'Squad Finder', badge: 'FIND TEAM' },
+};
+
+const SCREEN_COMPONENTS = {
+  dashboard: Dashboard,
+  matchmaking: Matchmaking,
+  tournaments: Tournaments,
+  leaderboard: Leaderboard,
+  profile: Profile,
+  analytics: Analytics,
+  squad: Squad,
+};
+
+function AppShell() {
+  const { loading, user, guestMode, screen, cloudOffline, probeCloud, signOut } = useNexForge();
+
+  if (loading) {
+    return (
+      <div className="loading-center">
+        <div className="loading-logo">Nex<span>Forge</span></div>
+      </div>
+    );
+  }
+
+  if (!user && !guestMode) {
+    return (
+      <>
+        <AuthScreen />
+        <ToastStack />
+      </>
+    );
+  }
+
+  const meta = SCREEN_META[screen] || { title: screen, badge: '' };
+  const ScreenComponent = SCREEN_COMPONENTS[screen] || Dashboard;
+
+  return (
+    <div id="app-screen" className="show">
+      {guestMode && (
+        <div className="guest-banner">
+          <span><b>Guest Mode</b> — Stats not saved · Limited access</span>
+          <button onClick={signOut}>Create Account</button>
+        </div>
+      )}
+      <div className={`offline-banner ${cloudOffline ? 'show' : ''}`}>
+        <span><b>Local-only mode</b> — Cloud sync unavailable. Duels/tournaments may not sync until Supabase is reachable.</span>
+        <button
+          style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #FF8C42', background: 'transparent', color: '#FF8C42', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+          onClick={probeCloud}
+        >
+          Retry
+        </button>
+      </div>
+      <div className="app">
+        <Sidebar />
+        <div className="main">
+          <div className="topbar">
+            <div className="topbar-title">{meta.title}</div>
+            <div className="topbar-right">
+              <span className="badge badge-neon">{meta.badge}</span>
+            </div>
+          </div>
+          <div className="content">
+            <ScreenComponent />
+          </div>
+        </div>
+      </div>
+      <LockModal />
+      <ToastStack />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <NexForgeProvider>
+      <AppShell />
+    </NexForgeProvider>
+  );
+}

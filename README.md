@@ -1,6 +1,6 @@
 # NexForge Desktop
 
-Electron desktop client for NexForge — public duel queues, tournaments, session performance tracking, and career stats backed by Supabase.
+Electron + **React** desktop client for NexForge — public duel queues, tournaments, session performance tracking, and career stats backed by Supabase.
 
 **Please install from [GitHub Releases](https://github.com/fevrpulse/NexForge/releases) only** (not from cloning/source unless you are developing).
 
@@ -14,31 +14,37 @@ Electron desktop client for NexForge — public duel queues, tournaments, sessio
 
 ```bash
 npm install
-npm start
+npm run dev          # Vite renderer + Electron (hot reload)
+# or
+npm start            # production renderer build, then Electron
 ```
+
+Stack: Electron main/preload (`main.js`, `preload.js`, `game-tracker.js`) + React UI under `src/renderer/` (Vite).
 
 Requirements: Windows recommended for game-process tracking; Node 20+.
 
 ## Build / release
 
 ```bash
-npm run build          # local NSIS installer (no publish)
-npm run release        # build + publish to GitHub Releases (needs GH_TOKEN)
+npm run build          # vite build + local NSIS installer (no publish)
+npm run release        # vite build + publish to GitHub Releases (needs GH_TOKEN)
 ```
 
-Or push a version tag (`v1.0.5`) to trigger `.github/workflows/release.yml`.
+Or push a version tag (`v1.1.0`) to trigger `.github/workflows/release.yml`.
 
 `package.json` `"version"` must match the tag (without the leading `v`).
 
 ## Supabase
 
-Project URL is configured in `index.html` / `auth.html` (anon key — public by design; **RLS is the security boundary**).
+Anon key lives in `src/renderer/lib/supabase.js` and `auth.html` (public by design; **RLS is the security boundary**).
 
 Apply SQL in the Supabase SQL editor in this order if starting fresh:
 
 1. `supabase-setup.sql` (or incremental files below)
 2. `duels.sql` / `game-sessions.sql` / `combat-stats.sql` if not already applied
 3. **`security-hardening.sql`** (bank/PII lockdown, duel cancel policy, profile authority, `add_session_combat`)
+
+Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 
 ### Security notes
 
