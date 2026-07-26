@@ -189,7 +189,16 @@ body{
   padding:16px;cursor:pointer;transition:all .15s;text-align:left;
 }
 .game-card:hover,.game-card.selected{border-color:var(--neon);background:var(--neon2)}
-.game-icon{font-size:24px;margin-bottom:10px}
+.game-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:40px;height:28px;padding:0 8px;margin-bottom:12px;
+  border-radius:6px;border:1px solid var(--border2);background:var(--panel);
+  font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.6px;
+  color:var(--muted2);text-transform:uppercase;
+}
+.game-card:hover .game-icon,.game-card.selected .game-icon{
+  border-color:rgba(201,255,0,.35);color:var(--neon);background:rgba(201,255,0,.06);
+}
 .game-name{font-size:15px;font-weight:700;margin-bottom:4px}
 .game-cat{font-family:var(--mono);font-size:12px;color:var(--muted2)}
 .mode-grid{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:18px}
@@ -198,7 +207,16 @@ body{
   padding:18px;cursor:pointer;transition:all .15s;text-align:left;
 }
 .mode-card:hover,.mode-card.selected{border-color:var(--neon);background:var(--neon2)}
-.mode-icon{font-size:22px;margin-bottom:10px}
+.mode-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:36px;height:24px;padding:0 8px;margin-bottom:10px;
+  border-radius:5px;border:1px solid var(--border2);background:var(--panel);
+  font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:.5px;
+  color:var(--muted2);text-transform:uppercase;
+}
+.mode-card:hover .mode-icon,.mode-card.selected .mode-icon{
+  border-color:rgba(201,255,0,.35);color:var(--neon);
+}
 .mode-name{font-size:16px;font-weight:700;margin-bottom:6px;letter-spacing:-.2px}
 .mode-desc{font-family:var(--mono);font-size:13px;color:var(--muted2);line-height:1.55}
 .mm-details{
@@ -834,7 +852,7 @@ select:focus{border-color:var(--neon)}
           <div id="fn-duo-finder" style="display:none;margin-bottom:18px">
             <div class="card">
               <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
-                <span style="font-size:22px">🎯</span>
+                <span class="game-icon" style="margin-bottom:0">FN</span>
                 <div>
                   <div style="font-size:14px;font-weight:800;letter-spacing:-.3px">Fortnite Tournament Duo Finder</div>
                   <div style="font-family:var(--mono);font-size:10px;color:var(--muted2)">Find a partner for your next tournament run</div>
@@ -1657,13 +1675,45 @@ function combatInputsHtml(prefix, existing) {
     </div>`;
 }
 
-const GAME_ICONS = {
-  'Valorant': '🎯', 'CS2': '🔫', 'Call of Duty: Warzone': '🪖', 'Overwatch 2': '🛡', 'Halo Infinite': '🤖',
-  'Apex Legends': '🪂', 'Fortnite': '🏗', 'PUBG': '🎯', 'Fall Guys': '🏃',
-  'Rocket League': '⚽', 'FIFA 25': '⚽', 'NBA 2K25': '🏀',
-  'League of Legends': '⚔', 'Dota 2': '⚔',
-  'Minecraft': '🌍', 'Roblox': '🎮', 'GTA Online': '🏎', 'Geometry Dash': '💎', 'Meccha Chameleon': '🦎',
+const GAME_MARKS = {
+  'Valorant': 'VAL',
+  'CS2': 'CS2',
+  'Call of Duty: Warzone': 'WZ',
+  'Overwatch 2': 'OW2',
+  'Halo Infinite': 'HALO',
+  'Apex Legends': 'APEX',
+  'Fortnite': 'FN',
+  'PUBG': 'PUBG',
+  'Fall Guys': 'FG',
+  'Rocket League': 'RL',
+  'FIFA 25': 'FIFA',
+  'NBA 2K25': '2K',
+  'League of Legends': 'LOL',
+  'Dota 2': 'DOTA',
+  'Minecraft': 'MC',
+  'Roblox': 'RBX',
+  'GTA Online': 'GTA',
+  'Geometry Dash': 'GD',
+  'Meccha Chameleon': 'MCC',
 };
+
+function gameMark(game) {
+  if (GAME_MARKS[game]) return GAME_MARKS[game];
+  const parts = String(game || '').replace(/[^a-zA-Z0-9\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'NF';
+  if (parts.length === 1) return parts[0].slice(0, 4).toUpperCase();
+  return parts.slice(0, 3).map((w) => w[0]).join('').toUpperCase();
+}
+
+function modeMark(name) {
+  const raw = String(name || '').trim();
+  const vs = raw.match(/\d+\s*v\s*\d+/i);
+  if (vs) return vs[0].replace(/\s+/g, '').toUpperCase();
+  const words = raw.replace(/[^a-zA-Z0-9\s]/g, ' ').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return 'MODE';
+  if (words.length === 1) return words[0].slice(0, 4).toUpperCase();
+  return words.slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+}
 
 const GAME_MODES = {
   'Valorant':              [{icon:'⚔',name:'Ranked 5v5',desc:'Competitive ranked matchmaking with MMR on the line.',details:'Standard competitive rules. Best-of-25 rounds, agent bans enabled, and full MMR tracking for wins and losses.',server:'Custom NexForge lobby'},{icon:'🎯',name:'Unrated 5v5',desc:'Casual practice queue with no MMR impact.',details:'Same format as ranked without rank pressure. Ideal for warmups, new agents, or playing with friends.',server:'Custom NexForge lobby'},{icon:'💣',name:'Spike Rush',desc:'Fast-paced 7-round spike mode.',details:'Accelerated rounds with random loadouts. Quick matches for players who want fast action.',server:'Custom NexForge lobby'},{icon:'🏆',name:'Tournament',desc:'Bracket-style competitive event.',details:'Single-elimination bracket hosted by NexForge. Check-in required 15 minutes before start.',server:'NexForge tournament bracket'}],
@@ -1735,7 +1785,7 @@ function renderGameGrid() {
   grid.innerHTML = GAME_CATALOG.flatMap((group) =>
     group.games.map((game) => `
       <div class="game-card ${mmSelectedGame === game ? 'selected' : ''}" onclick="selectGame('${game.replace(/'/g, "\\'")}')">
-        <div class="game-icon">${GAME_ICONS[game] || '🎮'}</div>
+        <div class="game-icon">${gameMark(game)}</div>
         <div class="game-name">${game}</div>
         <div class="game-cat">${group.category}</div>
       </div>
@@ -1767,13 +1817,13 @@ function renderQueues(game) {
   document.getElementById('mm-selected-game-label').textContent = game;
   grid.innerHTML = modes.map((m) => `
     <div class="mode-card" onclick="selectQueue(this)" data-mode="${m.name}" data-server="${m.server}" data-desc="${m.desc.replace(/"/g, '&quot;')}" data-details="${(m.details || m.desc).replace(/"/g, '&quot;')}">
-      <div class="mode-icon">${m.icon}</div>
+      <div class="mode-icon">${modeMark(m.name)}</div>
       <div class="mode-name">${m.name}</div>
       <div class="mode-desc">${m.desc}</div>
     </div>
   `).join('') + `
     <div class="mode-card" onclick="selectCustomQueue()">
-      <div class="mode-icon">✏️</div>
+      <div class="mode-icon">EDIT</div>
       <div class="mode-name">Custom Queue</div>
       <div class="mode-desc">Type your own title, details, and server address.</div>
     </div>
@@ -1925,7 +1975,7 @@ async function searchFnDuo() {
 
 async function sendDuoRequest(tag) {
   if (requireAccount('matchmaking')) return;
-  showToast(`Duo request sent to ${tag}! 🎯 They'll get notified.`, 'success');
+  showToast(`Duo request sent to ${tag}. They'll get notified.`, 'success');
 }
 
 // ── PUBLIC DUEL QUEUES ──
