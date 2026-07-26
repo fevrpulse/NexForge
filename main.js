@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -198,12 +198,14 @@ function isAllowedNavigation(urlString) {
 }
 
 function createWindow() {
+  Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 1100,
     minHeight: 700,
     title: 'NexForge',
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -213,6 +215,8 @@ function createWindow() {
       sandbox: false,
     },
   });
+  mainWindow.setMenu(null);
+  mainWindow.setMenuBarVisibility(false);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedNavigation(url)) {
@@ -279,6 +283,7 @@ ipcMain.handle('get-app-info', () => ({
 }));
 
 app.whenReady().then(async () => {
+  Menu.setApplicationMenu(null);
   await startAuthServer();
   createWindow();
   setupGameTracker();
