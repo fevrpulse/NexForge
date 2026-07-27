@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank } from '../lib/ranks.js';
-const RANKS = ['Any Rank', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'];
+import { mmrToRank, rankMmrBounds, RANK_OPTIONS } from '../lib/ranks.js';
+
+const RANKS = ['Any Rank', ...RANK_OPTIONS];
 const PLATFORMS = ['Any Platform', 'PC', 'PS5', 'Xbox', 'Mobile'];
 const COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
 
@@ -18,17 +19,17 @@ export default function Squad() {
     setSearching(true);
     setPlayers(null);
     try {
-      let query = sb.from('profiles').select('gamer_tag,mmr,main_game,platform').limit(8);
+      let query = sb.from('profiles').select('gamer_tag,mmr,main_game,platform').limit(40);
       if (user?.id) query = query.neq('id', user.id);
       if (game !== 'Any Game') query = query.eq('main_game', game);
       if (platform !== 'Any Platform') query = query.eq('platform', platform);
+      const bounds = rank !== 'Any Rank' ? rankMmrBounds(rank) : null;
+      if (bounds) {
+        query = query.gte('mmr', bounds.gte).lte('mmr', bounds.lte);
+      }
       const { data, error } = await query;
       if (error) throw error;
-      let results = data || [];
-      if (rank !== 'Any Rank') {
-        results = results.filter((p) => mmrToRank(p.mmr) === rank);
-      }
-      setPlayers(results);
+      setPlayers((data || []).slice(0, 8));
     } catch (err) {
       showToast(err?.message || 'Could not search for squadmates.', 'error');
       setPlayers([]);

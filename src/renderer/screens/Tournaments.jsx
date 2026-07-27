@@ -52,16 +52,17 @@ export default function Tournaments() {
 
   async function loadTournaments() {
     try {
-      let { data, error } = await sb.from('tournaments_public').select(TOURNEY_COLUMNS).order('starts_at', { ascending: true });
-      if (error) {
-        ({ data, error } = await sb.from('tournaments').select(TOURNEY_COLUMNS).order('starts_at', { ascending: true }));
-      }
+      const { data, error } = await sb
+        .from('tournaments_public')
+        .select(TOURNEY_COLUMNS)
+        .order('starts_at', { ascending: true });
       if (error) throw error;
       setCloudOffline(false);
       setTournaments(data || []);
     } catch (err) {
       await reportCloudError(err);
       setTournaments([]);
+      showToast(err?.message || 'Could not load tournaments. Apply security-hardening.sql if the public view is missing.', 'error');
     } finally {
       setLoaded(true);
     }

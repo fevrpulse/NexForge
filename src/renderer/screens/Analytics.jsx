@@ -4,7 +4,7 @@ import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 
 export default function Analytics() {
-  const { user, profile, showToast, refreshProfile, appPlatform } = useNexForge();
+  const { user, profile, showToast, refreshProfile, appPlatform, reportCloudError } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [liveSession, setLiveSession] = useState(null);
@@ -55,7 +55,7 @@ export default function Analytics() {
     const offEnded = window.nexforge.onGameSessionEnded?.(async (summary) => {
       setLiveSession(null);
       try {
-        await sb.from('game_sessions').insert({
+        const { error } = await sb.from('game_sessions').insert({
           user_id: user?.id,
           game: summary.game,
           process_name: summary.processName || null,
@@ -71,10 +71,17 @@ export default function Analytics() {
           started_at: summary.startedAt,
           ended_at: summary.endedAt,
         });
-      } catch (_) {
-        /* local-only if cloud insert fails */
+        if (error) {
+          await reportCloudError(error);
+          showToast(error.message || 'Could not save session to cloud.', 'error');
+          return;
+        }
+        showToast(`${summary.game} session saved`, 'success');
+      } catch (err) {
+        await reportCloudError(err);
+        showToast(err?.message || 'Could not save session to cloud.', 'error');
+        return;
       }
-      showToast(`${summary.game} session saved`, 'success');
       sb.from('game_sessions')
         .select('*')
         .eq('user_id', user?.id)

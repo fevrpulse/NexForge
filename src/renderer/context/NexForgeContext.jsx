@@ -128,18 +128,23 @@ export function NexForgeProvider({ children }) {
       setCloudOffline(false);
       if (result.recoveredAuth) {
         setUser(null);
-        setProfile(null);
+        if (guestMode) setProfile(GUEST_PROFILE);
+        else setProfile(null);
       }
       await loadCommunityGames();
       return true;
     }
     setCloudOffline(true, result.error?.message || 'Cloud sync unavailable');
     return false;
-  }, [loadCommunityGames, setCloudOffline]);
+  }, [loadCommunityGames, setCloudOffline, guestMode]);
 
   const loadProfileFor = useCallback(async (authUser) => {
     if (!authUser) return null;
-    const { data } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
+    const { data, error } = await sb.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
+    if (error) {
+      await reportCloudError(error);
+      return null;
+    }
     if (data) {
       setProfile(data);
       return data;
@@ -155,18 +160,18 @@ export function NexForgeProvider({ children }) {
       main_game_description: null,
       onboarding_done: false,
     };
-    const { error } = await sb.from('profiles').upsert(identity, { onConflict: 'id' });
-    if (error) {
+    const { error: upsertError } = await sb.from('profiles').upsert(identity, { onConflict: 'id' });
+    if (upsertError) {
       // Trigger may have created the row already — try a plain select again.
-      const { data: again } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
+      const { data: again } = await sb.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
       if (again) {
         setProfile(again);
         return again;
       }
-      await reportCloudError(error);
+      await reportCloudError(upsertError);
       return null;
     }
-    const { data: created } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
+    const { data: created } = await sb.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
     const fresh = created || {
       ...identity,
       mmr: 1200,
@@ -183,7 +188,8 @@ export function NexForgeProvider({ children }) {
     return loadProfileFor(user);
   }, [user, loadProfileFor]);
 
-  const enterGuest = useCallback(() => {
+  const enterGuest = useCallback(async () => {
+    await clearLocalAuthSession();
     setGuestMode(true);
     setUser(null);
     setProfile(GUEST_PROFILE);
@@ -295,7 +301,13 @@ export function NexForgeProvider({ children }) {
       if (!mounted) return;
       if (session) {
         setUser(session.user);
-        await loadProfileFor(session.user);
+        const loaded = await loadProfileFor(session.user);
+        if (!loaded && mounted) {
+          showToast('Could not load your profile. Sign in again.', 'error');
+          await clearLocalAuthSession();
+          setUser(null);
+          setProfile(null);
+        }
       }
       setLoading(false);
     })();

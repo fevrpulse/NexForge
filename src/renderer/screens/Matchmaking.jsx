@@ -54,7 +54,7 @@ function readCombat(values) {
 }
 
 export default function Matchmaking() {
-  const { user, profile, showToast, setCloudOffline, reportCloudError, gameCatalog } = useNexForge();
+  const { user, profile, showToast, setCloudOffline, reportCloudError, refreshProfile, gameCatalog } = useNexForge();
 
   const [step, setStep] = useState(1);
   const [selectedGame, setSelectedGame] = useState(profile?.main_game || 'Valorant');
@@ -76,28 +76,39 @@ export default function Matchmaking() {
   const [duoResults, setDuoResults] = useState(null);
   const [duoSearching, setDuoSearching] = useState(false);
   const [duoSkill, setDuoSkill] = useState('Any');
-  const [duoStyle, setDuoStyle] = useState('Any');
   const [duoPlat, setDuoPlat] = useState('Any');
 
   const pollRef = useRef(null);
 
   const refreshDuels = useCallback(async () => {
     try {
-      const { data, error } = await sb
+      const feed = await sb
         .from('duels')
         .select('*')
-        .in('status', ['open', 'active'])
+        .eq('status', 'open')
         .order('created_at', { ascending: false })
         .limit(40);
-      if (error) throw error;
+      if (feed.error) throw feed.error;
       setCloudOffline(false);
-      const all = data || [];
-      setOpenQueues(all.filter((d) => d.status === 'open'));
+      setOpenQueues(feed.data || []);
+
       if (user) {
-        const mineOpen = all.find((d) => d.status === 'open' && d.host_id === user.id);
-        const mineActive = all.find((d) => d.status === 'active' && (d.host_id === user.id || d.challenger_id === user.id));
-        setMyOpenDuel(mineOpen || null);
-        setMyActiveDuel(mineActive || null);
+        const mine = await sb
+          .from('duels')
+          .select('*')
+          .in('status', ['open', 'active'])
+          .or(`host_id.eq.${user.id},challenger_id.eq.${user.id}`)
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (mine.error) throw mine.error;
+        const rows = mine.data || [];
+        setMyOpenDuel(rows.find((d) => d.status === 'open' && d.host_id === user.id) || null);
+        setMyActiveDuel(
+          rows.find((d) => d.status === 'active' && (d.host_id === user.id || d.challenger_id === user.id)) || null,
+        );
+      } else {
+        setMyOpenDuel(null);
+        setMyActiveDuel(null);
       }
     } catch (err) {
       await reportCloudError(err);
@@ -186,9 +197,11 @@ export default function Matchmaking() {
       }).select('*').single();
       if (error) throw error;
       setMyOpenDuel(data);
+      setCloudOffline(false);
       showToast('Queue posted — waiting for someone to accept.', 'success');
       refreshDuels();
     } catch (err) {
+      await reportCloudError(err);
       showToast(err?.message || 'Could not post queue. Run duels.sql in Supabase.', 'error');
     } finally {
       setPosting(false);
@@ -201,9 +214,11 @@ export default function Matchmaking() {
       const { error } = await sb.rpc('cancel_duel', { p_duel_id: myOpenDuel.id });
       if (error) throw error;
       setMyOpenDuel(null);
+      setCloudOffline(false);
       showToast('Queue cancelled.', 'success');
       refreshDuels();
     } catch (err) {
+      await reportCloudError(err);
       showToast(err?.message || 'Could not cancel queue.', 'error');
     }
   }
@@ -218,9 +233,11 @@ export default function Matchmaking() {
       const { data, error } = await sb.rpc('accept_duel', { p_duel_id: duelId });
       if (error) throw error;
       setMyActiveDuel(data);
+      setCloudOffline(false);
       showToast(`Duel accepted vs ${data.host_tag}. Play, then both pick the winner.`, 'success');
       refreshDuels();
     } catch (err) {
+      await reportCloudError(err);
       showToast(err?.message || 'Could not accept duel.', 'error');
     }
   }
@@ -253,6 +270,7 @@ export default function Matchmaking() {
         setCombat({ kills: '', deaths: '', assists: '' });
         const iWon = data.winner_id === user.id;
         showToast(iWon ? `WIN +${data.mmr_change || 15} MMR` : `LOSS -${data.mmr_change || 15} MMR`, iWon ? 'success' : 'error');
+        await refreshProfile();
       } else if (!data.host_winner_pick && !data.challenger_winner_pick) {
         setMyActiveDuel(data);
         showToast('Results do not match — both players must select the same winner.', 'error');
@@ -260,8 +278,10 @@ export default function Matchmaking() {
         setMyActiveDuel(data);
         showToast('Result submitted — waiting for opponent to confirm the same winner.', 'success');
       }
+      setCloudOffline(false);
       refreshDuels();
     } catch (err) {
+      await reportCloudError(err);
       showToast(err?.message || 'Could not submit result.', 'error');
     } finally {
       setSubmittingWinner(false);
@@ -292,7 +312,7 @@ export default function Matchmaking() {
   }
 
   const modes = modesForGame(selectedGame);
-  const shooter = isShooterGame(selectedGame);
+  const shooter = isShooterGame(myActiveDuel?.game || selectedGame);
   const colors = ['#C9FF00', '#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#FF3D1F'];
 
   return (
@@ -379,15 +399,12 @@ export default function Matchmaking() {
               <span>Game · <b>{selectedGame}</b></span>
             </div>
 
-            {duoOpen ? (
-              <div id="fn-duo-finder">
+            {duoOpen && (
+              <div id="fn-duo-finder" style={{ marginBottom: 18 }}>
                 <div className="card-title" style={{ marginBottom: 10 }}>Find a duo partner</div>
                 <div className="filter-row" style={{ marginBottom: 12 }}>
                   <select value={duoSkill} onChange={(e) => setDuoSkill(e.target.value)}>
                     <option>Any</option><option>Casual</option><option>Competitive</option><option>Pro</option>
-                  </select>
-                  <select value={duoStyle} onChange={(e) => setDuoStyle(e.target.value)}>
-                    <option>Any</option><option>Aggressive</option><option>Passive</option><option>Builder</option>
                   </select>
                   <select value={duoPlat} onChange={(e) => setDuoPlat(e.target.value)}>
                     <option>Any</option><option>PC</option><option>PS5</option><option>Xbox</option>
@@ -423,7 +440,6 @@ export default function Matchmaking() {
                             </div>
                             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
                               {mmrToRank(p.mmr)} · {p.platform || 'PC'}
-                              {duoStyle !== 'Any' ? ` · prefers ${duoStyle}` : ''}
                             </div>
                           </div>
                           <button className="action-btn ghost" style={{ padding: '5px 12px', fontSize: 11 }}
@@ -442,20 +458,23 @@ export default function Matchmaking() {
                     })
                   ) : null}
                 </div>
-              </div>
-            ) : (
-              <div className="mm-box-actions">
-                <button className="action-btn primary" onClick={postQueue} disabled={posting}>
-                  {myOpenDuel ? 'Cancel Queue' : posting ? 'Posting…' : 'Post Open Queue'}
-                </button>
-                {myOpenDuel && (
-                  <div className="dots show">
-                    <div className="dot" /><div className="dot" /><div className="dot" />
-                    <span className="mm-timer">Waiting for challenger…</span>
-                  </div>
-                )}
+                <div className="field-hint" style={{ marginTop: 10 }}>
+                  Copy a tag to coordinate, then post your open queue below.
+                </div>
               </div>
             )}
+
+            <div className="mm-box-actions">
+              <button className="action-btn primary" onClick={postQueue} disabled={posting}>
+                {myOpenDuel ? 'Cancel Queue' : posting ? 'Posting…' : 'Post Open Queue'}
+              </button>
+              {myOpenDuel && (
+                <div className="dots show">
+                  <div className="dot" /><div className="dot" /><div className="dot" />
+                  <span className="mm-timer">Waiting for challenger…</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

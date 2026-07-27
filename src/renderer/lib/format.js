@@ -10,9 +10,11 @@ export function formatDuration(sec) {
 }
 
 export function maskAccount(num) {
-  const s = String(num || '');
-  if (s.length <= 4) return '••••';
-  return '••••' + s.slice(-4);
+  const s = String(num || '').replace(/\D/g, '');
+  if (!s) return '••••';
+  // Already a last-4 fragment from tournaments_public — show it.
+  if (s.length <= 4) return `••••${s}`;
+  return `••••${s.slice(-4)}`;
 }
 
 export function formatPrizeLabel(t) {

@@ -46,6 +46,7 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 4. **`community-games.sql`** (promote popular custom “Other” main games into a Community catalog)
 5. **`profile-onboarding.sql`** only on **legacy** databases that already had `profiles` before onboarding columns existed (safe no-op if columns are present)
 6. **`tournament-id-default.sql`** if tournament creates fail with `null value in column "id"` (adds `gen_random_uuid()` default)
+7. **`duel-mmr-integrity.sql`** (settle MMR from live profiles; stamp `host_mmr` on queue insert)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 

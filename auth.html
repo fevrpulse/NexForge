@@ -251,7 +251,7 @@
         return;
       }
 
-      await sb.from('profiles').upsert({
+      const { error: profileError } = await sb.from('profiles').upsert({
         id: data.user.id,
         gamer_tag: tag,
         platform: plat,
@@ -259,6 +259,9 @@
         main_game_description: null,
         onboarding_done: false,
       });
+      if (profileError) {
+        console.warn('Profile upsert:', profileError.message);
+      }
 
       try {
         await sendSessionToApp(data.session, true);
