@@ -30,9 +30,9 @@ npm run build          # vite build + local NSIS installer (no publish)
 npm run release        # vite build + publish to GitHub Releases (needs GH_TOKEN)
 ```
 
-Or push a version tag (`v1.2.0`) to trigger `.github/workflows/release.yml`.
+Merges to `main` auto-bump the patch version (`1.2.0` → `1.2.1` → …), publish a GitHub Release, and installed apps update on next launch. You can still push a version tag (`v1.3.0`) or run `workflow_dispatch` for a manual release (no auto-bump).
 
-`package.json` `"version"` must match the tag (without the leading `v`). GitHub publish uses `releaseType: release` (stable, not draft/prerelease).
+`package.json` `"version"` must match the release tag (without the leading `v`). GitHub publish uses `releaseType: release` (stable, not draft/prerelease).
 
 ## Supabase
 
