@@ -46,6 +46,7 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 4. **`community-games.sql`** (promote popular custom “Other” main games into a Community catalog)
 5. **`profile-onboarding.sql`** only on **legacy** databases that already had `profiles` before onboarding columns existed (safe no-op if columns are present)
 6. **`tournament-id-default.sql`** if tournament creates fail with `null value in column "id"` (adds `gen_random_uuid()` default)
+7. **`gpu-session-metrics.sql`** (avg/max GPU % on `game_sessions`)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 
@@ -63,6 +64,6 @@ When **5+ players** share the same custom main-game name, `sync_community_games`
 
 - Public open queues + mutual duel result confirmation (player-hosted lobbies — NexForge does not host game servers)
 - Shooter K/D/A reporting on duels and tracked sessions
-- Session RAM / CPU / probe ping summaries (Windows process tracking)
+- Session RAM / CPU / GPU / probe ping summaries (Windows process tracking)
 - Cash / in-app tournaments with host-only payout fields
 - Community-promoted custom games, guest browse mode, and first-run main-game onboarding

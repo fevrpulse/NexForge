@@ -11,6 +11,8 @@ create table if not exists public.game_sessions (
   max_ram_mb numeric,
   avg_cpu_pct numeric,
   max_cpu_pct numeric,
+  avg_gpu_pct numeric,
+  max_gpu_pct numeric,
   avg_ping_ms numeric,
   max_ping_ms numeric,
   tips text[] default '{}',
@@ -25,6 +27,8 @@ create table if not exists public.game_sessions (
 alter table public.game_sessions add column if not exists kills integer;
 alter table public.game_sessions add column if not exists deaths integer;
 alter table public.game_sessions add column if not exists assists integer;
+alter table public.game_sessions add column if not exists avg_gpu_pct numeric;
+alter table public.game_sessions add column if not exists max_gpu_pct numeric;
 
 create index if not exists game_sessions_user_id_ended_at_idx
   on public.game_sessions (user_id, ended_at desc);

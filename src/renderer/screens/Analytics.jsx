@@ -64,6 +64,8 @@ export default function Analytics() {
           max_ram_mb: summary.maxRamMb,
           avg_cpu_pct: summary.avgCpuPct,
           max_cpu_pct: summary.maxCpuPct,
+          avg_gpu_pct: summary.avgGpuPct,
+          max_gpu_pct: summary.maxGpuPct,
           avg_ping_ms: summary.avgPingMs,
           max_ping_ms: summary.maxPingMs,
           tips: summary.tips || [],
@@ -135,7 +137,7 @@ export default function Analytics() {
         <div className="card" style={{ marginBottom: 16, borderColor: 'rgba(255,140,66,.35)' }}>
           <div className="card-title">Session tracking</div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted2)', lineHeight: 1.6 }}>
-            Live RAM / CPU / ping session probes run on Windows builds. Match history and career stats still work on this platform.
+            Live RAM / CPU / GPU / ping session probes run on Windows builds. Match history and career stats still work on this platform.
           </div>
         </div>
       )}
@@ -150,6 +152,7 @@ export default function Analytics() {
           <div className="track-metrics">
             <div>RAM <b>{liveSession.live?.ramMb != null ? `${liveSession.live.ramMb} MB` : '—'}</b></div>
             <div>CPU <b>{liveSession.live?.cpuPct != null ? `${liveSession.live.cpuPct}%` : '—'}</b></div>
+            <div>GPU <b>{liveSession.live?.gpuPct != null ? `${liveSession.live.gpuPct}%` : '—'}</b></div>
             <div>Ping <b>{liveSession.live?.pingMs != null ? `${liveSession.live.pingMs} ms` : '—'}</b></div>
           </div>
         </div>
@@ -226,7 +229,7 @@ export default function Analytics() {
         <div className="card-title">Performance Sessions</div>
         {sessions.length === 0 ? (
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '16px 0', textAlign: 'center' }}>
-            Play a tracked game to see RAM, CPU, and ping summaries here
+            Play a tracked game to see RAM, CPU, GPU, and ping summaries here
           </div>
         ) : (
           sessions.slice(0, 12).map((s) => {
@@ -234,6 +237,7 @@ export default function Analytics() {
             const ping = s.avg_ping_ms != null ? `${Math.round(s.avg_ping_ms)} ms` : '—';
             const ram = s.avg_ram_mb != null ? `${Math.round(s.avg_ram_mb)} MB` : '—';
             const cpu = s.avg_cpu_pct != null ? `${Number(s.avg_cpu_pct).toFixed(0)}%` : '—';
+            const gpu = s.avg_gpu_pct != null ? `${Number(s.avg_gpu_pct).toFixed(0)}%` : '—';
             const kdaLine = s.kills != null ? `${s.kills}/${s.deaths ?? 0}/${s.assists ?? 0}` : null;
             return (
               <div className="session-row" key={s.id}>
@@ -243,7 +247,7 @@ export default function Analytics() {
                     {formatDuration(s.duration_sec)} · {when}{kdaLine ? ` · ${kdaLine} K/D/A` : ''}
                   </div>
                 </div>
-                <div className="session-row-stats">Ping {ping}<br />RAM {ram}<br />CPU {cpu}</div>
+                <div className="session-row-stats">Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}</div>
               </div>
             );
           })

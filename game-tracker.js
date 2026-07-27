@@ -82,7 +82,7 @@ function maxOf(nums) {
   return Math.max(...nums);
 }
 
-function buildTips({ avgRamMb, avgCpuPct, avgPingMs }) {
+function buildTips({ avgRamMb, avgCpuPct, avgGpuPct, avgPingMs }) {
   const tips = [];
   if (avgPingMs != null && avgPingMs > 80) {
     tips.push('Average network ping was high — prefer a wired Ethernet connection and close bandwidth-heavy apps (downloads, streams).');
@@ -99,8 +99,13 @@ function buildTips({ avgRamMb, avgCpuPct, avgPingMs }) {
   } else if (avgCpuPct != null && avgCpuPct > 65) {
     tips.push('CPU load was high — consider lowering shadows/effects or capping FPS to reduce stutter.');
   }
+  if (avgGpuPct != null && avgGpuPct > 90) {
+    tips.push('GPU was near max — lower resolution/effects or enable DLSS/FSR/XeSS to reduce load.');
+  } else if (avgGpuPct != null && avgGpuPct > 75) {
+    tips.push('GPU load was high — try a lower graphics preset or cap FPS if you see hitching.');
+  }
   if (!tips.length) {
-    tips.push('Session looked solid — network, CPU, and RAM stayed in a healthy range.');
+    tips.push('Session looked solid — network, CPU, GPU, and RAM stayed in a healthy range.');
   }
   return tips.slice(0, 3);
 }
@@ -115,6 +120,8 @@ class GameTracker extends EventEmitter {
     this._customProbeHost = null;
     this._cores = Math.max(1, os.cpus().length);
     this._knownNames = Object.keys(PROCESS_GAME_MAP);
+    this._lastGpuPct = null;
+    this._gpuInFlight = null;
   }
 
   start() {
@@ -159,6 +166,7 @@ class GameTracker extends EventEmitter {
   _publicSession(s) {
     const ram = s.samples.map((x) => x.ramMb).filter((n) => n != null);
     const cpu = s.samples.map((x) => x.cpuPct).filter((n) => n != null);
+    const gpu = s.samples.map((x) => x.gpuPct).filter((n) => n != null);
     const ping = s.samples.map((x) => x.pingMs).filter((n) => n != null);
     const last = s.samples[s.samples.length - 1] || null;
     return {
@@ -171,6 +179,7 @@ class GameTracker extends EventEmitter {
       averages: {
         ramMb: ram.length ? Math.round(avg(ram)) : null,
         cpuPct: cpu.length ? Math.round(avg(cpu) * 10) / 10 : null,
+        gpuPct: gpu.length ? Math.round(avg(gpu) * 10) / 10 : null,
         pingMs: ping.length ? Math.round(avg(ping)) : null,
       },
     };
@@ -183,6 +192,7 @@ class GameTracker extends EventEmitter {
     if (!found) {
       if (this._session) this._endSession(true);
       this._cpuPrev = null;
+      this._lastGpuPct = null;
       return;
     }
 
@@ -217,6 +227,7 @@ class GameTracker extends EventEmitter {
       cpuSeconds: found.cpuSeconds,
       at: Date.now(),
     };
+    this._lastGpuPct = null;
     this.emit('started', this._publicSession(this._session));
   }
 
@@ -234,6 +245,7 @@ class GameTracker extends EventEmitter {
 
     const ram = s.samples.map((x) => x.ramMb).filter((n) => typeof n === 'number');
     const cpu = s.samples.map((x) => x.cpuPct).filter((n) => typeof n === 'number');
+    const gpu = s.samples.map((x) => x.gpuPct).filter((n) => typeof n === 'number');
     const ping = s.samples.map((x) => x.pingMs).filter((n) => typeof n === 'number');
 
     const summary = {
@@ -244,6 +256,8 @@ class GameTracker extends EventEmitter {
       maxRamMb: ram.length ? Math.round(maxOf(ram)) : null,
       avgCpuPct: cpu.length ? Math.round(avg(cpu) * 10) / 10 : null,
       maxCpuPct: cpu.length ? Math.round(maxOf(cpu) * 10) / 10 : null,
+      avgGpuPct: gpu.length ? Math.round(avg(gpu) * 10) / 10 : null,
+      maxGpuPct: gpu.length ? Math.round(maxOf(gpu) * 10) / 10 : null,
       avgPingMs: ping.length ? Math.round(avg(ping)) : null,
       maxPingMs: ping.length ? Math.round(maxOf(ping)) : null,
       tips: [],
@@ -313,15 +327,67 @@ Get-Process -ErrorAction SilentlyContinue |
     };
 
     const probe = this._resolveProbe(found.game);
-    const pingMs = await this._ping(probe);
+    const [pingMs, gpuPct] = await Promise.all([
+      this._ping(probe),
+      this._gpuUsage(found.pid),
+    ]);
 
     return {
       at: new Date().toISOString(),
       ramMb: found.ramMb,
       cpuPct,
+      gpuPct,
       pingMs,
       probeHost: probe,
     };
+  }
+
+  /**
+   * Process GPU % from WDDM engine counters (3D + compute), same family as Task Manager.
+   * Overlapping polls reuse the last reading so the 3s tick never stacks.
+   */
+  async _gpuUsage(pid) {
+    const id = Number(pid);
+    if (!Number.isFinite(id) || id <= 0) return this._lastGpuPct;
+
+    if (this._gpuInFlight) {
+      try {
+        await this._gpuInFlight;
+      } catch {
+        /* keep last */
+      }
+      return this._lastGpuPct;
+    }
+
+    const script = `
+$id = ${id}
+$filter = "Name LIKE 'pid_${id}%'"
+$sum = 0.0
+$found = $false
+Get-CimInstance -ClassName Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -Filter $filter -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -match 'engtype_(3D|HighPriorityCompute|Compute)' } |
+  ForEach-Object {
+    $found = $true
+    $sum += [double]$_.UtilizationPercentage
+  }
+if (-not $found) { '' }
+else { [math]::Min(100, [math]::Round($sum, 1)) }
+`;
+
+    this._gpuInFlight = execPs(script, 6000)
+      .then((out) => {
+        if (!out) return this._lastGpuPct;
+        const n = parseFloat(out);
+        if (!Number.isFinite(n)) return this._lastGpuPct;
+        this._lastGpuPct = Math.min(100, Math.max(0, n));
+        return this._lastGpuPct;
+      })
+      .catch(() => this._lastGpuPct)
+      .finally(() => {
+        this._gpuInFlight = null;
+      });
+
+    return this._gpuInFlight;
   }
 
   _resolveProbe(game) {
