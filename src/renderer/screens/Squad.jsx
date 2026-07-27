@@ -82,9 +82,16 @@ export default function Squad() {
                 <button
                   className="action-btn ghost"
                   style={{ padding: '5px 12px', fontSize: 11 }}
-                  onClick={() => showToast(`Invite sent to ${p.gamer_tag}!`, 'success')}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(p.gamer_tag || '');
+                      showToast(`Copied ${p.gamer_tag}`, 'success');
+                    } catch {
+                      showToast(p.gamer_tag || 'No tag', 'success');
+                    }
+                  }}
                 >
-                  Invite
+                  Copy tag
                 </button>
               </div>
             );

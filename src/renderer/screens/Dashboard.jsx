@@ -4,7 +4,7 @@ import { sb } from '../lib/supabase.js';
 import { mmrToRank } from '../lib/ranks.js';
 
 export default function Dashboard() {
-  const { profile, user, guestMode, setScreen, showToast } = useNexForge();
+  const { profile, user, guestMode, setScreen, showToast, createAccount } = useNexForge();
   const [matches, setMatches] = useState([]);
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export default function Dashboard() {
               </div>
               <button
                 className="action-btn primary"
-                onClick={() => showToast('Sign in from the auth screen to create your NexForge account.', 'success')}
+                onClick={createAccount}
               >
                 Create Free Account →
               </button>

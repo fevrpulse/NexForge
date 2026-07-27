@@ -156,27 +156,27 @@ export default function Tournaments() {
     };
 
     setPublishing(true);
-    let savedRemote = false;
-    let inserted = tournament;
     try {
       const { data, error } = await sb.from('tournaments').insert(tournament).select(TOURNEY_COLUMNS).single();
-      if (!error) { savedRemote = true; if (data) inserted = data; }
-    } catch (_) {
-      /* fall back to optimistic local row below */
+      setPublishing(false);
+      if (error || !data) {
+        setCloudOffline(true);
+        setFormMsg({ type: 'error', text: error?.message || 'Could not publish tournament. Fix cloud sync and try again.' });
+        showToast(error?.message || 'Tournament publish failed', 'error');
+        return;
+      }
+      setTournaments((prev) => [sanitizeTournament(data), ...prev]);
+      setFormMsg({ type: 'success', text: 'Tournament published.' });
+      setForm({ ...emptyForm, bankEmail: user.email || '' });
+      setCreateOpen(false);
+      showToast('Tournament created', 'success');
+      loadTournaments();
+    } catch (err) {
+      setPublishing(false);
+      setCloudOffline(true);
+      setFormMsg({ type: 'error', text: err?.message || 'Could not publish tournament.' });
+      showToast(err?.message || 'Tournament publish failed', 'error');
     }
-    setPublishing(false);
-
-    setTournaments((prev) => [sanitizeTournament(inserted), ...prev]);
-    setFormMsg({
-      type: savedRemote ? 'success' : 'error',
-      text: savedRemote ? 'Tournament published.' : 'Could not publish to the cloud — showing locally only.',
-    });
-    if (!savedRemote) setCloudOffline(true, 'Tournament cloud insert failed');
-
-    setForm({ ...emptyForm, bankEmail: user.email || '' });
-    setCreateOpen(false);
-    showToast(savedRemote ? 'Tournament created' : 'Tournament saved locally', savedRemote ? 'success' : 'error');
-    if (savedRemote) loadTournaments();
   }
 
   async function registerForTournament(id) {

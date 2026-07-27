@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
+
+const WAIT_MS = 5 * 60 * 1000;
 
 export default function AuthScreen() {
   const { enterGuest, showToast } = useNexForge();
   const [waiting, setWaiting] = useState(false);
+
+  useEffect(() => {
+    if (!waiting) return undefined;
+    const t = setTimeout(() => {
+      setWaiting(false);
+      showToast('Sign in timed out. Open the browser again when you are ready.', 'error');
+    }, WAIT_MS);
+    return () => clearTimeout(t);
+  }, [waiting, showToast]);
 
   async function openAuth(mode) {
     if (!window.nexforge?.openAuthBrowser) {
@@ -47,6 +58,13 @@ export default function AuthScreen() {
             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', marginTop: 6 }}>
               Complete sign in in your browser, then return here.
             </div>
+            <button
+              className="action-btn ghost"
+              style={{ marginTop: 12, padding: '8px 14px', fontSize: 12 }}
+              onClick={() => setWaiting(false)}
+            >
+              Cancel
+            </button>
           </div>
         )}
 
@@ -56,10 +74,12 @@ export default function AuthScreen() {
           </div>
           <button
             onClick={enterGuest}
+            disabled={waiting}
             style={{
               width: '100%', padding: 11, borderRadius: 8, border: '1px solid var(--border2)',
               background: 'transparent', color: 'var(--muted2)', fontFamily: 'var(--font)',
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              fontSize: 13, fontWeight: 600, cursor: waiting ? 'not-allowed' : 'pointer',
+              opacity: waiting ? 0.5 : 1,
             }}
           >
             Browse as Guest

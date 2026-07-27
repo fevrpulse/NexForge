@@ -2,18 +2,9 @@ import React from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 
 export default function LockModal() {
-  const { lockMessage, setLockMessage, signOut, showToast } = useNexForge();
+  const { lockMessage, setLockMessage, createAccount } = useNexForge();
 
   if (!lockMessage) return null;
-
-  async function createAccount() {
-    setLockMessage(null);
-    // Exit guest mode and return to the sign-in screen to create an account.
-    await signOut();
-    if (!window.nexforge?.openAuthBrowser) {
-      showToast('Browser sign in is only available in the desktop app.', 'error');
-    }
-  }
 
   return (
     <div className="lock-modal">

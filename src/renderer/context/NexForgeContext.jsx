@@ -36,6 +36,8 @@ export function NexForgeProvider({ children }) {
   const [cloudOffline, setCloudOffline] = useState(false);
   const [lockMessage, setLockMessage] = useState(null);
   const [communityGames, setCommunityGames] = useState([]);
+  const [appVersion, setAppVersion] = useState(null);
+  const [appPlatform, setAppPlatform] = useState(typeof navigator !== 'undefined' ? navigator.platform : '');
 
   const { catalog: gameCatalog, knownGames } = useMemo(
     () => mergeGameCatalog(communityGames),
@@ -102,21 +104,36 @@ export function NexForgeProvider({ children }) {
       setProfile(data);
       return data;
     }
+    // Identity-only insert — MMR/wins/losses are DB defaults / RPC-owned (security-hardening.sql).
     const tag = authUser.user_metadata?.gamer_tag || authUser.email?.split('@')[0] || 'Player';
     const plat = authUser.user_metadata?.platform || 'PC';
-    const fresh = {
+    const identity = {
       id: authUser.id,
       gamer_tag: tag,
       platform: plat,
-      mmr: 1200,
-      wins: 0,
-      losses: 0,
       main_game: 'Valorant',
       main_game_description: null,
       onboarding_done: false,
+    };
+    const { error } = await sb.from('profiles').upsert(identity, { onConflict: 'id' });
+    if (error) {
+      // Trigger may have created the row already — try a plain select again.
+      const { data: again } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
+      if (again) {
+        setProfile(again);
+        return again;
+      }
+      setCloudOffline(true, error.message);
+      return null;
+    }
+    const { data: created } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
+    const fresh = created || {
+      ...identity,
+      mmr: 1200,
+      wins: 0,
+      losses: 0,
       created_at: new Date().toISOString(),
     };
-    await sb.from('profiles').upsert(fresh);
     setProfile(fresh);
     return fresh;
   }, []);
@@ -145,6 +162,24 @@ export function NexForgeProvider({ children }) {
     setProfile(null);
     setScreenState('dashboard');
     showToast('Signed out', 'success');
+  }, [guestMode, showToast]);
+
+  const createAccount = useCallback(async () => {
+    setLockMessage(null);
+    if (guestMode) {
+      setGuestMode(false);
+      setProfile(null);
+      setScreenState('dashboard');
+    }
+    if (!window.nexforge?.openAuthBrowser) {
+      showToast('Browser sign in is only available in the desktop app.', 'error');
+      return;
+    }
+    try {
+      await window.nexforge.openAuthBrowser('signup');
+    } catch (err) {
+      showToast(err?.message || 'Could not open signup.', 'error');
+    }
   }, [guestMode, showToast]);
 
   const handleAuthTokens = useCallback(async (tokens) => {
@@ -187,6 +222,14 @@ export function NexForgeProvider({ children }) {
     let mounted = true;
 
     (async () => {
+      try {
+        const info = await window.nexforge?.getAppInfo?.();
+        if (info?.version && mounted) setAppVersion(info.version);
+        if (info?.platform && mounted) setAppPlatform(info.platform);
+      } catch (_) {
+        /* unpackaged / missing preload */
+      }
+
       await probeCloud();
       await loadCommunityGames();
 
@@ -232,11 +275,14 @@ export function NexForgeProvider({ children }) {
     setCloudOffline,
     refreshProfile,
     signOut,
+    createAccount,
     enterGuest,
     handleAuthTokens,
     lockMessage,
     setLockMessage,
     probeCloud,
+    appVersion,
+    appPlatform,
     communityGames,
     gameCatalog: gameCatalog.length ? gameCatalog : GAME_CATALOG,
     knownGames: knownGames.length ? knownGames : KNOWN_MAIN_GAMES,

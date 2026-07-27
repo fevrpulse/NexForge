@@ -5,8 +5,17 @@ import {
   gameMark, modeMark, modesForGame,
   honestServerLabel, isShooterGame,
 } from '../lib/games.js';
+import { mmrToRank } from '../lib/ranks.js';
 
 const STEP_LABELS = ['1 · Game', '2 · Queue', '3 · Details'];
+
+function duoSkillMatches(mmr, skill) {
+  const m = mmr || 1200;
+  if (skill === 'Casual') return m < 1400;
+  if (skill === 'Competitive') return m >= 1400 && m < 2200;
+  if (skill === 'Pro') return m >= 2200;
+  return true;
+}
 
 function CombatInputs({ values, onChange }) {
   return (
@@ -68,7 +77,7 @@ export default function Matchmaking() {
   const [duoSearching, setDuoSearching] = useState(false);
   const [duoSkill, setDuoSkill] = useState('Any');
   const [duoStyle, setDuoStyle] = useState('Any');
-  const [duoPlat, setDuoPlat] = useState('PC');
+  const [duoPlat, setDuoPlat] = useState('Any');
 
   const pollRef = useRef(null);
 
@@ -263,13 +272,17 @@ export default function Matchmaking() {
     setDuoSearching(true);
     setDuoResults(null);
     try {
-      const { data, error } = await sb.from('profiles')
+      let query = sb.from('profiles')
         .select('gamer_tag,mmr,platform,main_game,wins')
+        .eq('main_game', 'Fortnite')
         .neq('id', user?.id || '00000000-0000-0000-0000-000000000000')
-        .limit(8);
+        .limit(24);
+      if (duoPlat !== 'Any') query = query.eq('platform', duoPlat);
+      const { data, error } = await query;
       if (error) throw error;
       setCloudOffline(false);
-      setDuoResults(data || []);
+      const filtered = (data || []).filter((p) => duoSkillMatches(p.mmr, duoSkill));
+      setDuoResults(filtered.slice(0, 8));
     } catch (err) {
       setCloudOffline(true, err?.message || err);
       setDuoResults([]);
@@ -359,7 +372,7 @@ export default function Matchmaking() {
               <input type="text" maxLength={120} placeholder={serverPlaceholder}
                 value={server} onChange={(e) => setServer(e.target.value)} />
               <div className="field-hint">Queues are player-hosted / self-organized — NexForge does not run game servers.</div>
-              <div className="field-hint">Leave blank if NexForge hosts the lobby for you.</div>
+              <div className="field-hint">Add your lobby code, IP, or Discord link so challengers can join.</div>
             </div>
 
             <div className="mm-details-meta" style={{ marginBottom: 18 }}>
@@ -377,7 +390,7 @@ export default function Matchmaking() {
                     <option>Any</option><option>Aggressive</option><option>Passive</option><option>Builder</option>
                   </select>
                   <select value={duoPlat} onChange={(e) => setDuoPlat(e.target.value)}>
-                    <option>PC</option><option>PS5</option><option>Xbox</option>
+                    <option>Any</option><option>PC</option><option>PS5</option><option>Xbox</option>
                   </select>
                 </div>
                 <button className="action-btn primary full" onClick={searchFnDuo} disabled={duoSearching}>
@@ -408,11 +421,21 @@ export default function Matchmaking() {
                                 {p.mmr || 1200} MMR
                               </span>
                             </div>
-                            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>{duoStyle} · {p.platform || 'PC'}</div>
+                            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
+                              {mmrToRank(p.mmr)} · {p.platform || 'PC'}
+                              {duoStyle !== 'Any' ? ` · prefers ${duoStyle}` : ''}
+                            </div>
                           </div>
-                          <button className="action-btn primary" style={{ padding: '5px 12px', fontSize: 11 }}
-                            onClick={() => showToast(`Duo request sent to ${p.gamer_tag}. They'll get notified.`, 'success')}>
-                            Invite
+                          <button className="action-btn ghost" style={{ padding: '5px 12px', fontSize: 11 }}
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(p.gamer_tag || '');
+                                showToast(`Copied ${p.gamer_tag}`, 'success');
+                              } catch {
+                                showToast(p.gamer_tag || 'No tag', 'success');
+                              }
+                            }}>
+                            Copy tag
                           </button>
                         </div>
                       );

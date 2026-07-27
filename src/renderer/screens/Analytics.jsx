@@ -4,10 +4,11 @@ import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 
 export default function Analytics() {
-  const { user, profile, showToast, refreshProfile } = useNexForge();
+  const { user, profile, showToast, refreshProfile, appPlatform } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [liveSession, setLiveSession] = useState(null);
+  const isWindows = String(appPlatform || '').toLowerCase().includes('win');
 
   useEffect(() => {
     if (!user) return;
@@ -130,6 +131,14 @@ export default function Analytics() {
 
   return (
     <div>
+      {!isWindows && (
+        <div className="card" style={{ marginBottom: 16, borderColor: 'rgba(255,140,66,.35)' }}>
+          <div className="card-title">Session tracking</div>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted2)', lineHeight: 1.6 }}>
+            Live RAM / CPU / ping session probes run on Windows builds. Match history and career stats still work on this platform.
+          </div>
+        </div>
+      )}
       {liveSession && (
         <div className="track-banner active">
           <div className="track-banner-left">

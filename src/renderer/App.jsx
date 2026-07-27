@@ -4,6 +4,7 @@ import ToastStack from './components/ToastStack.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
 import LockModal from './components/LockModal.jsx';
+import OnboardingModal from './components/OnboardingModal.jsx';
 import Dashboard from './screens/Dashboard.jsx';
 import Matchmaking from './screens/Matchmaking.jsx';
 import Tournaments from './screens/Tournaments.jsx';
@@ -33,7 +34,7 @@ const SCREEN_COMPONENTS = {
 };
 
 function AppShell() {
-  const { loading, user, guestMode, screen, cloudOffline, probeCloud, signOut } = useNexForge();
+  const { loading, user, guestMode, screen, cloudOffline, probeCloud, createAccount, appVersion } = useNexForge();
 
   if (loading) {
     return (
@@ -60,7 +61,7 @@ function AppShell() {
       {guestMode && (
         <div className="guest-banner">
           <span><b>Guest Mode</b> — Stats not saved · Limited access</span>
-          <button onClick={signOut}>Create Account</button>
+          <button onClick={createAccount}>Create Account</button>
         </div>
       )}
       <div className={`offline-banner ${cloudOffline ? 'show' : ''}`}>
@@ -78,6 +79,9 @@ function AppShell() {
           <div className="topbar">
             <div className="topbar-title">{meta.title}</div>
             <div className="topbar-right">
+              {appVersion && (
+                <span className="badge badge-muted" title="App version">v{appVersion}</span>
+              )}
               <span className="badge badge-neon">{meta.badge}</span>
             </div>
           </div>
@@ -87,6 +91,7 @@ function AppShell() {
         </div>
       </div>
       <LockModal />
+      <OnboardingModal />
       <ToastStack />
     </div>
   );

@@ -16,7 +16,7 @@ const SECONDARY_NAV = [
 ];
 
 export default function Sidebar() {
-  const { screen, setScreen, profile, guestMode, signOut } = useNexForge();
+  const { screen, setScreen, profile, guestMode, signOut, appVersion } = useNexForge();
   const tag = profile?.gamer_tag || 'Player';
   const initials = tag.slice(0, 2).toUpperCase();
   const rank = guestMode ? 'No account' : mmrToRank(profile?.mmr ?? 1200);
@@ -37,7 +37,10 @@ export default function Sidebar() {
 
   return (
     <aside className="sidebar">
-      <div className="sb-logo">Nex<span>Forge</span></div>
+      <div className="sb-logo">
+        Nex<span>Forge</span>
+        {appVersion && <div className="sb-version">v{appVersion}</div>}
+      </div>
       <nav>
         {PRIMARY_NAV.map(renderNavItem)}
         <div className="nav-div" />
