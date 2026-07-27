@@ -13,6 +13,7 @@ import Leaderboard from './screens/Leaderboard.jsx';
 import Profile from './screens/Profile.jsx';
 import Analytics from './screens/Analytics.jsx';
 import Squad from './screens/Squad.jsx';
+import { NavIcon } from './components/icons.jsx';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
@@ -81,7 +82,10 @@ function AppShell() {
         <Sidebar />
         <div className="main">
           <div className="topbar">
-            <div className="topbar-title">{meta.title}</div>
+            <div className="topbar-title">
+              <span className="topbar-icon"><NavIcon id={screen} size={20} /></span>
+              {meta.title}
+            </div>
             <div className="topbar-right">
               {appVersion && (
                 <span className="badge badge-muted" title="App version">v{appVersion}</span>

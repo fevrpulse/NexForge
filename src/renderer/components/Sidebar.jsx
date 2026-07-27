@@ -1,18 +1,19 @@
 import React from 'react';
 import { useNexForge, GUEST_LOCKED_SCREENS } from '../context/NexForgeContext.jsx';
 import { mmrToRank } from '../lib/ranks.js';
+import { NavIcon } from './icons.jsx';
 
 const PRIMARY_NAV = [
-  { id: 'dashboard', label: 'Dashboard', mark: 'DB' },
-  { id: 'matchmaking', label: 'Matchmaking', mark: 'MM' },
-  { id: 'tournaments', label: 'Tournaments', mark: 'TR' },
-  { id: 'leaderboard', label: 'Leaderboard', mark: 'LB' },
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'matchmaking', label: 'Matchmaking' },
+  { id: 'tournaments', label: 'Tournaments' },
+  { id: 'leaderboard', label: 'Leaderboard' },
 ];
 
 const SECONDARY_NAV = [
-  { id: 'profile', label: 'My Profile', mark: 'PR' },
-  { id: 'analytics', label: 'Analytics', mark: 'AN' },
-  { id: 'squad', label: 'Squad Finder', mark: 'SQ' },
+  { id: 'profile', label: 'My Profile' },
+  { id: 'analytics', label: 'Analytics' },
+  { id: 'squad', label: 'Squad Finder' },
 ];
 
 export default function Sidebar() {
@@ -29,7 +30,7 @@ export default function Sidebar() {
         className={`nav-item ${screen === item.id ? 'active' : ''} ${locked ? 'locked-nav' : ''}`}
         onClick={() => setScreen(item.id)}
       >
-        <span className="nav-icon">{item.mark}</span>
+        <span className="nav-icon"><NavIcon id={item.id} /></span>
         <span className="nav-label">{item.label}</span>
       </div>
     );

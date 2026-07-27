@@ -6,6 +6,7 @@ import {
   honestServerLabel, isShooterGame,
 } from '../lib/games.js';
 import { mmrToRank } from '../lib/ranks.js';
+import { GameIcon, hasGameIcon } from '../components/icons.jsx';
 
 const STEP_LABELS = ['1 · Game', '2 · Queue', '3 · Details'];
 
@@ -318,7 +319,9 @@ export default function Matchmaking() {
                   className={`game-card ${selectedGame === game ? 'selected' : ''}`}
                   onClick={() => selectGame(game)}
                 >
-                  <div className="game-icon">{gameMark(game)}</div>
+                  <div className={`game-icon ${hasGameIcon(game) ? 'game-icon-svg' : ''}`}>
+                    {hasGameIcon(game) ? <GameIcon game={game} /> : gameMark(game)}
+                  </div>
                   <div className="game-name">{game}</div>
                   <div className="game-cat">{group.category}</div>
                 </div>
