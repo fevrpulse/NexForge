@@ -1,5 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
+import {
+  isAuthSessionError,
+  isCloudUnreachableError,
+  probeSupabaseCloud,
+  recoverAuthSession,
+  clearLocalAuthSession,
+} from '../lib/cloud.js';
 import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.js';
 
 const NexForgeContext = createContext(null);
@@ -33,7 +40,8 @@ export function NexForgeProvider({ children }) {
   const [guestMode, setGuestMode] = useState(false);
   const [screen, setScreenState] = useState('dashboard');
   const [toasts, setToasts] = useState([]);
-  const [cloudOffline, setCloudOffline] = useState(false);
+  const [cloudOffline, setCloudOfflineState] = useState(false);
+  const [cloudReason, setCloudReason] = useState('');
   const [lockMessage, setLockMessage] = useState(null);
   const [communityGames, setCommunityGames] = useState([]);
   const [appVersion, setAppVersion] = useState(null);
@@ -51,6 +59,36 @@ export function NexForgeProvider({ children }) {
       setToasts((prev) => prev.filter((t) => t.id !== id));
     }, 3200);
   }, []);
+
+  const setCloudOffline = useCallback((offline, reason) => {
+    const next = !!offline;
+    setCloudOfflineState(next);
+    if (!next) setCloudReason('');
+    else if (reason) setCloudReason(String(reason));
+  }, []);
+
+  /** Mark offline only for real reachability problems — not RLS / validation / JWT glitches. */
+  const reportCloudError = useCallback(async (err) => {
+    if (!err) return false;
+    if (isAuthSessionError(err)) {
+      await clearLocalAuthSession();
+      setUser(null);
+      setProfile(null);
+      setGuestMode(false);
+      const result = await probeSupabaseCloud();
+      if (result.ok) {
+        setCloudOffline(false);
+        return false;
+      }
+      setCloudOffline(true, result.error?.message || err?.message || 'Cloud sync unavailable');
+      return true;
+    }
+    if (isCloudUnreachableError(err)) {
+      setCloudOffline(true, err?.message || 'Cloud sync unavailable');
+      return true;
+    }
+    return false;
+  }, [setCloudOffline]);
 
   const loadCommunityGames = useCallback(async () => {
     try {
@@ -85,17 +123,19 @@ export function NexForgeProvider({ children }) {
   }, [loadCommunityGames]);
 
   const probeCloud = useCallback(async () => {
-    try {
-      const { error } = await sb.from('profiles').select('id').limit(1);
-      if (error) throw error;
+    const result = await probeSupabaseCloud();
+    if (result.ok) {
       setCloudOffline(false);
+      if (result.recoveredAuth) {
+        setUser(null);
+        setProfile(null);
+      }
       await loadCommunityGames();
       return true;
-    } catch (err) {
-      setCloudOffline(true, err?.message || err);
-      return false;
     }
-  }, [loadCommunityGames]);
+    setCloudOffline(true, result.error?.message || 'Cloud sync unavailable');
+    return false;
+  }, [loadCommunityGames, setCloudOffline]);
 
   const loadProfileFor = useCallback(async (authUser) => {
     if (!authUser) return null;
@@ -123,7 +163,7 @@ export function NexForgeProvider({ children }) {
         setProfile(again);
         return again;
       }
-      setCloudOffline(true, error.message);
+      await reportCloudError(error);
       return null;
     }
     const { data: created } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
@@ -136,7 +176,7 @@ export function NexForgeProvider({ children }) {
     };
     setProfile(fresh);
     return fresh;
-  }, []);
+  }, [reportCloudError]);
 
   const refreshProfile = useCallback(async () => {
     if (!user) return null;
@@ -230,6 +270,8 @@ export function NexForgeProvider({ children }) {
         /* unpackaged / missing preload */
       }
 
+      // Clear corrupt JWTs first — a bad session makes every REST call 401 and looks "offline".
+      await recoverAuthSession();
       await probeCloud();
       await loadCommunityGames();
 
@@ -262,6 +304,13 @@ export function NexForgeProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-retry while offline so a blip or recovered JWT does not stick forever.
+  useEffect(() => {
+    if (!cloudOffline) return undefined;
+    const id = setInterval(() => { probeCloud(); }, 20000);
+    return () => clearInterval(id);
+  }, [cloudOffline, probeCloud]);
+
   const value = {
     loading,
     user,
@@ -272,7 +321,9 @@ export function NexForgeProvider({ children }) {
     toasts,
     showToast,
     cloudOffline,
+    cloudReason,
     setCloudOffline,
+    reportCloudError,
     refreshProfile,
     signOut,
     createAccount,

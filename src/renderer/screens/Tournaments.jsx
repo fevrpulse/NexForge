@@ -41,7 +41,7 @@ const emptyForm = {
 };
 
 export default function Tournaments() {
-  const { user, profile, guestMode, showToast, setCloudOffline, setLockMessage, knownGames } = useNexForge();
+  const { user, profile, guestMode, showToast, setCloudOffline, reportCloudError, setLockMessage, knownGames } = useNexForge();
   const [tournaments, setTournaments] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState('open');
@@ -60,7 +60,7 @@ export default function Tournaments() {
       setCloudOffline(false);
       setTournaments(data || []);
     } catch (err) {
-      setCloudOffline(true, err?.message || err);
+      await reportCloudError(err);
       setTournaments([]);
     } finally {
       setLoaded(true);
@@ -160,7 +160,7 @@ export default function Tournaments() {
       const { data, error } = await sb.from('tournaments').insert(tournament).select(TOURNEY_COLUMNS).single();
       setPublishing(false);
       if (error || !data) {
-        setCloudOffline(true);
+        await reportCloudError(error || new Error('Tournament publish failed'));
         setFormMsg({ type: 'error', text: error?.message || 'Could not publish tournament. Fix cloud sync and try again.' });
         showToast(error?.message || 'Tournament publish failed', 'error');
         return;
@@ -173,7 +173,7 @@ export default function Tournaments() {
       loadTournaments();
     } catch (err) {
       setPublishing(false);
-      setCloudOffline(true);
+      await reportCloudError(err);
       setFormMsg({ type: 'error', text: err?.message || 'Could not publish tournament.' });
       showToast(err?.message || 'Tournament publish failed', 'error');
     }
@@ -199,7 +199,7 @@ export default function Tournaments() {
       setTournaments((prev) => prev.map((x) => (x.id === id ? { ...x, ...sanitizeTournament(data) } : x)));
       showToast(`Registered for ${t.name}`, 'success');
     } else {
-      setCloudOffline(true, error?.message);
+      await reportCloudError(error);
       showToast(error?.message || 'Could not register — cloud required.', 'error');
     }
   }
@@ -215,7 +215,7 @@ export default function Tournaments() {
       setTournaments((prev) => prev.map((x) => (x.id === id ? { ...x, ...sanitizeTournament(data) } : x)));
       showToast('Left tournament', 'success');
     } else {
-      setCloudOffline(true, error?.message);
+      await reportCloudError(error);
       showToast(error?.message || 'Could not leave — cloud required.', 'error');
     }
   }

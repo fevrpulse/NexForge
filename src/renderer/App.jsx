@@ -34,7 +34,7 @@ const SCREEN_COMPONENTS = {
 };
 
 function AppShell() {
-  const { loading, user, guestMode, screen, cloudOffline, probeCloud, createAccount, appVersion } = useNexForge();
+  const { loading, user, guestMode, screen, cloudOffline, cloudReason, probeCloud, createAccount, appVersion } = useNexForge();
 
   if (loading) {
     return (
@@ -65,7 +65,10 @@ function AppShell() {
         </div>
       )}
       <div className={`offline-banner ${cloudOffline ? 'show' : ''}`}>
-        <span><b>Local-only mode</b> — Cloud sync unavailable. Duels/tournaments may not sync until Supabase is reachable.</span>
+        <span>
+          <b>Local-only mode</b> — Cloud sync unavailable.
+          {cloudReason ? ` (${cloudReason})` : ' Duels/tournaments may not sync until Supabase is reachable.'}
+        </span>
         <button
           style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #FF8C42', background: 'transparent', color: '#FF8C42', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           onClick={probeCloud}

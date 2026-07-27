@@ -5,7 +5,7 @@ import { sb } from '../lib/supabase.js';
 const COLORS = ['#C9FF00', '#3B7EFF', '#FF8C42', '#4ade80', '#9B5CFF'];
 
 export default function Leaderboard() {
-  const { profile, setCloudOffline } = useNexForge();
+  const { profile, setCloudOffline, reportCloudError } = useNexForge();
   const [players, setPlayers] = useState(null);
 
   useEffect(() => {
@@ -14,13 +14,21 @@ export default function Leaderboard() {
       .select('gamer_tag,mmr,main_game,platform')
       .order('mmr', { ascending: false })
       .limit(10)
-      .then(({ data, error }) => {
+      .then(async ({ data, error }) => {
         if (!active) return;
-        if (error) { setCloudOffline(true, error.message); setPlayers([]); return; }
+        if (error) {
+          await reportCloudError(error);
+          setPlayers([]);
+          return;
+        }
         setCloudOffline(false);
         setPlayers(data || []);
       })
-      .catch(() => { if (active) setPlayers([]); });
+      .catch(async (err) => {
+        if (!active) return;
+        await reportCloudError(err);
+        setPlayers([]);
+      });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

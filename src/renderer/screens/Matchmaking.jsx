@@ -54,7 +54,7 @@ function readCombat(values) {
 }
 
 export default function Matchmaking() {
-  const { user, profile, showToast, setCloudOffline, gameCatalog } = useNexForge();
+  const { user, profile, showToast, setCloudOffline, reportCloudError, gameCatalog } = useNexForge();
 
   const [step, setStep] = useState(1);
   const [selectedGame, setSelectedGame] = useState(profile?.main_game || 'Valorant');
@@ -100,9 +100,9 @@ export default function Matchmaking() {
         setMyActiveDuel(mineActive || null);
       }
     } catch (err) {
-      setCloudOffline(true, err?.message || err);
+      await reportCloudError(err);
     }
-  }, [user, setCloudOffline]);
+  }, [user, setCloudOffline, reportCloudError]);
 
   useEffect(() => {
     refreshDuels();
@@ -284,7 +284,7 @@ export default function Matchmaking() {
       const filtered = (data || []).filter((p) => duoSkillMatches(p.mmr, duoSkill));
       setDuoResults(filtered.slice(0, 8));
     } catch (err) {
-      setCloudOffline(true, err?.message || err);
+      await reportCloudError(err);
       setDuoResults([]);
     } finally {
       setDuoSearching(false);
