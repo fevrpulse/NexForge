@@ -39,7 +39,7 @@ export default function AuthScreen() {
         <div className="auth-tagline">// COMPETE · DOMINATE · FORGE YOUR LEGACY</div>
 
         <button className="auth-btn" onClick={() => openAuth('login')} disabled={waiting}>
-          Sign In in Browser →
+          Sign in with Browser →
         </button>
         <button
           className="auth-btn"

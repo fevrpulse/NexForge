@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, screen } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -12,12 +12,28 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   'github.com',
   'www.github.com',
 ]);
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 let mainWindow = null;
 let authServer = null;
 let pendingAuthTokens = null;
 let authNonce = null;
+let updater = null;
 const gameTracker = new GameTracker();
+
+// Second launches focus the existing window instead of fighting over the auth port.
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
+if (!gotSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  });
+}
 
 function sendToRenderer(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -50,6 +66,7 @@ function setupAutoUpdater() {
     console.error('electron-updater not available:', err);
     return;
   }
+  updater = autoUpdater;
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -57,17 +74,22 @@ function setupAutoUpdater() {
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Checking for updates...');
+    sendToRenderer('update-status', { state: 'checking' });
   });
 
   autoUpdater.on('update-available', (info) => {
     console.log('Update available:', info.version);
+    sendToRenderer('update-status', { state: 'available', version: info && info.version });
   });
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('No update available. Current version:', app.getVersion(), 'Remote:', info && info.version);
+    sendToRenderer('update-status', { state: 'not-available', version: app.getVersion() });
   });
 
-  autoUpdater.on('update-downloaded', async () => {
+  autoUpdater.on('update-downloaded', async (info) => {
+    sendToRenderer('update-status', { state: 'downloaded', version: info && info.version });
+    if (!mainWindow || mainWindow.isDestroyed()) return; // installs on quit
     const result = await dialog.showMessageBox(mainWindow, {
       type: 'info',
       title: 'Update ready',
@@ -85,10 +107,60 @@ function setupAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     console.error('Auto-updater error:', err);
+    sendToRenderer('update-status', { state: 'error', message: err && err.message });
   });
 
   autoUpdater.checkForUpdatesAndNotify().catch((err) => {
     console.error('Update check failed:', err);
+  });
+
+  // Long-running sessions still pick up new releases without a restart.
+  const timer = setInterval(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('Periodic update check failed:', err);
+    });
+  }, UPDATE_CHECK_INTERVAL_MS);
+  if (timer.unref) timer.unref();
+}
+
+function getWindowStateFile() {
+  return path.join(app.getPath('userData'), 'window-state.json');
+}
+
+function loadWindowState() {
+  try {
+    const state = JSON.parse(fs.readFileSync(getWindowStateFile(), 'utf8'));
+    if (!state || typeof state.width !== 'number' || typeof state.height !== 'number') return null;
+    return state;
+  } catch {
+    return null;
+  }
+}
+
+function saveWindowState() {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  try {
+    const bounds = mainWindow.getNormalBounds();
+    fs.writeFileSync(getWindowStateFile(), JSON.stringify({
+      ...bounds,
+      maximized: mainWindow.isMaximized(),
+    }));
+  } catch {
+    /* window state is best-effort */
+  }
+}
+
+/** Only restore a position that is still visible on a connected display. */
+function isOnScreen(state) {
+  if (typeof state.x !== 'number' || typeof state.y !== 'number') return false;
+  return screen.getAllDisplays().some((d) => {
+    const a = d.workArea;
+    return (
+      state.x >= a.x - 100 &&
+      state.y >= a.y - 40 &&
+      state.x < a.x + a.width - 100 &&
+      state.y < a.y + a.height - 100
+    );
   });
 }
 
@@ -111,7 +183,7 @@ function startAuthServer() {
   if (authServer) return Promise.resolve(authServer);
 
   return new Promise((resolve) => {
-    authServer = http.createServer((req, res) => {
+    const server = http.createServer((req, res) => {
       const url = new URL(req.url, `http://${AUTH_HOST}:${AUTH_PORT}`);
 
       if (url.pathname === '/callback' && req.method === 'POST') {
@@ -174,7 +246,16 @@ function startAuthServer() {
       res.end(html);
     });
 
-    authServer.listen(AUTH_PORT, AUTH_HOST, () => resolve(authServer));
+    server.once('error', (err) => {
+      console.error('Auth server failed to start:', err);
+      if (authServer === server) authServer = null;
+      resolve(null);
+    });
+
+    server.listen(AUTH_PORT, AUTH_HOST, () => {
+      authServer = server;
+      resolve(server);
+    });
   });
 }
 
@@ -199,9 +280,12 @@ function isAllowedNavigation(urlString) {
 
 function createWindow() {
   Menu.setApplicationMenu(null);
+  const state = loadWindowState();
+  const restorePosition = state && isOnScreen(state);
   mainWindow = new BrowserWindow({
-    width: 1400,
-    height: 900,
+    width: Math.max(1100, state?.width || 1400),
+    height: Math.max(700, state?.height || 900),
+    ...(restorePosition ? { x: state.x, y: state.y } : {}),
     minWidth: 1100,
     minHeight: 700,
     title: 'NexForge',
@@ -218,6 +302,8 @@ function createWindow() {
   });
   mainWindow.setMenu(null);
   mainWindow.setMenuBarVisibility(false);
+  if (state?.maximized) mainWindow.maximize();
+  mainWindow.on('close', saveWindowState);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedNavigation(url)) {
@@ -254,10 +340,23 @@ ipcMain.handle('get-pending-auth', () => {
 });
 
 ipcMain.handle('open-auth-browser', async (_event, mode) => {
-  await startAuthServer();
+  const server = await startAuthServer();
+  if (!server) {
+    throw new Error(`Could not start the sign-in helper on port ${AUTH_PORT}. Close the app using that port and try again.`);
+  }
   rotateAuthNonce();
   const tab = mode === 'signup' ? 'signup' : 'login';
   await shell.openExternal(`http://${AUTH_HOST}:${AUTH_PORT}/auth?mode=${tab}`);
+});
+
+ipcMain.handle('check-for-updates', async () => {
+  if (!updater) return { ok: false, reason: 'dev' };
+  try {
+    await updater.checkForUpdates();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: err?.message || 'Update check failed' };
+  }
 });
 
 ipcMain.handle('start-game-tracking', () => {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { mmrToRank } from '../lib/ranks.js';
+import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
 
 export default function Dashboard() {
   const { profile, user, guestMode, setScreen, showToast, createAccount } = useNexForge();
@@ -33,6 +34,7 @@ export default function Dashboard() {
 
   return (
     <div>
+      <LiveSessionBanner />
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">MMR Rating</div>

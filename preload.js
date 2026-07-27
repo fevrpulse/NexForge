@@ -1,27 +1,26 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+/** Subscribe to an IPC channel and return an unsubscribe function. */
+function subscribe(channel, callback) {
+  const handler = (_event, payload) => callback(payload);
+  ipcRenderer.on(channel, handler);
+  return () => ipcRenderer.removeListener(channel, handler);
+}
+
 contextBridge.exposeInMainWorld('nexforge', {
   platform: process.platform,
   openAuthBrowser: (mode) => ipcRenderer.invoke('open-auth-browser', mode),
   getPendingAuth: () => ipcRenderer.invoke('get-pending-auth'),
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
-  onAuthCallback: (callback) => {
-    ipcRenderer.on('auth-callback', (_event, tokens) => callback(tokens));
-  },
+  checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),
+  onAuthCallback: (callback) => subscribe('auth-callback', callback),
+  onUpdateStatus: (callback) => subscribe('update-status', callback),
   startGameTracking: () => ipcRenderer.invoke('start-game-tracking'),
   stopGameTracking: () => ipcRenderer.invoke('stop-game-tracking'),
   getActiveGameSession: () => ipcRenderer.invoke('get-active-game-session'),
   setPingProbeHost: (host) => ipcRenderer.invoke('set-ping-probe-host', host),
-  onGameSessionStarted: (callback) => {
-    ipcRenderer.on('game-session-started', (_event, session) => callback(session));
-  },
-  onGameSessionSample: (callback) => {
-    ipcRenderer.on('game-session-sample', (_event, payload) => callback(payload));
-  },
-  onGameSessionEnded: (callback) => {
-    ipcRenderer.on('game-session-ended', (_event, summary) => callback(summary));
-  },
-  onGameSessionCancelled: (callback) => {
-    ipcRenderer.on('game-session-cancelled', (_event, payload) => callback(payload));
-  },
+  onGameSessionStarted: (callback) => subscribe('game-session-started', callback),
+  onGameSessionSample: (callback) => subscribe('game-session-sample', callback),
+  onGameSessionEnded: (callback) => subscribe('game-session-ended', callback),
+  onGameSessionCancelled: (callback) => subscribe('game-session-cancelled', callback),
 });

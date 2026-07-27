@@ -2,12 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
+import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
 
 export default function Analytics() {
-  const { user, profile, showToast, refreshProfile, appPlatform } = useNexForge();
+  const { user, profile, refreshProfile, appPlatform, sessionSaveTick } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [sessions, setSessions] = useState([]);
-  const [liveSession, setLiveSession] = useState(null);
   const isWindows = String(appPlatform || '').toLowerCase().includes('win');
 
   useEffect(() => {
@@ -23,6 +23,8 @@ export default function Analytics() {
     return () => { active = false; };
   }, [user]);
 
+  // sessionSaveTick bumps when a session finishes saving (handled in context),
+  // so history refreshes even if it ended while another screen was open.
   useEffect(() => {
     if (!user) return;
     let active = true;
@@ -34,71 +36,7 @@ export default function Analytics() {
       .then(({ data, error }) => { if (active && !error) setSessions(data || []); })
       .catch(() => {});
     return () => { active = false; };
-  }, [user]);
-
-  useEffect(() => {
-    if (!window.nexforge) return undefined;
-
-    let cancelled = false;
-
-    window.nexforge.getActiveGameSession?.()
-      .then((s) => { if (!cancelled && s) setLiveSession(s); })
-      .catch(() => {});
-
-    const offStarted = window.nexforge.onGameSessionStarted?.((session) => {
-      setLiveSession(session);
-      showToast(`Tracking ${session.game}`, 'success');
-    });
-    const offSample = window.nexforge.onGameSessionSample?.((payload) => {
-      setLiveSession((prev) => (prev ? { ...prev, ...payload } : payload));
-    });
-    const offEnded = window.nexforge.onGameSessionEnded?.(async (summary) => {
-      setLiveSession(null);
-      try {
-        await sb.from('game_sessions').insert({
-          user_id: user?.id,
-          game: summary.game,
-          process_name: summary.processName || null,
-          duration_sec: summary.durationSec,
-          avg_ram_mb: summary.avgRamMb,
-          max_ram_mb: summary.maxRamMb,
-          avg_cpu_pct: summary.avgCpuPct,
-          max_cpu_pct: summary.maxCpuPct,
-          avg_gpu_pct: summary.avgGpuPct,
-          max_gpu_pct: summary.maxGpuPct,
-          avg_ping_ms: summary.avgPingMs,
-          max_ping_ms: summary.maxPingMs,
-          tips: summary.tips || [],
-          samples: summary.samples || [],
-          started_at: summary.startedAt,
-          ended_at: summary.endedAt,
-        });
-      } catch (_) {
-        /* local-only if cloud insert fails */
-      }
-      showToast(`${summary.game} session saved`, 'success');
-      sb.from('game_sessions')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('ended_at', { ascending: false })
-        .limit(20)
-        .then(({ data, error }) => { if (!error) setSessions(data || []); })
-        .catch(() => {});
-    });
-    const offCancelled = window.nexforge.onGameSessionCancelled?.((payload) => {
-      setLiveSession(null);
-      if (payload?.game) showToast(`${payload.game} session discarded (too short)`, 'error');
-    });
-
-    return () => {
-      cancelled = true;
-      offStarted?.();
-      offSample?.();
-      offEnded?.();
-      offCancelled?.();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, sessionSaveTick]);
 
   if (!profile) return null;
 
@@ -141,22 +79,7 @@ export default function Analytics() {
           </div>
         </div>
       )}
-      {liveSession && (
-        <div className="track-banner active">
-          <div className="track-banner-left">
-            <div className="track-banner-title">Tracking <span>{liveSession.game || '—'}</span></div>
-            <div className="track-banner-sub">
-              Live {formatDuration(liveSession.durationSec)} · probe ping (not in-game tick latency)
-            </div>
-          </div>
-          <div className="track-metrics">
-            <div>RAM <b>{liveSession.live?.ramMb != null ? `${liveSession.live.ramMb} MB` : '—'}</b></div>
-            <div>CPU <b>{liveSession.live?.cpuPct != null ? `${liveSession.live.cpuPct}%` : '—'}</b></div>
-            <div>GPU <b>{liveSession.live?.gpuPct != null ? `${liveSession.live.gpuPct}%` : '—'}</b></div>
-            <div>Ping <b>{liveSession.live?.pingMs != null ? `${liveSession.live.pingMs} ms` : '—'}</b></div>
-          </div>
-        </div>
-      )}
+      <LiveSessionBanner />
 
       <div className="stats-grid">
         <div className="stat-card">
@@ -239,15 +162,29 @@ export default function Analytics() {
             const cpu = s.avg_cpu_pct != null ? `${Number(s.avg_cpu_pct).toFixed(0)}%` : '—';
             const gpu = s.avg_gpu_pct != null ? `${Number(s.avg_gpu_pct).toFixed(0)}%` : '—';
             const kdaLine = s.kills != null ? `${s.kills}/${s.deaths ?? 0}/${s.assists ?? 0}` : null;
+            const peaks = [
+              s.max_ping_ms != null ? `Ping ${Math.round(s.max_ping_ms)} ms` : null,
+              s.max_ram_mb != null ? `RAM ${Math.round(s.max_ram_mb)} MB` : null,
+              s.max_cpu_pct != null ? `CPU ${Number(s.max_cpu_pct).toFixed(0)}%` : null,
+              s.max_gpu_pct != null ? `GPU ${Number(s.max_gpu_pct).toFixed(0)}%` : null,
+            ].filter(Boolean).join(' · ');
+            const tips = Array.isArray(s.tips) ? s.tips.slice(0, 2) : [];
             return (
               <div className="session-row" key={s.id}>
-                <div>
+                <div style={{ minWidth: 0 }}>
                   <div className="session-row-game">{s.game || 'Unknown'}</div>
                   <div className="session-row-meta">
                     {formatDuration(s.duration_sec)} · {when}{kdaLine ? ` · ${kdaLine} K/D/A` : ''}
                   </div>
+                  {tips.length > 0 && (
+                    <div className="session-row-tips">
+                      {tips.map((tip) => <div key={tip}>· {tip}</div>)}
+                    </div>
+                  )}
                 </div>
-                <div className="session-row-stats">Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}</div>
+                <div className="session-row-stats" title={peaks ? `Peaks — ${peaks}` : undefined}>
+                  Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}
+                </div>
               </div>
             );
           })

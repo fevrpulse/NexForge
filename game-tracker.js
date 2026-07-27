@@ -115,6 +115,7 @@ class GameTracker extends EventEmitter {
     super();
     this._timer = null;
     this._running = false;
+    this._ticking = false;
     this._session = null;
     this._cpuPrev = null;
     this._customProbeHost = null;
@@ -186,31 +187,37 @@ class GameTracker extends EventEmitter {
   }
 
   async _tick() {
-    if (!this._running) return;
+    // Slow probes (ping timeouts, busy WMI) must not stack overlapping ticks.
+    if (!this._running || this._ticking) return;
+    this._ticking = true;
+    try {
+      const found = await this._findGameProcess();
+      if (!found) {
+        if (this._session) this._endSession(true);
+        this._cpuPrev = null;
+        this._lastGpuPct = null;
+        return;
+      }
 
-    const found = await this._findGameProcess();
-    if (!found) {
-      if (this._session) this._endSession(true);
-      this._cpuPrev = null;
-      this._lastGpuPct = null;
-      return;
-    }
+      if (!this._session || this._session.pid !== found.pid || this._session.game !== found.game) {
+        if (this._session) this._endSession(true);
+        this._startSession(found);
+      }
 
-    if (!this._session || this._session.pid !== found.pid || this._session.game !== found.game) {
-      if (this._session) this._endSession(true);
-      this._startSession(found);
+      const sample = await this._sample(found);
+      if (!this._session) return; // stopped mid-sample
+      this._session.samples.push(sample);
+      // Keep samples bounded
+      if (this._session.samples.length > 400) {
+        this._session.samples = this._session.samples.slice(-300);
+      }
+      this.emit('sample', {
+        ...this._publicSession(this._session),
+        sample,
+      });
+    } finally {
+      this._ticking = false;
     }
-
-    const sample = await this._sample(found);
-    this._session.samples.push(sample);
-    // Keep samples bounded
-    if (this._session.samples.length > 400) {
-      this._session.samples = this._session.samples.slice(-300);
-    }
-    this.emit('sample', {
-      ...this._publicSession(this._session),
-      sample,
-    });
   }
 
   _startSession(found) {

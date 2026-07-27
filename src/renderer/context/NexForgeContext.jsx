@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { sb } from '../lib/supabase.js';
 import {
   isAuthSessionError,
@@ -46,6 +46,12 @@ export function NexForgeProvider({ children }) {
   const [communityGames, setCommunityGames] = useState([]);
   const [appVersion, setAppVersion] = useState(null);
   const [appPlatform, setAppPlatform] = useState(typeof navigator !== 'undefined' ? navigator.platform : '');
+  const [liveSession, setLiveSession] = useState(null);
+  // Bumped whenever a finished session is saved so screens can refetch history.
+  const [sessionSaveTick, setSessionSaveTick] = useState(0);
+
+  const userRef = useRef(null);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   const { catalog: gameCatalog, knownGames } = useMemo(
     () => mergeGameCatalog(communityGames),
@@ -260,6 +266,7 @@ export function NexForgeProvider({ children }) {
 
   useEffect(() => {
     let mounted = true;
+    let offAuth = null;
 
     (async () => {
       try {
@@ -276,7 +283,7 @@ export function NexForgeProvider({ children }) {
       await loadCommunityGames();
 
       if (window.nexforge?.onAuthCallback) {
-        window.nexforge.onAuthCallback((tokens) => {
+        offAuth = window.nexforge.onAuthCallback((tokens) => {
           handleAuthTokens(tokens);
         });
         try {
@@ -300,7 +307,10 @@ export function NexForgeProvider({ children }) {
       setLoading(false);
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+      offAuth?.();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -310,6 +320,112 @@ export function NexForgeProvider({ children }) {
     const id = setInterval(() => { probeCloud(); }, 20000);
     return () => clearInterval(id);
   }, [cloudOffline, probeCloud]);
+
+  // Game session tracking lives here (always mounted) so finished sessions are
+  // saved even when the Analytics screen is closed.
+  useEffect(() => {
+    const nf = window.nexforge;
+    if (!nf?.onGameSessionStarted) return undefined;
+
+    nf.getActiveGameSession?.()
+      .then((s) => { if (s) setLiveSession(s); })
+      .catch(() => {});
+
+    const offStarted = nf.onGameSessionStarted((session) => {
+      setLiveSession(session);
+      showToast(`Tracking ${session.game}`, 'success');
+    });
+    const offSample = nf.onGameSessionSample((payload) => {
+      setLiveSession((prev) => (prev ? { ...prev, ...payload } : payload));
+    });
+    const offEnded = nf.onGameSessionEnded(async (summary) => {
+      setLiveSession(null);
+      const u = userRef.current;
+      if (!u) {
+        showToast(`${summary.game} session ended — sign in to save sessions`, 'error');
+        return;
+      }
+      try {
+        const { error } = await sb.from('game_sessions').insert({
+          user_id: u.id,
+          game: summary.game,
+          process_name: summary.processName || null,
+          duration_sec: summary.durationSec,
+          avg_ram_mb: summary.avgRamMb,
+          max_ram_mb: summary.maxRamMb,
+          avg_cpu_pct: summary.avgCpuPct,
+          max_cpu_pct: summary.maxCpuPct,
+          avg_gpu_pct: summary.avgGpuPct,
+          max_gpu_pct: summary.maxGpuPct,
+          avg_ping_ms: summary.avgPingMs,
+          max_ping_ms: summary.maxPingMs,
+          tips: summary.tips || [],
+          samples: summary.samples || [],
+          started_at: summary.startedAt,
+          ended_at: summary.endedAt,
+        });
+        if (error) throw error;
+        showToast(`${summary.game} session saved`, 'success');
+      } catch (err) {
+        showToast(`${summary.game} session ended (cloud save failed)`, 'error');
+        await reportCloudError(err);
+      } finally {
+        setSessionSaveTick((t) => t + 1);
+      }
+    });
+    const offCancelled = nf.onGameSessionCancelled((payload) => {
+      setLiveSession(null);
+      if (payload?.game) showToast(`${payload.game} session discarded (too short)`, 'error');
+    });
+
+    return () => {
+      offStarted?.();
+      offSample?.();
+      offEnded?.();
+      offCancelled?.();
+    };
+  }, [showToast, reportCloudError]);
+
+  // Update toasts only for user-initiated checks; background checks stay silent
+  // (the main process shows its own dialog once an update is downloaded).
+  const manualUpdateCheckRef = useRef(false);
+
+  useEffect(() => {
+    const off = window.nexforge?.onUpdateStatus?.((status) => {
+      if (!status || !manualUpdateCheckRef.current) return;
+      if (status.state === 'available') {
+        showToast(`Update v${status.version || ''} found — downloading…`, 'success');
+      } else if (status.state === 'not-available') {
+        manualUpdateCheckRef.current = false;
+        showToast('You are on the latest version.', 'success');
+      } else if (status.state === 'downloaded') {
+        manualUpdateCheckRef.current = false;
+      } else if (status.state === 'error') {
+        manualUpdateCheckRef.current = false;
+        showToast(status.message || 'Update check failed.', 'error');
+      }
+    });
+    return () => off?.();
+  }, [showToast]);
+
+  const checkForUpdates = useCallback(async () => {
+    if (!window.nexforge?.checkForUpdates) {
+      showToast('Updates only work in the installed desktop app.', 'error');
+      return;
+    }
+    manualUpdateCheckRef.current = true;
+    showToast('Checking for updates…', 'success');
+    const res = await window.nexforge.checkForUpdates().catch((err) => ({ ok: false, reason: err?.message }));
+    if (res && res.ok === false) {
+      manualUpdateCheckRef.current = false;
+      showToast(
+        res.reason === 'dev'
+          ? 'Updates only work in the installed desktop app.'
+          : res.reason || 'Update check failed.',
+        'error',
+      );
+    }
+  }, [showToast]);
 
   const value = {
     loading,
@@ -334,6 +450,9 @@ export function NexForgeProvider({ children }) {
     probeCloud,
     appVersion,
     appPlatform,
+    liveSession,
+    sessionSaveTick,
+    checkForUpdates,
     communityGames,
     gameCatalog: gameCatalog.length ? gameCatalog : GAME_CATALOG,
     knownGames: knownGames.length ? knownGames : KNOWN_MAIN_GAMES,

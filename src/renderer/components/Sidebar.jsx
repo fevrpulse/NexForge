@@ -16,7 +16,7 @@ const SECONDARY_NAV = [
 ];
 
 export default function Sidebar() {
-  const { screen, setScreen, profile, guestMode, signOut, appVersion } = useNexForge();
+  const { screen, setScreen, profile, guestMode, signOut, appVersion, checkForUpdates } = useNexForge();
   const tag = profile?.gamer_tag || 'Player';
   const initials = tag.slice(0, 2).toUpperCase();
   const rank = guestMode ? 'No account' : mmrToRank(profile?.mmr ?? 1200);
@@ -61,6 +61,9 @@ export default function Sidebar() {
         </div>
         <button className="signout-btn" onClick={signOut}>
           {guestMode ? 'Exit Guest' : 'Sign out'}
+        </button>
+        <button className="sb-update-btn" onClick={checkForUpdates}>
+          Check for updates
         </button>
       </div>
     </aside>
