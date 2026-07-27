@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import {
-  GAME_CATALOG, GAME_MODES, DEFAULT_MODES, gameMark, modeMark,
+  gameMark, modeMark, modesForGame,
   honestServerLabel, isShooterGame,
 } from '../lib/games.js';
 
@@ -45,7 +45,7 @@ function readCombat(values) {
 }
 
 export default function Matchmaking() {
-  const { user, profile, showToast, setCloudOffline } = useNexForge();
+  const { user, profile, showToast, setCloudOffline, gameCatalog } = useNexForge();
 
   const [step, setStep] = useState(1);
   const [selectedGame, setSelectedGame] = useState(profile?.main_game || 'Valorant');
@@ -278,7 +278,7 @@ export default function Matchmaking() {
     }
   }
 
-  const modes = GAME_MODES[selectedGame] || DEFAULT_MODES;
+  const modes = modesForGame(selectedGame);
   const shooter = isShooterGame(selectedGame);
   const colors = ['#C9FF00', '#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#FF3D1F'];
 
@@ -298,7 +298,7 @@ export default function Matchmaking() {
         <div className="mm-step active">
           <div className="card-title">Select a game to queue for</div>
           <div className="game-grid">
-            {GAME_CATALOG.flatMap((group) =>
+            {gameCatalog.flatMap((group) =>
               group.games.map((game) => (
                 <div
                   key={game}

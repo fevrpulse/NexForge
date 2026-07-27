@@ -92,8 +92,24 @@ export const DEFAULT_MODES = [
   {icon:'🏆',name:'Tournament',desc:'Bracket-style competitive event.',details:'Single-elimination bracket hosted by NexForge.',server:'NexForge bracket'},
 ];
 
-export function getGameCategory(game) {
-  for (const group of GAME_CATALOG) {
+/** How many players must share a custom "Other" main game before it goes live. */
+export const COMMUNITY_GAME_THRESHOLD = 5;
+
+export function normalizeGameKey(name) {
+  return String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ') || null;
+}
+
+export function isBuiltinGame(name) {
+  const key = normalizeGameKey(name);
+  if (!key) return false;
+  return KNOWN_MAIN_GAMES.some((g) => normalizeGameKey(g) === key);
+}
+
+export function getGameCategory(game, catalog = GAME_CATALOG) {
+  for (const group of catalog) {
     if (group.games.includes(game)) return group.category;
   }
   return 'Other';
@@ -106,4 +122,38 @@ export function honestServerLabel(server) {
     return 'Player-hosted / self-organized';
   }
   return server;
+}
+
+/** Merge Supabase community_games (status=live) into the built-in catalog. */
+export function mergeGameCatalog(communityGames = []) {
+  const live = (communityGames || []).filter((g) => g?.status === 'live' && g?.name);
+  const knownKeys = new Set(KNOWN_MAIN_GAMES.map(normalizeGameKey));
+  const communityNames = [];
+
+  for (const row of live) {
+    const key = normalizeGameKey(row.name);
+    if (!key || knownKeys.has(key)) continue;
+    if (communityNames.some((n) => normalizeGameKey(n) === key)) continue;
+    communityNames.push(row.name);
+    knownKeys.add(key);
+  }
+
+  const catalog = GAME_CATALOG.map((group) => ({
+    category: group.category,
+    games: [...group.games],
+  }));
+
+  if (communityNames.length) {
+    catalog.push({ category: 'Community', games: communityNames });
+  }
+
+  return {
+    catalog,
+    knownGames: [...KNOWN_MAIN_GAMES, ...communityNames],
+    communityNames,
+  };
+}
+
+export function modesForGame(game) {
+  return GAME_MODES[game] || DEFAULT_MODES;
 }

@@ -1,5 +1,6 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { sb } from '../lib/supabase.js';
+import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.js';
 
 const NexForgeContext = createContext(null);
 
@@ -34,6 +35,12 @@ export function NexForgeProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const [cloudOffline, setCloudOffline] = useState(false);
   const [lockMessage, setLockMessage] = useState(null);
+  const [communityGames, setCommunityGames] = useState([]);
+
+  const { catalog: gameCatalog, knownGames } = useMemo(
+    () => mergeGameCatalog(communityGames),
+    [communityGames],
+  );
 
   const showToast = useCallback((msg, type = 'success') => {
     const id = ++toastSeq;
@@ -43,17 +50,50 @@ export function NexForgeProvider({ children }) {
     }, 3200);
   }, []);
 
+  const loadCommunityGames = useCallback(async () => {
+    try {
+      const { data, error } = await sb
+        .from('community_games')
+        .select('name,name_key,player_count,status,category,mark,promoted_at')
+        .eq('status', 'live')
+        .order('player_count', { ascending: false });
+      if (error) throw error;
+      setCommunityGames(data || []);
+      return data || [];
+    } catch {
+      // Table / RPC may not be applied yet — keep built-in catalog only.
+      setCommunityGames([]);
+      return [];
+    }
+  }, []);
+
+  const syncCommunityGames = useCallback(async (gameName) => {
+    try {
+      if (gameName) {
+        const { error } = await sb.rpc('report_custom_main_game', { p_game: gameName });
+        if (error) throw error;
+      } else {
+        const { error } = await sb.rpc('sync_community_games', { p_threshold: 5 });
+        if (error) throw error;
+      }
+    } catch {
+      /* optional until community-games.sql is applied */
+    }
+    return loadCommunityGames();
+  }, [loadCommunityGames]);
+
   const probeCloud = useCallback(async () => {
     try {
       const { error } = await sb.from('profiles').select('id').limit(1);
       if (error) throw error;
       setCloudOffline(false);
+      await loadCommunityGames();
       return true;
     } catch (err) {
       setCloudOffline(true, err?.message || err);
       return false;
     }
-  }, []);
+  }, [loadCommunityGames]);
 
   const loadProfileFor = useCallback(async (authUser) => {
     if (!authUser) return null;
@@ -147,7 +187,8 @@ export function NexForgeProvider({ children }) {
     let mounted = true;
 
     (async () => {
-      probeCloud();
+      await probeCloud();
+      await loadCommunityGames();
 
       if (window.nexforge?.onAuthCallback) {
         window.nexforge.onAuthCallback((tokens) => {
@@ -196,6 +237,11 @@ export function NexForgeProvider({ children }) {
     lockMessage,
     setLockMessage,
     probeCloud,
+    communityGames,
+    gameCatalog: gameCatalog.length ? gameCatalog : GAME_CATALOG,
+    knownGames: knownGames.length ? knownGames : KNOWN_MAIN_GAMES,
+    loadCommunityGames,
+    syncCommunityGames,
   };
 
   return (

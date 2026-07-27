@@ -2,14 +2,12 @@ import React, { useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { mmrToRank } from '../lib/ranks.js';
-import { KNOWN_MAIN_GAMES } from '../lib/games.js';
-
 const RANKS = ['Any Rank', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond'];
 const PLATFORMS = ['Any Platform', 'PC', 'PS5', 'Xbox', 'Mobile'];
 const COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
 
 export default function Squad() {
-  const { user, showToast } = useNexForge();
+  const { user, showToast, knownGames } = useNexForge();
   const [game, setGame] = useState('Any Game');
   const [rank, setRank] = useState('Any Rank');
   const [platform, setPlatform] = useState('Any Platform');
@@ -46,7 +44,7 @@ export default function Squad() {
         <div className="filter-row">
           <select value={game} onChange={(e) => setGame(e.target.value)}>
             <option>Any Game</option>
-            {KNOWN_MAIN_GAMES.map((g) => <option key={g}>{g}</option>)}
+            {knownGames.map((g) => <option key={g}>{g}</option>)}
           </select>
           <select value={rank} onChange={(e) => setRank(e.target.value)}>
             {RANKS.map((r) => <option key={r}>{r}</option>)}

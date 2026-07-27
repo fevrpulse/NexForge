@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { mmrToRank } from '../lib/ranks.js';
-import { KNOWN_MAIN_GAMES, GAME_CATALOG } from '../lib/games.js';
+import { isBuiltinGame } from '../lib/games.js';
 
 function statBits(st) {
   const bits = [];
@@ -21,7 +21,7 @@ function statBits(st) {
 }
 
 export default function Profile() {
-  const { user, profile, refreshProfile, showToast } = useNexForge();
+  const { user, profile, refreshProfile, showToast, gameCatalog, knownGames, syncCommunityGames } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [editing, setEditing] = useState(false);
   const [gameChoice, setGameChoice] = useState(profile?.main_game || 'Valorant');
@@ -47,7 +47,7 @@ export default function Profile() {
 
   function openEdit() {
     const game = profile.main_game || 'Valorant';
-    if (KNOWN_MAIN_GAMES.includes(game)) {
+    if (knownGames.includes(game)) {
       setGameChoice(game);
       setIsOther(false);
       setCustomName('');
@@ -83,8 +83,21 @@ export default function Profile() {
       return;
     }
     await refreshProfile();
+    if (isOther || !isBuiltinGame(game)) {
+      const live = await syncCommunityGames(game);
+      const unlocked = (live || []).some(
+        (g) => String(g.name || '').toLowerCase() === game.toLowerCase(),
+      );
+      showToast(
+        unlocked
+          ? `${game} is now in the Community catalog for everyone.`
+          : `Main game set to ${game}. It joins matchmaking when enough players pick it (5+).`,
+        'success',
+      );
+    } else {
+      showToast(`Main game updated to ${game}`, 'success');
+    }
     setEditing(false);
-    showToast(`Main game updated to ${game}`, 'success');
   }
 
   const tag = profile.gamer_tag || 'Player';
@@ -128,7 +141,7 @@ export default function Profile() {
             <div className="field">
               <label>Main Game</label>
               <select value={gameChoice} onChange={(e) => onGameSelect(e.target.value)}>
-                {GAME_CATALOG.map((group) => (
+                {gameCatalog.map((group) => (
                   <optgroup label={group.category} key={group.category}>
                     {group.games.map((g) => <option value={g} key={g}>{g}</option>)}
                   </optgroup>

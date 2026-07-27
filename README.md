@@ -43,8 +43,11 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 1. `supabase-setup.sql` (or incremental files below)
 2. `duels.sql` / `game-sessions.sql` / `combat-stats.sql` if not already applied
 3. **`security-hardening.sql`** (bank/PII lockdown, duel cancel policy, profile authority, `add_session_combat`)
+4. **`community-games.sql`** (promote popular custom “Other” main games into a Community catalog)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
+
+When **5+ players** share the same custom main-game name, `sync_community_games` marks it `live` and the desktop app shows it under **Community** in matchmaking / profile / tournaments / squad finder.
 
 ### Security notes
 

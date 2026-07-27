@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { KNOWN_MAIN_GAMES } from '../lib/games.js';
 import { maskAccount, formatPrizeLabel } from '../lib/format.js';
 
 const FORMATS = ['1v1', '2v2', '5v5', 'Solo BR', 'Squad BR', 'Custom'];
@@ -42,7 +41,7 @@ const emptyForm = {
 };
 
 export default function Tournaments() {
-  const { user, profile, guestMode, showToast, setCloudOffline, setLockMessage } = useNexForge();
+  const { user, profile, guestMode, showToast, setCloudOffline, setLockMessage, knownGames } = useNexForge();
   const [tournaments, setTournaments] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState('open');
@@ -263,7 +262,7 @@ export default function Tournaments() {
             <div className="field" style={{ margin: 0 }}>
               <label>Game</label>
               <select value={form.game} onChange={(e) => updateField('game', e.target.value)}>
-                {KNOWN_MAIN_GAMES.map((g) => <option key={g}>{g}</option>)}
+                {knownGames.map((g) => <option key={g}>{g}</option>)}
               </select>
             </div>
             <div className="field" style={{ margin: 0 }}>

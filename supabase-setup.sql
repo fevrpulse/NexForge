@@ -594,6 +594,7 @@ grant execute on function public.accept_duel(uuid) to authenticated;
 grant execute on function public.cancel_duel(uuid) to authenticated;
 grant execute on function public.submit_duel_winner(uuid, uuid, integer, integer, integer) to authenticated;
 
--- After initial setup, also run security-hardening.sql (bank/PII view, duel cancel
--- policy, profile column grants, add_session_combat).
+-- After initial setup, also run:
+--   security-hardening.sql (bank/PII view, duel cancel, profile grants, add_session_combat)
+--   community-games.sql (promote popular custom Other main games into Community catalog)
 
