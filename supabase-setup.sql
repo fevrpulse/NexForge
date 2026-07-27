@@ -70,7 +70,7 @@ create policy "Users can insert own matches"
 
 -- ── TOURNAMENTS ──
 create table if not exists public.tournaments (
-  id uuid primary key,
+  id uuid primary key default gen_random_uuid(),
   host_id uuid not null references auth.users(id) on delete cascade,
   host_tag text,
   name text not null,

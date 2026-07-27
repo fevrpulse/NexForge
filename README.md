@@ -45,6 +45,7 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 3. **`security-hardening.sql`** (bank/PII lockdown, duel cancel policy, profile authority, `add_session_combat`)
 4. **`community-games.sql`** (promote popular custom “Other” main games into a Community catalog)
 5. **`profile-onboarding.sql`** only on **legacy** databases that already had `profiles` before onboarding columns existed (safe no-op if columns are present)
+6. **`tournament-id-default.sql`** if tournament creates fail with `null value in column "id"` (adds `gen_random_uuid()` default)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 

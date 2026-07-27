@@ -138,6 +138,7 @@ export default function Tournaments() {
     }
 
     const tournament = {
+      id: crypto.randomUUID(),
       host_id: user.id,
       host_tag: profile?.gamer_tag || user.email?.split('@')[0] || 'Host',
       name,
