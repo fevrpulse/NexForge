@@ -6,7 +6,7 @@
   --text:#F4F4F4;--muted:#6E6E6E;--muted2:#A8A8A8;
   --neon:#C9FF00;--neon2:rgba(201,255,0,0.08);
   --red:#FF3D1F;--blue:#3B7EFF;--purple:#9B5CFF;
-  --font:'Syne',sans-serif;--mono:'JetBrains Mono',monospace;
+  --font:'Nunito',sans-serif;--mono:'JetBrains Mono',monospace;
   --radius:12px;
   --text-sm:13px;--text-base:15px;--text-lg:16px;
 }

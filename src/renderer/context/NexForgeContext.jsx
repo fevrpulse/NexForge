@@ -12,13 +12,14 @@ import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.j
 const NexForgeContext = createContext(null);
 
 /** Screens that guests cannot access — matches legacy GUEST_LOCKED behavior. */
-export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad'];
+export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends'];
 
 const GUEST_LOCKED_LABELS = {
   matchmaking: 'Matchmaking is locked in Guest Mode',
   profile: 'Your profile requires an account',
   analytics: 'Analytics requires an account',
   squad: 'Squad Finder requires an account',
+  friends: 'Friends & messages require an account',
 };
 
 const GUEST_PROFILE = {
@@ -49,6 +50,8 @@ export function NexForgeProvider({ children }) {
   const [liveSession, setLiveSession] = useState(null);
   // Bumped whenever a finished session is saved so screens can refetch history.
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
+  // sender_id -> count of unread DMs; drives the sidebar badge + Friends screen.
+  const [unreadBySender, setUnreadBySender] = useState({});
 
   const userRef = useRef(null);
   useEffect(() => { userRef.current = user; }, [user]);
@@ -321,6 +324,46 @@ export function NexForgeProvider({ children }) {
     return () => clearInterval(id);
   }, [cloudOffline, probeCloud]);
 
+  const refreshUnread = useCallback(async () => {
+    const u = userRef.current;
+    if (!u) {
+      setUnreadBySender({});
+      return;
+    }
+    try {
+      const { data, error } = await sb
+        .from('messages')
+        .select('sender_id')
+        .eq('recipient_id', u.id)
+        .is('read_at', null)
+        .limit(500);
+      if (error) throw error;
+      const counts = {};
+      for (const row of data || []) {
+        counts[row.sender_id] = (counts[row.sender_id] || 0) + 1;
+      }
+      setUnreadBySender(counts);
+    } catch {
+      /* table may not be applied yet / transient network — keep last known counts */
+    }
+  }, []);
+
+  // Sidebar unread badge stays fresh even when the Friends screen is closed.
+  useEffect(() => {
+    if (!user) {
+      setUnreadBySender({});
+      return undefined;
+    }
+    refreshUnread();
+    const id = setInterval(refreshUnread, 15000);
+    return () => clearInterval(id);
+  }, [user, refreshUnread]);
+
+  const unreadTotal = useMemo(
+    () => Object.values(unreadBySender).reduce((sum, n) => sum + n, 0),
+    [unreadBySender],
+  );
+
   // Game session tracking lives here (always mounted) so finished sessions are
   // saved even when the Analytics screen is closed.
   useEffect(() => {
@@ -453,6 +496,9 @@ export function NexForgeProvider({ children }) {
     liveSession,
     sessionSaveTick,
     checkForUpdates,
+    unreadBySender,
+    unreadTotal,
+    refreshUnread,
     communityGames,
     gameCatalog: gameCatalog.length ? gameCatalog : GAME_CATALOG,
     knownGames: knownGames.length ? knownGames : KNOWN_MAIN_GAMES,

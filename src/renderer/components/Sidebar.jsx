@@ -11,13 +11,14 @@ const PRIMARY_NAV = [
 ];
 
 const SECONDARY_NAV = [
+  { id: 'friends', label: 'Friends' },
   { id: 'profile', label: 'My Profile' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'squad', label: 'Squad Finder' },
 ];
 
 export default function Sidebar() {
-  const { screen, setScreen, profile, guestMode, signOut, appVersion, checkForUpdates } = useNexForge();
+  const { screen, setScreen, profile, guestMode, signOut, appVersion, checkForUpdates, unreadTotal } = useNexForge();
   const tag = profile?.gamer_tag || 'Player';
   const initials = tag.slice(0, 2).toUpperCase();
   const rank = guestMode ? 'No account' : mmrToRank(profile?.mmr ?? 1200);
@@ -32,6 +33,9 @@ export default function Sidebar() {
       >
         <span className="nav-icon"><NavIcon id={item.id} /></span>
         <span className="nav-label">{item.label}</span>
+        {item.id === 'friends' && unreadTotal > 0 && (
+          <span className="nav-unread">{unreadTotal > 99 ? '99+' : unreadTotal}</span>
+        )}
       </div>
     );
   }

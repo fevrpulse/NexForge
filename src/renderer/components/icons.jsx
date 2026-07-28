@@ -82,6 +82,14 @@ const NAV_ICONS = {
       <path d="M18 14.7c2.3.7 3.8 2.5 3.8 5" />
     </>
   ),
+  friends: (
+    <>
+      <path d="M21 11.3c0 3.9-4 7-9 7-1 0-2-.1-2.9-.4L4.2 19.7l1.1-3.2C3.9 15.1 3 13.3 3 11.3c0-3.9 4-7 9-7s9 3.1 9 7z" />
+      <circle cx="8.3" cy="11.3" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="11.3" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15.7" cy="11.3" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
 };
 
 const GAME_ICONS = {

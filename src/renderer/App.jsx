@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
 import LockModal from './components/LockModal.jsx';
 import OnboardingModal from './components/OnboardingModal.jsx';
+import WhatsNewModal from './components/WhatsNewModal.jsx';
 import Dashboard from './screens/Dashboard.jsx';
 import Matchmaking from './screens/Matchmaking.jsx';
 import Tournaments from './screens/Tournaments.jsx';
@@ -13,6 +14,7 @@ import Leaderboard from './screens/Leaderboard.jsx';
 import Profile from './screens/Profile.jsx';
 import Analytics from './screens/Analytics.jsx';
 import Squad from './screens/Squad.jsx';
+import Friends from './screens/Friends.jsx';
 import { NavIcon } from './components/icons.jsx';
 
 const SCREEN_META = {
@@ -23,6 +25,7 @@ const SCREEN_META = {
   profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
   analytics: { title: 'Analytics', badge: 'STATS' },
   squad: { title: 'Squad Finder', badge: 'FIND TEAM' },
+  friends: { title: 'Friends', badge: 'SOCIAL' },
 };
 
 const SCREEN_COMPONENTS = {
@@ -33,6 +36,7 @@ const SCREEN_COMPONENTS = {
   profile: Profile,
   analytics: Analytics,
   squad: Squad,
+  friends: Friends,
 };
 
 function AppShell() {
@@ -100,6 +104,7 @@ function AppShell() {
       </div>
       <LockModal />
       <OnboardingModal />
+      <WhatsNewModal />
       <ToastStack />
     </div>
   );
