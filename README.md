@@ -48,6 +48,7 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 6. **`tournament-id-default.sql`** if tournament creates fail with `null value in column "id"` (adds `gen_random_uuid()` default)
 7. **`gpu-session-metrics.sql`** (avg/max GPU % on `game_sessions`)
 8. **`friends-messages.sql`** (friendships + direct messages with RLS)
+9. **`message-replies-photos.sql`** (message replies + private `chat-images` storage bucket)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 

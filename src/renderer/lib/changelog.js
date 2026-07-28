@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.2.5',
+    highlights: [
+      'Reply to messages — hover any message and hit the reply arrow',
+      'Send photos in chat — attach images up to 5 MB, click to view full size',
+    ],
+  },
+  {
     version: '1.2.4',
     highlights: [
       'New Friends system — search players, send requests, build your roster',

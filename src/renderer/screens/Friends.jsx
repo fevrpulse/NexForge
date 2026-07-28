@@ -32,10 +32,18 @@ export default function Friends() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState(null);
   const [searching, setSearching] = useState(false);
+  const [replyTo, setReplyTo] = useState(null);
+  const [attachFile, setAttachFile] = useState(null);
+  const [attachPreview, setAttachPreview] = useState(null);
+  const [imageUrls, setImageUrls] = useState({});
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const scrollRef = useRef(null);
+  const fileInputRef = useRef(null);
   const selectedRef = useRef(null);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
+  const imageUrlsRef = useRef(imageUrls);
+  useEffect(() => { imageUrlsRef.current = imageUrls; }, [imageUrls]);
 
   const loadFriendships = useCallback(async () => {
     if (!myId) return;
@@ -70,7 +78,7 @@ export default function Friends() {
     try {
       const { data, error } = await sb
         .from('messages')
-        .select('id,sender_id,recipient_id,body,created_at')
+        .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
         .or(`and(sender_id.eq.${myId},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${myId})`)
         .order('created_at', { ascending: true })
         .limit(200);
@@ -78,6 +86,20 @@ export default function Friends() {
       // Ignore responses that arrive after switching to another chat.
       if (selectedRef.current !== friendId) return;
       setMessages(data || []);
+      // Private bucket — photos are shown through short-lived signed URLs.
+      const missing = [...new Set((data || []).map((m) => m.image_path).filter((p) => p && !imageUrlsRef.current[p]))];
+      if (missing.length) {
+        const { data: signed } = await sb.storage.from('chat-images').createSignedUrls(missing, 3600);
+        if (signed?.length) {
+          setImageUrls((prev) => {
+            const next = { ...prev };
+            for (const s of signed) {
+              if (s.signedUrl && s.path) next[s.path] = s.signedUrl;
+            }
+            return next;
+          });
+        }
+      }
       if (markRead) {
         await sb
           .from('messages')
@@ -103,6 +125,7 @@ export default function Friends() {
   useEffect(() => { unreadBySenderRef.current = unreadBySender; }, [unreadBySender]);
 
   useEffect(() => {
+    setReplyTo(null);
     if (!selectedId) {
       setMessages(null);
       return undefined;
@@ -211,18 +234,63 @@ export default function Friends() {
     }
   }
 
+  function clearAttachment() {
+    if (attachPreview) URL.revokeObjectURL(attachPreview);
+    setAttachFile(null);
+    setAttachPreview(null);
+  }
+
+  function pickImage(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp|gif)$/.test(file.type)) {
+      showToast('Only PNG, JPEG, WebP, or GIF images can be sent.', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Images must be 5 MB or smaller.', 'error');
+      return;
+    }
+    if (attachPreview) URL.revokeObjectURL(attachPreview);
+    setAttachFile(file);
+    setAttachPreview(URL.createObjectURL(file));
+  }
+
   async function sendMessage() {
     const body = draft.trim();
-    if (!body || !selectedId || sending) return;
+    if ((!body && !attachFile) || !selectedId || sending) return;
     setSending(true);
     try {
+      let imagePath = null;
+      if (attachFile) {
+        const ext = (attachFile.name.split('.').pop() || 'png').toLowerCase();
+        imagePath = `${myId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await sb.storage
+          .from('chat-images')
+          .upload(imagePath, attachFile, { contentType: attachFile.type });
+        if (upErr) throw upErr;
+      }
       const { data, error } = await sb
         .from('messages')
-        .insert({ sender_id: myId, recipient_id: selectedId, body })
-        .select('id,sender_id,recipient_id,body,created_at')
+        .insert({
+          sender_id: myId,
+          recipient_id: selectedId,
+          body,
+          reply_to_id: replyTo?.id ?? null,
+          image_path: imagePath,
+        })
+        .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
         .single();
       if (error) throw error;
+      // Reuse the local preview as this message's display URL (skip a signed-URL round trip).
+      if (imagePath && attachPreview) {
+        setImageUrls((prev) => ({ ...prev, [imagePath]: attachPreview }));
+      }
       setDraft('');
+      setReplyTo(null);
+      setAttachFile(null);
+      setAttachPreview(null);
       setMessages((prev) => [...(prev || []), data]);
     } catch (err) {
       showToast(err?.message || 'Message failed to send.', 'error');
@@ -233,6 +301,23 @@ export default function Friends() {
   }
 
   const selectedProfile = selectedId ? profiles[selectedId] : null;
+  const friendTag = selectedProfile?.gamer_tag || 'Friend';
+
+  const messagesById = useMemo(() => {
+    const map = {};
+    for (const m of messages || []) map[m.id] = m;
+    return map;
+  }, [messages]);
+
+  function quoteLabel(m) {
+    return m.sender_id === myId ? 'You' : friendTag;
+  }
+
+  function quoteSnippet(m) {
+    if (!m) return '';
+    if (m.body) return m.body.length > 80 ? `${m.body.slice(0, 80)}…` : m.body;
+    return m.image_path ? 'Photo' : '';
+  }
 
   function renderPersonRow(item, actions) {
     const p = item.profile;
@@ -366,17 +451,83 @@ export default function Friends() {
               ) : messages.length === 0 ? (
                 <div className="friends-empty">No messages yet — say hi!</div>
               ) : (
-                messages.map((m) => (
-                  <div key={m.id} className={`chat-bubble-row ${m.sender_id === myId ? 'mine' : ''}`}>
-                    <div className="chat-bubble">
-                      <div className="chat-body">{m.body}</div>
-                      <div className="chat-time">{timeLabel(m.created_at)}</div>
+                messages.map((m) => {
+                  const quoted = m.reply_to_id ? messagesById[m.reply_to_id] : null;
+                  const imgUrl = m.image_path ? imageUrls[m.image_path] : null;
+                  return (
+                    <div key={m.id} className={`chat-bubble-row ${m.sender_id === myId ? 'mine' : ''}`}>
+                      <div className="chat-bubble">
+                        {m.reply_to_id && (
+                          <div className="chat-quote">
+                            <span className="chat-quote-author">{quoted ? quoteLabel(quoted) : 'Earlier message'}</span>
+                            {quoted && <span className="chat-quote-body">{quoteSnippet(quoted)}</span>}
+                          </div>
+                        )}
+                        {m.image_path && (
+                          imgUrl ? (
+                            <img
+                              className="chat-image"
+                              src={imgUrl}
+                              alt="Shared photo"
+                              onClick={() => setLightboxUrl(imgUrl)}
+                            />
+                          ) : (
+                            <div className="chat-image-loading">Loading photo…</div>
+                          )
+                        )}
+                        {m.body && <div className="chat-body">{m.body}</div>}
+                        <div className="chat-time">{timeLabel(m.created_at)}</div>
+                      </div>
+                      <button
+                        className="chat-reply-btn"
+                        title="Reply"
+                        onClick={() => setReplyTo(m)}
+                      >
+                        ↩
+                      </button>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
+            {(replyTo || attachPreview) && (
+              <div className="chat-compose-chips">
+                {replyTo && (
+                  <div className="compose-chip">
+                    <span className="compose-chip-label">
+                      ↩ Replying to <b>{quoteLabel(replyTo)}</b>{quoteSnippet(replyTo) ? `: ${quoteSnippet(replyTo)}` : ''}
+                    </span>
+                    <button className="compose-chip-x" onClick={() => setReplyTo(null)}>×</button>
+                  </div>
+                )}
+                {attachPreview && (
+                  <div className="compose-chip compose-chip-img">
+                    <img src={attachPreview} alt="Attachment preview" />
+                    <span className="compose-chip-label">{attachFile?.name}</span>
+                    <button className="compose-chip-x" onClick={clearAttachment}>×</button>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="chat-input-row">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                style={{ display: 'none' }}
+                onChange={pickImage}
+              />
+              <button
+                className="action-btn ghost chat-attach-btn"
+                title="Attach a photo"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="18" height="18" rx="2.5" />
+                  <circle cx="8.7" cy="8.7" r="1.8" />
+                  <path d="M21 15.5l-5-5L5 21" />
+                </svg>
+              </button>
               <input
                 type="text"
                 placeholder={`Message ${selectedProfile?.gamer_tag || ''}…`}
@@ -385,13 +536,23 @@ export default function Friends() {
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
               />
-              <button className="action-btn primary" onClick={sendMessage} disabled={sending || !draft.trim()}>
-                Send
+              <button
+                className="action-btn primary"
+                onClick={sendMessage}
+                disabled={sending || (!draft.trim() && !attachFile)}
+              >
+                {sending ? '…' : 'Send'}
               </button>
             </div>
           </>
         )}
       </div>
+      {lightboxUrl && (
+        <div className="chat-lightbox" onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="Shared photo" onClick={(e) => e.stopPropagation()} />
+          <button className="chat-lightbox-x" onClick={() => setLightboxUrl(null)}>×</button>
+        </div>
+      )}
     </div>
   );
 }
