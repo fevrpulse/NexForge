@@ -19,8 +19,23 @@ function timeLabel(iso) {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`;
 }
 
+const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+const REACTION_EMOJIS = ['👍', '❤️', '😂', '🔥', '😮', '😢'];
+
+function isOnline(p) {
+  if (!p?.last_seen_at) return false;
+  return Date.now() - new Date(p.last_seen_at).getTime() < ONLINE_WINDOW_MS;
+}
+
+function presenceLine(p) {
+  if (!p) return '—';
+  if (isOnline(p) && p.playing_game) return `Playing ${p.playing_game}`;
+  if (isOnline(p)) return 'Online';
+  return `${p.main_game || '—'} · ${mmrToRank(p.mmr)}`;
+}
+
 export default function Friends() {
-  const { user, showToast, reportCloudError, unreadBySender, refreshUnread } = useNexForge();
+  const { user, profile, showToast, reportCloudError, unreadBySender, refreshUnread } = useNexForge();
   const myId = user?.id;
 
   const [rows, setRows] = useState([]);
@@ -37,6 +52,9 @@ export default function Friends() {
   const [attachPreview, setAttachPreview] = useState(null);
   const [imageUrls, setImageUrls] = useState({});
   const [lightboxUrl, setLightboxUrl] = useState(null);
+  const [reactions, setReactions] = useState({});
+  const [pickerFor, setPickerFor] = useState(null);
+  const [challenging, setChallenging] = useState(false);
 
   const scrollRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -59,7 +77,7 @@ export default function Friends() {
       if (otherIds.length) {
         const { data: profs, error: pErr } = await sb
           .from('profiles')
-          .select('id,gamer_tag,mmr,main_game,platform')
+          .select('id,gamer_tag,mmr,main_game,platform,last_seen_at,playing_game')
           .in('id', otherIds);
         if (pErr) throw pErr;
         setProfiles((prev) => {
@@ -86,6 +104,22 @@ export default function Friends() {
       // Ignore responses that arrive after switching to another chat.
       if (selectedRef.current !== friendId) return;
       setMessages(data || []);
+      const ids = (data || []).map((m) => m.id);
+      if (ids.length) {
+        const { data: reacts } = await sb
+          .from('message_reactions')
+          .select('message_id,user_id,emoji')
+          .in('message_id', ids);
+        if (selectedRef.current === friendId) {
+          const grouped = {};
+          for (const r of reacts || []) {
+            (grouped[r.message_id] = grouped[r.message_id] || []).push(r);
+          }
+          setReactions(grouped);
+        }
+      } else {
+        setReactions({});
+      }
       // Private bucket — photos are shown through short-lived signed URLs.
       const missing = [...new Set((data || []).map((m) => m.image_path).filter((p) => p && !imageUrlsRef.current[p]))];
       if (missing.length) {
@@ -126,6 +160,8 @@ export default function Friends() {
 
   useEffect(() => {
     setReplyTo(null);
+    setPickerFor(null);
+    setReactions({});
     if (!selectedId) {
       setMessages(null);
       return undefined;
@@ -300,6 +336,87 @@ export default function Friends() {
     }
   }
 
+  async function toggleReaction(messageId, emoji) {
+    setPickerFor(null);
+    const mine = (reactions[messageId] || []).some((r) => r.user_id === myId && r.emoji === emoji);
+    // Optimistic update; the next conversation poll reconciles.
+    setReactions((prev) => {
+      const list = prev[messageId] || [];
+      const next = mine
+        ? list.filter((r) => !(r.user_id === myId && r.emoji === emoji))
+        : [...list, { message_id: messageId, user_id: myId, emoji }];
+      return { ...prev, [messageId]: next };
+    });
+    try {
+      if (mine) {
+        const { error } = await sb
+          .from('message_reactions')
+          .delete()
+          .eq('message_id', messageId)
+          .eq('user_id', myId)
+          .eq('emoji', emoji);
+        if (error) throw error;
+      } else {
+        const { error } = await sb
+          .from('message_reactions')
+          .insert({ message_id: messageId, user_id: myId, emoji });
+        if (error && error.code !== '23505') throw error;
+      }
+    } catch (err) {
+      showToast(err?.message || 'Reaction failed.', 'error');
+      await reportCloudError(err);
+    }
+  }
+
+  async function deleteMessage(m) {
+    try {
+      const { error } = await sb.from('messages').delete().eq('id', m.id);
+      if (error) throw error;
+      if (m.image_path) {
+        // Best-effort cleanup of the attachment in storage.
+        sb.storage.from('chat-images').remove([m.image_path]).catch(() => {});
+      }
+      setMessages((prev) => (prev ? prev.filter((x) => x.id !== m.id) : prev));
+      showToast('Message deleted', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not delete message.', 'error');
+      await reportCloudError(err);
+    }
+  }
+
+  async function challengeFriend() {
+    if (!selectedId || challenging) return;
+    const target = profiles[selectedId];
+    const game = target?.main_game || profile?.main_game || 'Valorant';
+    setChallenging(true);
+    try {
+      const { error: duelErr } = await sb.from('duels').insert({
+        host_id: myId,
+        host_tag: profile?.gamer_tag || 'Player',
+        host_mmr: profile?.mmr || 1200,
+        game,
+        mode: 'Friend Challenge',
+        details: `Challenge for ${target?.gamer_tag || 'a friend'} — accept from Matchmaking!`,
+        status: 'open',
+      });
+      if (duelErr) throw duelErr;
+      const body = `⚔️ I challenged you to a ${game} duel! Open Matchmaking and accept my "Friend Challenge" queue.`;
+      const { data, error } = await sb
+        .from('messages')
+        .insert({ sender_id: myId, recipient_id: selectedId, body })
+        .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
+        .single();
+      if (error) throw error;
+      setMessages((prev) => [...(prev || []), data]);
+      showToast(`Duel challenge sent to ${target?.gamer_tag || 'friend'}`, 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not create the challenge.', 'error');
+      await reportCloudError(err);
+    } finally {
+      setChallenging(false);
+    }
+  }
+
   const selectedProfile = selectedId ? profiles[selectedId] : null;
   const friendTag = selectedProfile?.gamer_tag || 'Friend';
 
@@ -330,12 +447,13 @@ export default function Friends() {
         className={`friend-row ${item.otherId === selectedId ? 'active' : ''} ${actions ? '' : 'clickable'}`}
         onClick={actions ? undefined : () => setSelectedId(item.otherId)}
       >
-        <div className="player-av" style={{ background: `${col}22`, color: col }}>
+        <div className="player-av friend-av" style={{ background: `${col}22`, color: col }}>
           {tag.slice(0, 2).toUpperCase()}
+          {isOnline(p) && <span className="presence-dot" />}
         </div>
         <div className="player-info">
           <div className="player-tag">{tag}</div>
-          <div className="player-game">{p ? `${p.main_game || '—'} · ${mmrToRank(p.mmr)}` : '—'}</div>
+          <div className={`player-game ${isOnline(p) ? 'presence-online' : ''}`}>{presenceLine(p)}</div>
         </div>
         {unread > 0 && !actions && <span className="unread-pill">{unread}</span>}
         {actions}
@@ -426,15 +544,26 @@ export default function Friends() {
         ) : (
           <>
             <div className="chat-header">
-              <div className="player-av" style={{ background: `${avatarColor(selectedId)}22`, color: avatarColor(selectedId) }}>
+              <div className="player-av friend-av" style={{ background: `${avatarColor(selectedId)}22`, color: avatarColor(selectedId) }}>
                 {(selectedProfile?.gamer_tag || '?').slice(0, 2).toUpperCase()}
+                {isOnline(selectedProfile) && <span className="presence-dot" />}
               </div>
               <div className="player-info">
                 <div className="player-tag">{selectedProfile?.gamer_tag || 'Player'}</div>
-                <div className="player-game">
-                  {selectedProfile ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}` : '—'}
+                <div className={`player-game ${isOnline(selectedProfile) ? 'presence-online' : ''}`}>
+                  {isOnline(selectedProfile)
+                    ? presenceLine(selectedProfile)
+                    : selectedProfile ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}` : '—'}
                 </div>
               </div>
+              <button
+                className="action-btn primary friend-mini-btn"
+                onClick={challengeFriend}
+                disabled={challenging}
+                title="Post a duel queue and invite this friend"
+              >
+                {challenging ? '…' : '⚔ Challenge'}
+              </button>
               <button
                 className="action-btn ghost friend-mini-btn"
                 onClick={() => {
@@ -454,37 +583,75 @@ export default function Friends() {
                 messages.map((m) => {
                   const quoted = m.reply_to_id ? messagesById[m.reply_to_id] : null;
                   const imgUrl = m.image_path ? imageUrls[m.image_path] : null;
+                  const mine = m.sender_id === myId;
+                  const reacts = reactions[m.id] || [];
+                  const byEmoji = {};
+                  for (const r of reacts) {
+                    (byEmoji[r.emoji] = byEmoji[r.emoji] || []).push(r.user_id);
+                  }
                   return (
-                    <div key={m.id} className={`chat-bubble-row ${m.sender_id === myId ? 'mine' : ''}`}>
-                      <div className="chat-bubble">
-                        {m.reply_to_id && (
-                          <div className="chat-quote">
-                            <span className="chat-quote-author">{quoted ? quoteLabel(quoted) : 'Earlier message'}</span>
-                            {quoted && <span className="chat-quote-body">{quoteSnippet(quoted)}</span>}
+                    <div key={m.id} className={`chat-bubble-row ${mine ? 'mine' : ''}`}>
+                      <div className="chat-bubble-stack">
+                        <div className="chat-bubble">
+                          {m.reply_to_id && (
+                            <div className="chat-quote">
+                              <span className="chat-quote-author">{quoted ? quoteLabel(quoted) : 'Earlier message'}</span>
+                              {quoted && <span className="chat-quote-body">{quoteSnippet(quoted)}</span>}
+                            </div>
+                          )}
+                          {m.image_path && (
+                            imgUrl ? (
+                              <img
+                                className="chat-image"
+                                src={imgUrl}
+                                alt="Shared photo"
+                                onClick={() => setLightboxUrl(imgUrl)}
+                              />
+                            ) : (
+                              <div className="chat-image-loading">Loading photo…</div>
+                            )
+                          )}
+                          {m.body && <div className="chat-body">{m.body}</div>}
+                          <div className="chat-time">{timeLabel(m.created_at)}</div>
+                        </div>
+                        {Object.keys(byEmoji).length > 0 && (
+                          <div className="chat-reactions">
+                            {Object.entries(byEmoji).map(([emoji, userIds]) => (
+                              <button
+                                key={emoji}
+                                className={`reaction-chip ${userIds.includes(myId) ? 'mine' : ''}`}
+                                onClick={() => toggleReaction(m.id, emoji)}
+                              >
+                                {emoji}{userIds.length > 1 ? ` ${userIds.length}` : ''}
+                              </button>
+                            ))}
                           </div>
                         )}
-                        {m.image_path && (
-                          imgUrl ? (
-                            <img
-                              className="chat-image"
-                              src={imgUrl}
-                              alt="Shared photo"
-                              onClick={() => setLightboxUrl(imgUrl)}
-                            />
-                          ) : (
-                            <div className="chat-image-loading">Loading photo…</div>
-                          )
-                        )}
-                        {m.body && <div className="chat-body">{m.body}</div>}
-                        <div className="chat-time">{timeLabel(m.created_at)}</div>
                       </div>
-                      <button
-                        className="chat-reply-btn"
-                        title="Reply"
-                        onClick={() => setReplyTo(m)}
-                      >
-                        ↩
-                      </button>
+                      <div className="chat-msg-actions">
+                        <button
+                          className="chat-reply-btn"
+                          title="React"
+                          onClick={() => setPickerFor((prev) => (prev === m.id ? null : m.id))}
+                        >
+                          ☺
+                        </button>
+                        <button className="chat-reply-btn" title="Reply" onClick={() => setReplyTo(m)}>
+                          ↩
+                        </button>
+                        {mine && (
+                          <button className="chat-reply-btn chat-delete-btn" title="Delete message" onClick={() => deleteMessage(m)}>
+                            🗑
+                          </button>
+                        )}
+                        {pickerFor === m.id && (
+                          <div className="reaction-picker">
+                            {REACTION_EMOJIS.map((emoji) => (
+                              <button key={emoji} onClick={() => toggleReaction(m.id, emoji)}>{emoji}</button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   );
                 })

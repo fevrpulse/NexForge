@@ -34,6 +34,30 @@ const GUEST_PROFILE = {
 
 let toastSeq = 0;
 
+/** Short synthesized chirp for incoming messages — no audio asset needed. */
+function playMessageChirp() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.4);
+    osc.onended = () => ctx.close();
+  } catch {
+    /* sound is best-effort */
+  }
+}
+
 export function NexForgeProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -324,9 +348,14 @@ export function NexForgeProvider({ children }) {
     return () => clearInterval(id);
   }, [cloudOffline, probeCloud]);
 
+  // Baseline for the message chirp: null until the first unread fetch completes,
+  // so signing in with old unread messages stays silent.
+  const unreadSoundBaselineRef = useRef(null);
+
   const refreshUnread = useCallback(async () => {
     const u = userRef.current;
     if (!u) {
+      unreadSoundBaselineRef.current = null;
       setUnreadBySender({});
       return;
     }
@@ -342,6 +371,11 @@ export function NexForgeProvider({ children }) {
       for (const row of data || []) {
         counts[row.sender_id] = (counts[row.sender_id] || 0) + 1;
       }
+      const total = (data || []).length;
+      if (unreadSoundBaselineRef.current !== null && total > unreadSoundBaselineRef.current) {
+        playMessageChirp();
+      }
+      unreadSoundBaselineRef.current = total;
       setUnreadBySender(counts);
     } catch {
       /* table may not be applied yet / transient network — keep last known counts */
@@ -363,6 +397,84 @@ export function NexForgeProvider({ children }) {
     () => Object.values(unreadBySender).reduce((sum, n) => sum + n, 0),
     [unreadBySender],
   );
+
+  // Presence heartbeat: friends see a green dot (recent last_seen_at) and the
+  // game currently being tracked. Column-level grants limit this to own row.
+  const playingGame = liveSession?.game ?? null;
+  useEffect(() => {
+    if (!user) return undefined;
+    const beat = async () => {
+      try {
+        await sb
+          .from('profiles')
+          .update({ last_seen_at: new Date().toISOString(), playing_game: playingGame })
+          .eq('id', user.id);
+      } catch {
+        /* presence is best-effort */
+      }
+    };
+    beat();
+    const id = setInterval(beat, 60000);
+    return () => clearInterval(id);
+  }, [user, playingGame]);
+
+  // In-game overlay: while a game session is tracked, poll fast for new
+  // incoming messages and forward them to the always-on-top overlay window.
+  const gameActive = !!liveSession;
+  useEffect(() => {
+    const nf = window.nexforge;
+    if (!gameActive || !user || !nf?.overlayNotify) return undefined;
+
+    let lastSeenId = null;
+    let cancelled = false;
+    const tagCache = {};
+
+    async function poll() {
+      try {
+        const { data, error } = await sb
+          .from('messages')
+          .select('id,sender_id,body,image_path')
+          .eq('recipient_id', user.id)
+          .is('read_at', null)
+          .order('id', { ascending: false })
+          .limit(5);
+        if (error || cancelled) return;
+        const rows = (data || []).slice().reverse();
+        const maxId = rows.length ? rows[rows.length - 1].id : null;
+        if (lastSeenId === null) {
+          // Baseline on session start — don't replay messages that were already waiting.
+          lastSeenId = maxId ?? 0;
+          return;
+        }
+        const fresh = rows.filter((m) => m.id > lastSeenId);
+        if (!fresh.length) return;
+        lastSeenId = maxId;
+        const unknown = [...new Set(fresh.map((m) => m.sender_id))].filter((id) => !tagCache[id]);
+        if (unknown.length) {
+          const { data: profs } = await sb.from('profiles').select('id,gamer_tag').in('id', unknown);
+          for (const p of profs || []) tagCache[p.id] = p.gamer_tag;
+        }
+        if (cancelled) return;
+        for (const m of fresh) {
+          nf.overlayNotify({
+            sender: tagCache[m.sender_id] || 'Friend',
+            body: m.body || '',
+            image: !!m.image_path,
+          });
+        }
+        refreshUnread();
+      } catch {
+        /* overlay notifications are best-effort */
+      }
+    }
+
+    poll();
+    const id = setInterval(poll, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [gameActive, user, refreshUnread]);
 
   // Game session tracking lives here (always mounted) so finished sessions are
   // saved even when the Analytics screen is closed.

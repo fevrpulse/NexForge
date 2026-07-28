@@ -4,6 +4,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.2.6',
+    highlights: [
+      'In-game overlay — see incoming NexForge messages while you play',
+      'Online status + "now playing" — see which friends are on and what they\'re in',
+      'Emoji reactions, message deletion, and a new-message sound in chat',
+      'Challenge a friend to a duel straight from your conversation',
+      'Click any session in Analytics for RAM / CPU / GPU / ping graphs',
+    ],
+  },
+  {
     version: '1.2.5',
     highlights: [
       'Reply to messages — hover any message and hit the reply arrow',

@@ -15,6 +15,7 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 let mainWindow = null;
+let overlayWindow = null;
 let authServer = null;
 let pendingAuthTokens = null;
 let authNonce = null;
@@ -168,6 +169,76 @@ function getAuthFile(name) {
   return path.join(__dirname, name);
 }
 
+const OVERLAY_WIDTH = 360;
+const OVERLAY_HEIGHT = 380;
+
+function positionOverlay(win) {
+  const area = screen.getPrimaryDisplay().workArea;
+  win.setBounds({
+    x: area.x + area.width - OVERLAY_WIDTH - 8,
+    y: area.y + 8,
+    width: OVERLAY_WIDTH,
+    height: OVERLAY_HEIGHT,
+  });
+}
+
+/**
+ * Transparent, click-through, always-on-top window used for in-game message
+ * toasts. Draws over borderless/windowed-fullscreen games (exclusive
+ * fullscreen bypasses the desktop compositor and cannot be drawn over).
+ */
+function getOverlayWindow() {
+  if (overlayWindow && !overlayWindow.isDestroyed()) return overlayWindow;
+
+  overlayWindow = new BrowserWindow({
+    width: OVERLAY_WIDTH,
+    height: OVERLAY_HEIGHT,
+    show: false,
+    transparent: true,
+    frame: false,
+    resizable: false,
+    movable: false,
+    minimizable: false,
+    maximizable: false,
+    closable: true,
+    focusable: false,
+    skipTaskbar: true,
+    hasShadow: false,
+    title: 'NexForge Overlay',
+    webPreferences: {
+      preload: path.join(__dirname, 'overlay-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  overlayWindow.setIgnoreMouseEvents(true);
+  overlayWindow.setMenu(null);
+  positionOverlay(overlayWindow);
+  overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
+  overlayWindow.on('closed', () => { overlayWindow = null; });
+  return overlayWindow;
+}
+
+function showOverlayMessage(payload) {
+  const win = getOverlayWindow();
+  const deliver = () => {
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send('overlay-message', payload);
+    if (!win.isVisible()) {
+      positionOverlay(win);
+      win.showInactive();
+    }
+  };
+  if (win.webContents.isLoading()) {
+    win.webContents.once('did-finish-load', deliver);
+  } else {
+    deliver();
+  }
+}
+
 function deliverAuthTokens(tokens) {
   pendingAuthTokens = tokens;
 
@@ -304,6 +375,12 @@ function createWindow() {
   mainWindow.setMenuBarVisibility(false);
   if (state?.maximized) mainWindow.maximize();
   mainWindow.on('close', saveWindowState);
+  // The hidden overlay must not keep the app alive after the main window closes.
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.destroy();
+    overlayWindow = null;
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (isAllowedNavigation(url)) {
@@ -381,6 +458,24 @@ ipcMain.handle('get-app-info', () => ({
   version: app.getVersion(),
   packaged: app.isPackaged,
 }));
+
+ipcMain.handle('overlay-notify', (_event, payload) => {
+  if (!payload || typeof payload !== 'object') return { ok: false, reason: 'bad-payload' };
+  // No point drawing the overlay while the user is already looking at the app.
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
+    return { ok: false, reason: 'app-focused' };
+  }
+  showOverlayMessage({
+    sender: String(payload.sender || 'Friend').slice(0, 40),
+    body: String(payload.body || '').slice(0, 120),
+    image: !!payload.image,
+  });
+  return { ok: true };
+});
+
+ipcMain.on('overlay-empty', () => {
+  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
+});
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);

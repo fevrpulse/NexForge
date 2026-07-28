@@ -4,10 +4,66 @@ import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
 
+const SESSION_SERIES = [
+  { key: 'ramMb', label: 'RAM', unit: 'MB', color: '#3B7EFF' },
+  { key: 'cpuPct', label: 'CPU', unit: '%', color: '#C9FF00' },
+  { key: 'gpuPct', label: 'GPU', unit: '%', color: '#9B5CFF' },
+  { key: 'pingMs', label: 'Ping', unit: 'ms', color: '#FF8C42' },
+];
+
+function Sparkline({ label, unit, color, values }) {
+  const w = 220;
+  const h = 54;
+  const pad = 4;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const step = (w - pad * 2) / Math.max(values.length - 1, 1);
+  const pts = values
+    .map((v, i) => `${(pad + i * step).toFixed(1)},${(h - pad - ((v - min) / span) * (h - pad * 2)).toFixed(1)}`)
+    .join(' ');
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  return (
+    <div className="session-spark">
+      <div className="session-spark-head">
+        <span className="session-spark-label" style={{ color }}>{label}</span>
+        <span className="session-spark-stats">
+          avg {Math.round(avg)}{unit} · peak {Math.round(max)}{unit}
+        </span>
+      </div>
+      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
+function SessionCharts({ session }) {
+  const samples = Array.isArray(session.samples) ? session.samples : [];
+  const series = SESSION_SERIES
+    .map((s) => ({ ...s, values: samples.map((x) => x?.[s.key]).filter((n) => typeof n === 'number') }))
+    .filter((s) => s.values.length >= 2);
+  if (!series.length) {
+    return (
+      <div className="session-charts session-charts-empty">
+        No performance timeline was recorded for this session.
+      </div>
+    );
+  }
+  return (
+    <div className="session-charts">
+      {series.map((s) => (
+        <Sparkline key={s.key} label={s.label} unit={s.unit} color={s.color} values={s.values} />
+      ))}
+    </div>
+  );
+}
+
 export default function Analytics() {
   const { user, profile, refreshProfile, appPlatform, sessionSaveTick } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [sessions, setSessions] = useState([]);
+  const [expandedSession, setExpandedSession] = useState(null);
   const isWindows = String(appPlatform || '').toLowerCase().includes('win');
 
   useEffect(() => {
@@ -169,23 +225,32 @@ export default function Analytics() {
               s.max_gpu_pct != null ? `GPU ${Number(s.max_gpu_pct).toFixed(0)}%` : null,
             ].filter(Boolean).join(' · ');
             const tips = Array.isArray(s.tips) ? s.tips.slice(0, 2) : [];
+            const expanded = expandedSession === s.id;
             return (
-              <div className="session-row" key={s.id}>
-                <div style={{ minWidth: 0 }}>
-                  <div className="session-row-game">{s.game || 'Unknown'}</div>
-                  <div className="session-row-meta">
-                    {formatDuration(s.duration_sec)} · {when}{kdaLine ? ` · ${kdaLine} K/D/A` : ''}
-                  </div>
-                  {tips.length > 0 && (
-                    <div className="session-row-tips">
-                      {tips.map((tip) => <div key={tip}>· {tip}</div>)}
+              <React.Fragment key={s.id}>
+                <div
+                  className={`session-row session-row-clickable ${expanded ? 'expanded' : ''}`}
+                  onClick={() => setExpandedSession(expanded ? null : s.id)}
+                  title={expanded ? 'Hide performance graphs' : 'Show performance graphs'}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div className="session-row-game">{s.game || 'Unknown'}</div>
+                    <div className="session-row-meta">
+                      {formatDuration(s.duration_sec)} · {when}{kdaLine ? ` · ${kdaLine} K/D/A` : ''}
                     </div>
-                  )}
+                    {tips.length > 0 && (
+                      <div className="session-row-tips">
+                        {tips.map((tip) => <div key={tip}>· {tip}</div>)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="session-row-stats" title={peaks ? `Peaks — ${peaks}` : undefined}>
+                    Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}
+                  </div>
+                  <span className={`session-row-caret ${expanded ? 'open' : ''}`}>▾</span>
                 </div>
-                <div className="session-row-stats" title={peaks ? `Peaks — ${peaks}` : undefined}>
-                  Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}
-                </div>
-              </div>
+                {expanded && <SessionCharts session={s} />}
+              </React.Fragment>
             );
           })
         )}
