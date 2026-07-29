@@ -4,6 +4,18 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.2.9',
+    highlights: [
+      'Skill tags, cosmetics shop, and profile photos',
+      'Win rewards — +25 Forge Coins per match win',
+      'Animated legendary frames',
+      'Avatar presets',
+      'Gift cosmetics to friends',
+      'Dashboard loadout showcase',
+      'Leaderboard shows frames, presets, and skill tags',
+    ],
+  },
+  {
     version: '1.2.8',
     highlights: [
       'Friend profiles — view a friend\'s stats, recent matches, and sessions',

@@ -15,6 +15,7 @@ import Profile from './screens/Profile.jsx';
 import Analytics from './screens/Analytics.jsx';
 import Squad from './screens/Squad.jsx';
 import Friends from './screens/Friends.jsx';
+import Shop from './screens/Shop.jsx';
 import { NavIcon } from './components/icons.jsx';
 
 const SCREEN_META = {
@@ -22,10 +23,11 @@ const SCREEN_META = {
   matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
   tournaments: { title: 'Tournaments', badge: 'OPEN' },
   leaderboard: { title: 'Leaderboard', badge: 'GLOBAL' },
+  friends: { title: 'Friends', badge: 'SOCIAL' },
+  shop: { title: 'Cosmetics Shop', badge: 'FORGE' },
   profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
   analytics: { title: 'Analytics', badge: 'STATS' },
   squad: { title: 'Squad Finder', badge: 'FIND TEAM' },
-  friends: { title: 'Friends', badge: 'SOCIAL' },
 };
 
 const SCREEN_COMPONENTS = {
@@ -33,10 +35,11 @@ const SCREEN_COMPONENTS = {
   matchmaking: Matchmaking,
   tournaments: Tournaments,
   leaderboard: Leaderboard,
+  friends: Friends,
+  shop: Shop,
   profile: Profile,
   analytics: Analytics,
   squad: Squad,
-  friends: Friends,
 };
 
 function AppShell() {

@@ -1,7 +1,8 @@
 import React from 'react';
 import { useNexForge, GUEST_LOCKED_SCREENS } from '../context/NexForgeContext.jsx';
-import { mmrToRank } from '../lib/ranks.js';
+import { mmrToRank, mmrToSkillTag } from '../lib/ranks.js';
 import { NavIcon } from './icons.jsx';
+import PlayerAvatar, { GamerTag } from './PlayerAvatar.jsx';
 
 const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -12,6 +13,7 @@ const PRIMARY_NAV = [
 
 const SECONDARY_NAV = [
   { id: 'friends', label: 'Friends' },
+  { id: 'shop', label: 'Shop' },
   { id: 'profile', label: 'My Profile' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'squad', label: 'Squad Finder' },
@@ -23,8 +25,8 @@ export default function Sidebar() {
     checkForUpdates, unreadTotal, dndEnabled, setDndEnabled,
   } = useNexForge();
   const tag = profile?.gamer_tag || 'Player';
-  const initials = tag.slice(0, 2).toUpperCase();
-  const rank = guestMode ? 'No account' : mmrToRank(profile?.mmr ?? 1200);
+  const skill = guestMode ? 'Guest' : mmrToSkillTag(profile?.mmr ?? 1200);
+  const rank = guestMode ? 'No account' : `${skill} · ${mmrToRank(profile?.mmr ?? 1200)}`;
 
   function renderNavItem(item) {
     const locked = guestMode && GUEST_LOCKED_SCREENS.includes(item.id);
@@ -56,14 +58,13 @@ export default function Sidebar() {
       </nav>
       <div className="sb-bottom">
         <div className="user-pill">
-          <div
-            className="avatar"
-            style={guestMode ? { background: 'var(--panel)', border: '1px solid var(--border2)' } : undefined}
-          >
-            {guestMode ? '—' : initials}
-          </div>
+          {guestMode ? (
+            <div className="avatar" style={{ background: 'var(--panel)', border: '1px solid var(--border2)' }}>—</div>
+          ) : (
+            <PlayerAvatar profile={profile} size={36} className="sb-avatar" />
+          )}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="user-name">{tag}</div>
+            <div className="user-name">{guestMode ? tag : <GamerTag profile={profile} />}</div>
             <div className="user-rank">{rank}</div>
           </div>
         </div>

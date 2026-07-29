@@ -55,7 +55,7 @@ function readCombat(values) {
 }
 
 export default function Matchmaking() {
-  const { user, profile, showToast, setCloudOffline, reportCloudError, gameCatalog } = useNexForge();
+  const { user, profile, showToast, setCloudOffline, reportCloudError, gameCatalog, refreshProfile } = useNexForge();
 
   const [step, setStep] = useState(1);
   const [selectedGame, setSelectedGame] = useState(profile?.main_game || 'Valorant');
@@ -253,7 +253,13 @@ export default function Matchmaking() {
         setMyActiveDuel(null);
         setCombat({ kills: '', deaths: '', assists: '' });
         const iWon = data.winner_id === user.id;
-        showToast(iWon ? `WIN +${data.mmr_change || 15} MMR` : `LOSS -${data.mmr_change || 15} MMR`, iWon ? 'success' : 'error');
+        showToast(
+          iWon
+            ? `WIN +${data.mmr_change || 15} MMR · +25 Forge Coins`
+            : `LOSS -${data.mmr_change || 15} MMR`,
+          iWon ? 'success' : 'error'
+        );
+        await refreshProfile();
       } else if (!data.host_winner_pick && !data.challenger_winner_pick) {
         setMyActiveDuel(data);
         showToast('Results do not match — both players must select the same winner.', 'error');

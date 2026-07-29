@@ -90,6 +90,13 @@ const NAV_ICONS = {
       <circle cx="15.7" cy="11.3" r="1" fill="currentColor" stroke="none" />
     </>
   ),
+  shop: (
+    <>
+      <path d="M6 8h12l-1 12.5H7L6 8z" />
+      <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
+      <path d="M10 12v4M14 12v4" />
+    </>
+  ),
 };
 
 const GAME_ICONS = {

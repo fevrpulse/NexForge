@@ -1,8 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank } from '../lib/ranks.js';
+import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
+import { bannerStyleKey } from '../lib/cosmetics.js';
+import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
+
+function shortCosmeticId(id) {
+  if (!id) return '—';
+  return String(id).replace(/^(frame_|banner_|plate_)/, '');
+}
 
 function formatRelativeTime(dateStr) {
   if (!dateStr) return '—';
@@ -58,10 +65,31 @@ export default function Dashboard() {
   const since = profile.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : '—';
+  const skillTag = mmrToSkillTag(profile.mmr);
+  const coins = profile.forge_coins ?? 0;
 
   return (
     <div>
       <LiveSessionBanner />
+      {!guestMode && (
+        <div className={`card loadout-showcase banner-${bannerStyleKey(profile.equipped_banner)}`}>
+          <PlayerAvatar profile={profile} size={88} />
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800 }}><GamerTag profile={profile} /></div>
+            <div className="loadout-showcase-meta">
+              {skillTag} · {mmrToRank(profile.mmr)} · {coins.toLocaleString()} coins ·{' '}
+              {shortCosmeticId(profile.equipped_frame)} / {shortCosmeticId(profile.equipped_banner)} / {shortCosmeticId(profile.equipped_nameplate)}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <span className={`badge ${skillTagClass(skillTag)}`}>{skillTag}</span>
+              <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
+              <button className="action-btn ghost" style={{ padding: '6px 12px' }} onClick={() => setScreen('shop')}>
+                Customize
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">MMR Rating</div>

@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank } from '../lib/ranks.js';
+import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
+import { bannerStyleKey } from '../lib/cosmetics.js';
+import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import { formatDuration } from '../lib/format.js';
 
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
@@ -48,6 +50,18 @@ function PresenceBlock({ p, offlineDetail }) {
   );
 }
 
+function SkillTagBadge({ mmr, small = false }) {
+  const tag = mmrToSkillTag(mmr);
+  return (
+    <span
+      className={`badge ${skillTagClass(tag)}`}
+      style={small ? { fontSize: 10, padding: '2px 6px' } : undefined}
+    >
+      {tag}
+    </span>
+  );
+}
+
 function FriendProfileModal({ data, loading, onClose, onMessage, showToast, myId, onBlock, onReport }) {
   const p = data?.profile;
   const matches = data?.matches || [];
@@ -57,7 +71,6 @@ function FriendProfileModal({ data, loading, onClose, onMessage, showToast, myId
   const historyHidden = !!data?.history_hidden;
   const total = (p?.wins || 0) + (p?.losses || 0);
   const wr = total > 0 ? Math.round(((p.wins || 0) / total) * 100) : null;
-  const col = p ? avatarColor(p.id) : '#C9FF00';
 
   async function copyTag() {
     if (!p?.gamer_tag) return;
@@ -90,13 +103,19 @@ function FriendProfileModal({ data, loading, onClose, onMessage, showToast, myId
           <div className="friends-empty" style={{ padding: '40px 0' }}>Loading profile…</div>
         ) : (
           <>
-            <div className="friend-profile-head">
-              <div className="player-av friend-av friend-profile-av" style={{ background: `${col}22`, color: col }}>
-                {(p.gamer_tag || '?').slice(0, 2).toUpperCase()}
-                {isOnline(p) && <span className="presence-dot" />}
-              </div>
+            <div className={`friend-profile-head banner-${bannerStyleKey(p.equipped_banner)}`}>
+              <PlayerAvatar
+                profile={p}
+                size={52}
+                className="friend-profile-av"
+                showPresence
+                online={isOnline(p)}
+              />
               <div className="player-info">
-                <div className="player-tag" style={{ fontSize: 18 }}>{p.gamer_tag}</div>
+                <div style={{ fontSize: 18, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <GamerTag profile={p} />
+                  <SkillTagBadge mmr={p.mmr} small />
+                </div>
                 <PresenceBlock
                   p={p}
                   offlineDetail={`${p.main_game || '—'} · ${p.platform || 'PC'} · ${mmrToRank(p.mmr)}`}
@@ -305,7 +324,7 @@ export default function Friends() {
       if (otherIds.length) {
         const { data: profs, error: pErr } = await sb
           .from('profiles')
-          .select('id,gamer_tag,mmr,main_game,platform,last_seen_at,playing_game,custom_status')
+          .select('id,gamer_tag,mmr,main_game,platform,last_seen_at,playing_game,custom_status,avatar_path,equipped_frame,equipped_banner,equipped_nameplate')
           .in('id', otherIds);
         if (pErr) throw pErr;
         setProfiles((prev) => {
@@ -845,6 +864,16 @@ export default function Friends() {
     try {
       const { data, error } = await sb.rpc('get_friend_profile', { p_friend_id: friendId });
       if (error) throw error;
+      const local = profiles[friendId];
+      if (data?.profile && local) {
+        data.profile = {
+          ...data.profile,
+          avatar_path: local.avatar_path,
+          equipped_frame: local.equipped_frame,
+          equipped_banner: local.equipped_banner,
+          equipped_nameplate: local.equipped_nameplate,
+        };
+      }
       setProfileView(data || null);
     } catch (err) {
       showToast(err?.message || 'Could not load friend profile.', 'error');
@@ -867,8 +896,6 @@ export default function Friends() {
 
   function renderPersonRow(item, actions, { showPin = false } = {}) {
     const p = item.profile;
-    const tag = p?.gamer_tag || 'Player';
-    const col = avatarColor(item.otherId);
     const unread = unreadBySender[item.otherId] || 0;
     const isPinned = pinnedIds.has(item.otherId);
     return (
@@ -877,16 +904,18 @@ export default function Friends() {
         className={`friend-row ${item.otherId === selectedId ? 'active' : ''} ${actions ? '' : 'clickable'}`}
         onClick={actions ? undefined : () => setSelectedId(item.otherId)}
       >
-        <div className="player-av friend-av" style={{ background: `${col}22`, color: col }}
+        <PlayerAvatar
+          profile={p}
+          size={40}
+          className="friend-av"
+          showPresence
+          online={isOnline(p)}
           title="View profile"
           onClick={(e) => {
             e.stopPropagation();
             if (item.status === 'accepted' || !actions) openFriendProfile(item.otherId);
           }}
-        >
-          {tag.slice(0, 2).toUpperCase()}
-          {isOnline(p) && <span className="presence-dot" />}
-        </div>
+        />
         <div className="player-info">
           <div
             className="player-tag friend-tag-link"
@@ -897,9 +926,12 @@ export default function Friends() {
               openFriendProfile(item.otherId);
             }}
           >
-            {tag}
+            <GamerTag profile={p} />
           </div>
-          <PresenceBlock p={p} offlineDetail={presenceLine(p)} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <PresenceBlock p={p} offlineDetail={presenceLine(p)} />
+            {p && <SkillTagBadge mmr={p.mmr} small />}
+          </div>
         </div>
         {showPin && (
           <button
@@ -1012,18 +1044,24 @@ export default function Friends() {
         ) : (
           <>
             <div className="chat-header">
-              <div className="player-av friend-av" style={{ background: `${avatarColor(selectedId)}22`, color: avatarColor(selectedId) }}>
-                {(selectedProfile?.gamer_tag || '?').slice(0, 2).toUpperCase()}
-                {isOnline(selectedProfile) && <span className="presence-dot" />}
-              </div>
+              <PlayerAvatar
+                profile={selectedProfile}
+                size={40}
+                className="friend-av"
+                showPresence
+                online={isOnline(selectedProfile)}
+              />
               <div className="player-info">
-                <div className="player-tag">{selectedProfile?.gamer_tag || 'Player'}</div>
-                <PresenceBlock
-                  p={selectedProfile}
-                  offlineDetail={selectedProfile
-                    ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}`
-                    : '—'}
-                />
+                <div className="player-tag"><GamerTag profile={selectedProfile} /></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <PresenceBlock
+                    p={selectedProfile}
+                    offlineDetail={selectedProfile
+                      ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}`
+                      : '—'}
+                  />
+                  {selectedProfile && <SkillTagBadge mmr={selectedProfile.mmr} small />}
+                </div>
               </div>
               <button
                 className="action-btn ghost friend-mini-btn"

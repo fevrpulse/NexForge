@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank } from '../lib/ranks.js';
+import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
+import { AVATAR_PRESETS, bannerStyleKey } from '../lib/cosmetics.js';
+import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import { isBuiltinGame } from '../lib/games.js';
 
 function statBits(st) {
@@ -30,6 +32,8 @@ export default function Profile() {
   const [customDesc, setCustomDesc] = useState('');
   const [saving, setSaving] = useState(false);
   const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef(null);
 
   useEffect(() => {
     if (!user) return;
@@ -101,6 +105,96 @@ export default function Profile() {
     setEditing(false);
   }
 
+  async function pickAvatar(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
+      showToast('Only PNG, JPEG, or WebP images are allowed.', 'error');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('Image must be 2 MB or smaller.', 'error');
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: upErr } = await sb.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
+      const { error } = await sb.from('profiles')
+        .update({ avatar_path: path, avatar_preset: null })
+        .eq('id', user.id);
+      if (error) throw error;
+      await refreshProfile();
+      showToast('Profile photo updated', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not upload photo.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function removeAvatar() {
+    const prev = profile.avatar_path;
+    setUploadingAvatar(true);
+    try {
+      const { error } = await sb.from('profiles')
+        .update({ avatar_path: null })
+        .eq('id', user.id);
+      if (error) throw error;
+      if (prev) {
+        sb.storage.from('avatars').remove([prev]).catch(() => {});
+      }
+      await refreshProfile();
+      showToast('Profile photo removed', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not remove photo.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function selectAvatarPreset(presetId) {
+    setUploadingAvatar(true);
+    try {
+      const prev = profile.avatar_path;
+      const { error } = await sb.from('profiles')
+        .update({ avatar_preset: presetId, avatar_path: null })
+        .eq('id', user.id);
+      if (error) throw error;
+      if (prev) {
+        sb.storage.from('avatars').remove([prev]).catch(() => {});
+      }
+      await refreshProfile();
+      const label = AVATAR_PRESETS.find((p) => p.id === presetId)?.label || presetId;
+      showToast(`Avatar preset: ${label}`, 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not apply preset.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
+  async function clearAvatarPreset() {
+    setUploadingAvatar(true);
+    try {
+      const { error } = await sb.from('profiles')
+        .update({ avatar_preset: null })
+        .eq('id', user.id);
+      if (error) throw error;
+      await refreshProfile();
+      showToast('Avatar preset cleared', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not clear preset.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
+
   async function toggleHideMatchHistory(next) {
     setSavingPrivacy(true);
     const { error } = await sb.from('profiles')
@@ -118,7 +212,6 @@ export default function Profile() {
     );
   }
 
-  const tag = profile.gamer_tag || 'Player';
   const total = (profile.wins || 0) + (profile.losses || 0);
   const wr = total > 0 ? `${Math.round((profile.wins / total) * 100)}%` : '—';
   const since = profile.created_at
@@ -127,12 +220,70 @@ export default function Profile() {
 
   return (
     <div>
-      <div className="profile-hero">
-        <div className="profile-av">{tag.slice(0, 2).toUpperCase()}</div>
+      <div className={`profile-hero banner-${bannerStyleKey(profile.equipped_banner)}`}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <PlayerAvatar profile={profile} size={84} />
+          <input
+            ref={avatarInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={pickAvatar}
+          />
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="action-btn ghost"
+              style={{ padding: '6px 10px', fontSize: 11 }}
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+            >
+              {uploadingAvatar ? '…' : 'Change photo'}
+            </button>
+            {profile.avatar_path && (
+              <button
+                type="button"
+                className="action-btn ghost"
+                style={{ padding: '6px 10px', fontSize: 11 }}
+                onClick={removeAvatar}
+                disabled={uploadingAvatar}
+              >
+                Remove
+              </button>
+            )}
+          </div>
+          <div className="avatar-preset-row" style={{ justifyContent: 'center' }}>
+            {AVATAR_PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className={`avatar-preset-btn ${profile.avatar_preset === p.id ? 'active' : ''}`}
+                style={{ background: `${p.color}22`, color: p.color }}
+                title={p.label}
+                disabled={uploadingAvatar}
+                onClick={() => selectAvatarPreset(p.id)}
+              >
+                {p.mark}
+              </button>
+            ))}
+          </div>
+          {profile.avatar_preset && (
+            <button
+              type="button"
+              className="action-btn ghost"
+              style={{ padding: '4px 8px', fontSize: 10, marginTop: 4 }}
+              onClick={clearAvatarPreset}
+              disabled={uploadingAvatar}
+            >
+              Clear preset
+            </button>
+          )}
+        </div>
         <div>
-          <div className="profile-name">{tag}</div>
+          <div className="profile-name"><GamerTag profile={profile} /></div>
           <div className="profile-sub">Member since {since} · {profile.platform || 'PC'} · {profile.main_game || '—'}</div>
           <div className="profile-tags">
+            <span className={`badge ${skillTagClass(mmrToSkillTag(profile.mmr))}`}>{mmrToSkillTag(profile.mmr)}</span>
             <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
             <span className="badge badge-blue">{total} Matches</span>
             <span className="badge badge-muted">{profile.platform || 'PC'}</span>
