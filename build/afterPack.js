@@ -42,6 +42,15 @@ exports.default = async function afterPack(context) {
   );
   vi.outputToResourceEntries(res.entries);
   res.outputResource(exe);
-  fs.writeFileSync(exePath, Buffer.from(exe.generate()));
+  // Write via temp + replace to avoid EBUSY when Defender briefly locks the exe.
+  const out = Buffer.from(exe.generate());
+  const tmp = `${exePath}.tmp`;
+  fs.writeFileSync(tmp, out);
+  try {
+    fs.unlinkSync(exePath);
+  } catch {
+    /* may already be replaceable */
+  }
+  fs.renameSync(tmp, exePath);
   console.log(`Stamped Task Manager name "${productName}" on ${exeName}`);
 };
