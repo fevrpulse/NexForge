@@ -4,6 +4,20 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.2.8',
+    highlights: [
+      'Friend profiles — view a friend\'s stats, recent matches, and sessions',
+      'Proper NexForge icon in the taskbar and system tray',
+      'Block and report players from friend chat',
+      'Shared duels — see duels you played together on a friend\'s profile',
+      'Profile badges for wins, rank, and activity',
+      'Privacy toggle to hide your match history from friends',
+      'Close to system tray — NexForge stays running in the background',
+      'Dashboard friend activity rows open that friend\'s chat',
+      'Copy gamer tag from friend profiles',
+    ],
+  },
+  {
     version: '1.2.7',
     highlights: [
       'Task Manager shows NexForge instead of Electron',

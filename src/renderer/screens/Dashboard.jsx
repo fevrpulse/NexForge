@@ -19,7 +19,7 @@ function formatRelativeTime(dateStr) {
 }
 
 export default function Dashboard() {
-  const { profile, user, guestMode, setScreen, showToast, createAccount } = useNexForge();
+  const { profile, user, guestMode, setScreen, showToast, createAccount, openFriendChat } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [friendActivity, setFriendActivity] = useState([]);
 
@@ -190,7 +190,12 @@ export default function Dashboard() {
             </div>
           ) : friendActivity.length > 0 ? (
             friendActivity.map((a) => (
-              <div className="row" key={a.match_id}>
+              <div
+                className="row clickable"
+                key={a.match_id}
+                title="Open chat"
+                onClick={() => { if (a.friend_id) openFriendChat(a.friend_id); }}
+              >
                 <div>
                   <div className="row-title">{a.gamer_tag} · {a.game}</div>
                   <div className="row-sub">

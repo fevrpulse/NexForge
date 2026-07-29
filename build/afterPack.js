@@ -3,11 +3,10 @@ const path = require('path');
 const ResEdit = require('resedit');
 
 /**
- * Stamp NexForge.exe so Task Manager shows "NexForge" instead of "Electron".
+ * Stamp NexForge.exe with ProductName / FileDescription and the app icon
+ * so Task Manager and the taskbar show NexForge instead of Electron.
  *
  * Uses pure-JS resedit (no winCodeSign / symlink privileges required).
- * Kept separate from signAndEditExecutable because that path fails on
- * machines without Developer Mode symlink rights.
  */
 exports.default = async function afterPack(context) {
   if (context.electronPlatformName !== 'win32') return;
@@ -19,9 +18,25 @@ exports.default = async function afterPack(context) {
   const parts = version.split('.').map((n) => parseInt(n, 10) || 0);
   while (parts.length < 4) parts.push(0);
 
+  const iconPath = path.join(context.packager.projectDir, 'build', 'icon.ico');
+
   const data = fs.readFileSync(exePath);
   const exe = ResEdit.NtExecutable.from(data, { ignoreCert: true });
   const res = ResEdit.NtExecutableResource.from(exe);
+
+  if (fs.existsSync(iconPath)) {
+    const iconFile = ResEdit.Data.IconFile.from(fs.readFileSync(iconPath));
+    const groups = ResEdit.Resource.IconGroupEntry.fromEntries(res.entries);
+    const groupId = groups[0]?.id ?? 1;
+    const lang = groups[0]?.lang ?? 1033;
+    ResEdit.Resource.IconGroupEntry.replaceIconsForResource(
+      res.entries,
+      groupId,
+      lang,
+      iconFile.icons.map((item) => item.data),
+    );
+  }
+
   const versionInfoList = ResEdit.Resource.VersionInfo.fromEntries(res.entries);
   const vi = versionInfoList[0] || ResEdit.Resource.VersionInfo.createEmpty();
 
@@ -42,6 +57,7 @@ exports.default = async function afterPack(context) {
   );
   vi.outputToResourceEntries(res.entries);
   res.outputResource(exe);
+
   // Write via temp + replace to avoid EBUSY when Defender briefly locks the exe.
   const out = Buffer.from(exe.generate());
   const tmp = `${exePath}.tmp`;
@@ -52,5 +68,5 @@ exports.default = async function afterPack(context) {
     /* may already be replaceable */
   }
   fs.renameSync(tmp, exePath);
-  console.log(`Stamped Task Manager name "${productName}" on ${exeName}`);
+  console.log(`Stamped Task Manager name + icon on ${exeName}`);
 };

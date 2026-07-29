@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { mmrToRank } from '../lib/ranks.js';
+import { formatDuration } from '../lib/format.js';
 
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
 
@@ -47,8 +48,209 @@ function PresenceBlock({ p, offlineDetail }) {
   );
 }
 
+function FriendProfileModal({ data, loading, onClose, onMessage, showToast, myId, onBlock, onReport }) {
+  const p = data?.profile;
+  const matches = data?.matches || [];
+  const sessions = data?.sessions || [];
+  const duels = data?.duels || [];
+  const badges = data?.badges || [];
+  const historyHidden = !!data?.history_hidden;
+  const total = (p?.wins || 0) + (p?.losses || 0);
+  const wr = total > 0 ? Math.round(((p.wins || 0) / total) * 100) : null;
+  const col = p ? avatarColor(p.id) : '#C9FF00';
+
+  async function copyTag() {
+    if (!p?.gamer_tag) return;
+    try {
+      await navigator.clipboard.writeText(p.gamer_tag);
+      showToast?.('Tag copied', 'success');
+    } catch {
+      showToast?.('Could not copy tag', 'error');
+    }
+  }
+
+  function handleReport() {
+    if (!p?.id || !onReport) return;
+    const reason = window.prompt('Why are you reporting this player?');
+    if (reason?.trim()) onReport(p.id, reason.trim());
+  }
+
+  function duelWinnerLabel(d) {
+    if (!d.winner_id) return 'Draw';
+    if (d.winner_id === myId) return 'You won';
+    if (d.winner_id === p?.id) return `${p.gamer_tag} won`;
+    return 'Completed';
+  }
+
+  return (
+    <div className="friend-profile-overlay" onClick={onClose}>
+      <div className="friend-profile-modal card" onClick={(e) => e.stopPropagation()}>
+        <button className="friend-profile-x" onClick={onClose} aria-label="Close">×</button>
+        {loading || !p ? (
+          <div className="friends-empty" style={{ padding: '40px 0' }}>Loading profile…</div>
+        ) : (
+          <>
+            <div className="friend-profile-head">
+              <div className="player-av friend-av friend-profile-av" style={{ background: `${col}22`, color: col }}>
+                {(p.gamer_tag || '?').slice(0, 2).toUpperCase()}
+                {isOnline(p) && <span className="presence-dot" />}
+              </div>
+              <div className="player-info">
+                <div className="player-tag" style={{ fontSize: 18 }}>{p.gamer_tag}</div>
+                <PresenceBlock
+                  p={p}
+                  offlineDetail={`${p.main_game || '—'} · ${p.platform || 'PC'} · ${mmrToRank(p.mmr)}`}
+                />
+              </div>
+              <div className="friend-profile-actions">
+                <button className="action-btn ghost friend-mini-btn" onClick={copyTag} title="Copy gamer tag">
+                  Copy tag
+                </button>
+                {onMessage && (
+                  <button className="action-btn primary friend-mini-btn" onClick={onMessage}>
+                    Message
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {badges.length > 0 && (
+              <div className="friend-badge-row">
+                {badges.map((b) => (
+                  <span key={b.id} className="friend-badge" title={b.desc}>{b.label}</span>
+                ))}
+              </div>
+            )}
+
+            <div className="friend-profile-stats">
+              <div className="friend-profile-stat">
+                <div className="stat-label">MMR</div>
+                <div className="stat-val neon">{(p.mmr || 1200).toLocaleString()}</div>
+              </div>
+              <div className="friend-profile-stat">
+                <div className="stat-label">Wins</div>
+                <div className="stat-val" style={{ color: '#4ade80' }}>{p.wins || 0}</div>
+              </div>
+              <div className="friend-profile-stat">
+                <div className="stat-label">Losses</div>
+                <div className="stat-val" style={{ color: 'var(--red)' }}>{p.losses || 0}</div>
+              </div>
+              <div className="friend-profile-stat">
+                <div className="stat-label">Win Rate</div>
+                <div className="stat-val">{wr != null ? `${wr}%` : '—'}</div>
+              </div>
+            </div>
+
+            {(p.total_kills || p.total_deaths || p.total_assists) ? (
+              <div className="friend-profile-kda">
+                Career K/D/A · {p.total_kills || 0}/{p.total_deaths || 0}/{p.total_assists || 0}
+              </div>
+            ) : null}
+
+            <div className="card-title" style={{ marginTop: 18 }}>Recent Matches</div>
+            {historyHidden ? (
+              <div className="friends-empty" style={{ padding: '8px 0 12px' }}>
+                This player hides match history
+              </div>
+            ) : matches.length === 0 ? (
+              <div className="friends-empty">No ranked matches yet</div>
+            ) : (
+              matches.map((m) => (
+                <div className="row" key={m.id}>
+                  <div>
+                    <div className="row-title">{m.game}</div>
+                    <div className="row-sub">
+                      {m.mode || 'Match'}
+                      {m.played_at ? ` · ${new Date(m.played_at).toLocaleString()}` : ''}
+                    </div>
+                  </div>
+                  <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`}>
+                    {m.result === 'win' ? `WIN +${m.mmr_change || 0}` : `LOSS ${m.mmr_change || 0}`}
+                  </div>
+                </div>
+              ))
+            )}
+
+            <div className="card-title" style={{ marginTop: 16 }}>Shared Duels</div>
+            {duels.length === 0 ? (
+              <div className="friends-empty">No completed duels together yet</div>
+            ) : (
+              duels.map((d) => (
+                <div className="row" key={d.id}>
+                  <div>
+                    <div className="row-title">{d.game}</div>
+                    <div className="row-sub">
+                      {d.mode || 'Duel'}
+                      {d.created_at ? ` · ${new Date(d.created_at).toLocaleString()}` : ''}
+                      {d.host_tag && d.challenger_tag ? ` · ${d.host_tag} vs ${d.challenger_tag}` : ''}
+                    </div>
+                  </div>
+                  <div className={`result ${d.winner_id === myId ? 'win' : d.winner_id === p?.id ? 'loss' : ''}`}>
+                    {duelWinnerLabel(d)}
+                  </div>
+                </div>
+              ))
+            )}
+
+            <div className="card-title" style={{ marginTop: 16 }}>Recent Sessions</div>
+            {sessions.length === 0 ? (
+              <div className="friends-empty">No tracked sessions yet</div>
+            ) : (
+              sessions.map((s) => (
+                <div className="row" key={s.id}>
+                  <div>
+                    <div className="row-title">{s.game}</div>
+                    <div className="row-sub">
+                      {formatDuration(s.duration_sec)}
+                      {s.ended_at ? ` · ${new Date(s.ended_at).toLocaleString()}` : ''}
+                      {s.kills != null ? ` · ${s.kills}/${s.deaths ?? 0}/${s.assists ?? 0}` : ''}
+                    </div>
+                  </div>
+                  <div className="row-sub" style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 11 }}>
+                    {s.avg_ping_ms != null ? `${Math.round(s.avg_ping_ms)} ms` : '—'}
+                    {s.avg_gpu_pct != null ? ` · GPU ${Number(s.avg_gpu_pct).toFixed(0)}%` : ''}
+                  </div>
+                </div>
+              ))
+            )}
+
+            {(onBlock || onReport) && (
+              <div className="friend-profile-actions" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
+                {onReport && (
+                  <button className="action-btn ghost friend-mini-btn" onClick={handleReport}>
+                    Report
+                  </button>
+                )}
+                {onBlock && (
+                  <button
+                    className="action-btn ghost friend-mini-btn"
+                    style={{ color: 'var(--red)' }}
+                    onClick={() => onBlock(p.id)}
+                  >
+                    Block
+                  </button>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Friends() {
-  const { user, profile, showToast, reportCloudError, unreadBySender, refreshUnread, refreshProfile } = useNexForge();
+  const {
+    user,
+    profile,
+    showToast,
+    reportCloudError,
+    unreadBySender,
+    refreshUnread,
+    refreshProfile,
+    pendingFriendChatId,
+    clearPendingFriendChat,
+  } = useNexForge();
   const myId = user?.id;
 
   const [rows, setRows] = useState([]);
@@ -68,6 +270,8 @@ export default function Friends() {
   const [reactions, setReactions] = useState({});
   const [pickerFor, setPickerFor] = useState(null);
   const [challenging, setChallenging] = useState(false);
+  const [profileView, setProfileView] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [pinnedIds, setPinnedIds] = useState(() => new Set());
   const [statusDraft, setStatusDraft] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
@@ -186,6 +390,12 @@ export default function Friends() {
     const id = setInterval(loadFriendships, 8000);
     return () => clearInterval(id);
   }, [loadFriendships]);
+
+  useEffect(() => {
+    if (!pendingFriendChatId) return;
+    setSelectedId(pendingFriendChatId);
+    clearPendingFriendChat();
+  }, [pendingFriendChatId, clearPendingFriendChat]);
 
   // Ref mirror so the poll interval sees fresh unread counts without re-subscribing.
   const unreadBySenderRef = useRef(unreadBySender);
@@ -534,6 +744,47 @@ export default function Friends() {
     }
   }
 
+  async function blockPlayer(id) {
+    try {
+      const { error: blockErr } = await sb.from('player_blocks').insert({
+        blocker_id: myId,
+        blocked_id: id,
+      });
+      if (blockErr) throw blockErr;
+      const friendship = rows.find(
+        (r) => (r.requester_id === myId && r.addressee_id === id)
+          || (r.addressee_id === myId && r.requester_id === id),
+      );
+      if (friendship) {
+        const { error: delErr } = await sb.from('friendships').delete().eq('id', friendship.id);
+        if (delErr) throw delErr;
+      }
+      if (id === selectedId) setSelectedId(null);
+      setProfileView(null);
+      setProfileLoading(false);
+      showToast('Player blocked', 'success');
+      loadFriendships();
+    } catch (err) {
+      showToast(err?.message || 'Could not block player.', 'error');
+      await reportCloudError(err);
+    }
+  }
+
+  async function reportPlayer(id, reason) {
+    try {
+      const { error } = await sb.from('player_reports').insert({
+        reporter_id: myId,
+        reported_id: id,
+        reason,
+      });
+      if (error) throw error;
+      showToast('Report submitted', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not submit report.', 'error');
+      await reportCloudError(err);
+    }
+  }
+
   async function challengeFriend() {
     if (!selectedId || challenging) return;
     const target = profiles[selectedId];
@@ -587,6 +838,23 @@ export default function Friends() {
     });
   }, [messages, msgSearch]);
 
+  async function openFriendProfile(friendId) {
+    if (!friendId) return;
+    setProfileView({ profile: profiles[friendId] || null, matches: [], sessions: [] });
+    setProfileLoading(true);
+    try {
+      const { data, error } = await sb.rpc('get_friend_profile', { p_friend_id: friendId });
+      if (error) throw error;
+      setProfileView(data || null);
+    } catch (err) {
+      showToast(err?.message || 'Could not load friend profile.', 'error');
+      setProfileView(null);
+      await reportCloudError(err);
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
   function quoteLabel(m) {
     return m.sender_id === myId ? 'You' : friendTag;
   }
@@ -609,12 +877,28 @@ export default function Friends() {
         className={`friend-row ${item.otherId === selectedId ? 'active' : ''} ${actions ? '' : 'clickable'}`}
         onClick={actions ? undefined : () => setSelectedId(item.otherId)}
       >
-        <div className="player-av friend-av" style={{ background: `${col}22`, color: col }}>
+        <div className="player-av friend-av" style={{ background: `${col}22`, color: col }}
+          title="View profile"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (item.status === 'accepted' || !actions) openFriendProfile(item.otherId);
+          }}
+        >
           {tag.slice(0, 2).toUpperCase()}
           {isOnline(p) && <span className="presence-dot" />}
         </div>
         <div className="player-info">
-          <div className="player-tag">{tag}</div>
+          <div
+            className="player-tag friend-tag-link"
+            title="View profile"
+            onClick={(e) => {
+              if (actions) return;
+              e.stopPropagation();
+              openFriendProfile(item.otherId);
+            }}
+          >
+            {tag}
+          </div>
           <PresenceBlock p={p} offlineDetail={presenceLine(p)} />
         </div>
         {showPin && (
@@ -741,6 +1025,13 @@ export default function Friends() {
                     : '—'}
                 />
               </div>
+              <button
+                className="action-btn ghost friend-mini-btn"
+                onClick={() => openFriendProfile(selectedId)}
+                title="View wins, recent matches, and sessions"
+              >
+                Profile
+              </button>
               <button
                 className="action-btn primary friend-mini-btn"
                 onClick={challengeFriend}
@@ -917,6 +1208,22 @@ export default function Friends() {
           <img src={lightboxUrl} alt="Shared photo" onClick={(e) => e.stopPropagation()} />
           <button className="chat-lightbox-x" onClick={() => setLightboxUrl(null)}>×</button>
         </div>
+      )}
+      {(profileView || profileLoading) && (
+        <FriendProfileModal
+          data={profileView}
+          loading={profileLoading}
+          onClose={() => { setProfileView(null); setProfileLoading(false); }}
+          onMessage={profileView?.profile?.id ? () => {
+            setSelectedId(profileView.profile.id);
+            setProfileView(null);
+            setProfileLoading(false);
+          } : undefined}
+          showToast={showToast}
+          myId={myId}
+          onBlock={blockPlayer}
+          onReport={reportPlayer}
+        />
       )}
     </div>
   );

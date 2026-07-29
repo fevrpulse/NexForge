@@ -74,6 +74,7 @@ export function NexForgeProvider({ children }) {
   const [liveSession, setLiveSession] = useState(null);
   // Bumped whenever a finished session is saved so screens can refetch history.
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
+  const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
   // sender_id -> count of unread DMs; drives the sidebar badge + Friends screen.
   const [unreadBySender, setUnreadBySender] = useState({});
   const [dndEnabled, setDndEnabledState] = useState(() => {
@@ -301,6 +302,15 @@ export function NexForgeProvider({ children }) {
     }
     setScreenState(id);
   }, [guestMode]);
+
+  const openFriendChat = useCallback((friendId) => {
+    setPendingFriendChatId(friendId);
+    setScreenState('friends');
+  }, []);
+
+  const clearPendingFriendChat = useCallback(() => {
+    setPendingFriendChatId(null);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -670,6 +680,9 @@ export function NexForgeProvider({ children }) {
     knownGames: knownGames.length ? knownGames : KNOWN_MAIN_GAMES,
     loadCommunityGames,
     syncCommunityGames,
+    pendingFriendChatId,
+    openFriendChat,
+    clearPendingFriendChat,
   };
 
   return (

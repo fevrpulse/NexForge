@@ -51,6 +51,8 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 9. **`message-replies-photos.sql`** (message replies + private `chat-images` storage bucket)
 10. **`presence-reactions-delete.sql`** (online presence / now-playing, emoji reactions, sender message deletion)
 11. **`v127-social-extras.sql`** (custom status, friend pins, typing signals, friend activity feed RPC)
+12. **`friend-profile.sql`** (accepted-friends-only profile / recent matches / sessions RPC)
+13. **`v128-blocks-privacy-profile.sql`** (block/report, hide match history privacy, richer friend profiles)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 

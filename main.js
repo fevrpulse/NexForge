@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, dialog, screen, globalShortcut } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -9,6 +9,10 @@ const { GameTracker } = require('./game-tracker');
 // title match even when running unpackaged.
 app.setName('NexForge');
 process.title = 'NexForge';
+if (process.platform === 'win32') {
+  // Groups the taskbar icon under NexForge instead of Electron.
+  app.setAppUserModelId('com.nexforge.app');
+}
 
 const AUTH_PORT = 17890;
 const AUTH_HOST = '127.0.0.1';
@@ -21,6 +25,8 @@ const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 
 let mainWindow = null;
 let overlayWindow = null;
+let tray = null;
+let isQuitting = false;
 let authServer = null;
 let pendingAuthTokens = null;
 let authNonce = null;
@@ -354,10 +360,38 @@ function isAllowedNavigation(urlString) {
   }
 }
 
+function setupTray() {
+  const iconIco = path.join(__dirname, 'build', 'icon.ico');
+  const iconPng = path.join(__dirname, 'build', 'icon.png');
+  const iconPath = fs.existsSync(iconIco) ? iconIco : iconPng;
+  const icon = nativeImage.createFromPath(iconPath);
+  tray = new Tray(icon);
+  tray.setToolTip('NexForge');
+
+  const showMain = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  };
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show NexForge', click: showMain },
+    { type: 'separator' },
+    { label: 'Quit', click: () => { isQuitting = true; app.quit(); } },
+  ]);
+  tray.setContextMenu(contextMenu);
+  tray.on('double-click', showMain);
+}
+
 function createWindow() {
   Menu.setApplicationMenu(null);
   const state = loadWindowState();
   const restorePosition = state && isOnScreen(state);
+  const iconIco = path.join(__dirname, 'build', 'icon.ico');
+  const iconPng = path.join(__dirname, 'build', 'icon.png');
+  const windowIcon = process.platform === 'win32' && fs.existsSync(iconIco) ? iconIco : iconPng;
   mainWindow = new BrowserWindow({
     width: Math.max(1100, state?.width || 1400),
     height: Math.max(700, state?.height || 900),
@@ -365,7 +399,7 @@ function createWindow() {
     minWidth: 1100,
     minHeight: 700,
     title: 'NexForge',
-    icon: path.join(__dirname, 'build', 'icon.png'),
+    icon: windowIcon,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -379,7 +413,13 @@ function createWindow() {
   mainWindow.setMenu(null);
   mainWindow.setMenuBarVisibility(false);
   if (state?.maximized) mainWindow.maximize();
-  mainWindow.on('close', saveWindowState);
+  mainWindow.on('close', (e) => {
+    saveWindowState();
+    if (!isQuitting) {
+      e.preventDefault();
+      mainWindow.hide();
+    }
+  });
   // The hidden overlay must not keep the app alive after the main window closes.
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -489,6 +529,7 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
   await startAuthServer();
   createWindow();
+  setupTray();
   setupGameTracker();
   setupAutoUpdater();
   if (process.platform === 'win32') {
@@ -510,6 +551,11 @@ app.whenReady().then(async () => {
 });
 
 app.on('will-quit', () => {
+  isQuitting = true;
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
   globalShortcut.unregisterAll();
   gameTracker.stop();
   if (authServer) {
@@ -519,5 +565,5 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (process.platform !== 'darwin' && isQuitting) app.quit();
 });

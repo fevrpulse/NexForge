@@ -29,6 +29,7 @@ export default function Profile() {
   const [customName, setCustomName] = useState('');
   const [customDesc, setCustomDesc] = useState('');
   const [saving, setSaving] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -98,6 +99,23 @@ export default function Profile() {
       showToast(`Main game updated to ${game}`, 'success');
     }
     setEditing(false);
+  }
+
+  async function toggleHideMatchHistory(next) {
+    setSavingPrivacy(true);
+    const { error } = await sb.from('profiles')
+      .update({ hide_match_history: next })
+      .eq('id', user.id);
+    setSavingPrivacy(false);
+    if (error) {
+      showToast(error.message || 'Could not update privacy setting.', 'error');
+      return;
+    }
+    await refreshProfile();
+    showToast(
+      next ? 'Match history hidden from friends' : 'Match history visible to friends',
+      'success',
+    );
   }
 
   const tag = profile.gamer_tag || 'Player';
@@ -177,6 +195,21 @@ export default function Profile() {
             </div>
           </div>
         )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title">Privacy</div>
+        <div className="row" style={{ borderBottom: 'none' }}>
+          <span>Hide match history from friends</span>
+          <label style={{ cursor: savingPrivacy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center' }}>
+            <input
+              type="checkbox"
+              checked={!!profile.hide_match_history}
+              disabled={savingPrivacy}
+              onChange={(e) => toggleHideMatchHistory(e.target.checked)}
+            />
+          </label>
+        </div>
       </div>
 
       <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>

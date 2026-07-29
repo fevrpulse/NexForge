@@ -313,3 +313,53 @@
 }
 .session-compare-metric span:first-child{color:var(--muted2);flex-shrink:0}
 .session-compare-metric span:last-child{text-align:right;color:var(--text)}
+
+/* Friend profile modal */
+.friend-tag-link{cursor:pointer}
+.friend-tag-link:hover{color:var(--neon)}
+.friend-profile-overlay{
+  position:fixed;inset:0;z-index:80;background:rgba(0,0,0,.62);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.friend-profile-modal{
+  position:relative;width:min(520px,100%);max-height:min(82vh,760px);
+  overflow-y:auto;margin:0;
+}
+.friend-profile-x{
+  position:absolute;top:10px;right:12px;background:transparent;border:none;
+  color:var(--muted2);font-size:22px;cursor:pointer;line-height:1;
+}
+.friend-profile-x:hover{color:var(--text)}
+.friend-profile-head{
+  display:flex;align-items:center;gap:14px;padding-right:28px;margin-bottom:16px;
+}
+.friend-profile-av{width:52px;height:52px;font-size:16px}
+.friend-profile-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;
+}
+.friend-profile-stat{
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:10px 8px;text-align:center;
+}
+.friend-profile-stat .stat-label{font-size:9px;margin-bottom:4px}
+.friend-profile-stat .stat-val{font-size:18px}
+.friend-profile-kda{
+  font-family:var(--mono);font-size:11px;color:var(--muted2);
+  text-align:center;margin-bottom:4px;
+}
+@media (max-width:560px){
+  .friend-profile-stats{grid-template-columns:repeat(2,1fr)}
+}
+.friend-badge-row{
+  display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;
+}
+.friend-badge{
+  font-family:var(--mono);font-size:10px;font-weight:600;
+  padding:4px 10px;border-radius:999px;
+  background:rgba(201,255,0,.1);border:1px solid rgba(201,255,0,.28);
+  color:var(--neon);cursor:default;
+}
+.friend-profile-actions{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex-shrink:0;
+}
+
