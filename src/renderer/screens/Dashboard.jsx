@@ -4,9 +4,24 @@ import { sb } from '../lib/supabase.js';
 import { mmrToRank } from '../lib/ranks.js';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
 
+function formatRelativeTime(dateStr) {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr);
+  const sec = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return d.toLocaleString();
+}
+
 export default function Dashboard() {
   const { profile, user, guestMode, setScreen, showToast, createAccount } = useNexForge();
   const [matches, setMatches] = useState([]);
+  const [friendActivity, setFriendActivity] = useState([]);
 
   useEffect(() => {
     if (!user || guestMode) {
@@ -21,6 +36,18 @@ export default function Dashboard() {
       .limit(5)
       .then(({ data }) => { if (active) setMatches(data || []); })
       .catch(() => { if (active) setMatches([]); });
+    return () => { active = false; };
+  }, [user, guestMode]);
+
+  useEffect(() => {
+    if (!user || guestMode) {
+      setFriendActivity([]);
+      return;
+    }
+    let active = true;
+    sb.rpc('friend_activity_feed', { p_limit: 10 })
+      .then(({ data }) => { if (active) setFriendActivity(data || []); })
+      .catch(() => { if (active) setFriendActivity([]); });
     return () => { active = false; };
   }, [user, guestMode]);
 
@@ -150,6 +177,36 @@ export default function Dashboard() {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="card">
+          <div className="card-title">Friend Activity</div>
+          {guestMode ? (
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              <div style={{ fontSize: 28, marginBottom: 10 }}>🔒</div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
+                Sign in to see what your friends are playing
+              </div>
+            </div>
+          ) : friendActivity.length > 0 ? (
+            friendActivity.map((a) => (
+              <div className="row" key={a.match_id}>
+                <div>
+                  <div className="row-title">{a.gamer_tag} · {a.game}</div>
+                  <div className="row-sub">
+                    {a.result === 'win' ? 'WIN' : 'LOSS'} · {a.mode} · {formatRelativeTime(a.played_at)}
+                  </div>
+                </div>
+                <div className={`result ${a.result === 'win' ? 'win' : 'loss'}`}>
+                  {a.result === 'win' ? `+${a.mmr_change}` : a.mmr_change}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
+              No friend activity yet — play matches with friends.
+            </div>
+          )}
         </div>
       </div>
     </div>

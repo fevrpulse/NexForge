@@ -4,6 +4,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.2.7',
+    highlights: [
+      'Task Manager shows NexForge instead of Electron',
+      'Do Not Disturb mutes message sounds and overlay toasts',
+      'Ctrl+Shift+O peeks unread messages on the overlay',
+      'Online friends: pin favorites, custom status, typing indicator, chat search',
+      'Friend activity feed on the Dashboard',
+      'Compare two performance sessions side-by-side in Analytics',
+    ],
+  },
+  {
     version: '1.2.6',
     highlights: [
       'In-game overlay — see incoming NexForge messages while you play',

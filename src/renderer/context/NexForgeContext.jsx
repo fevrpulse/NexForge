@@ -76,6 +76,17 @@ export function NexForgeProvider({ children }) {
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
   // sender_id -> count of unread DMs; drives the sidebar badge + Friends screen.
   const [unreadBySender, setUnreadBySender] = useState({});
+  const [dndEnabled, setDndEnabledState] = useState(() => {
+    try { return localStorage.getItem('nexforge_dnd') === '1'; } catch { return false; }
+  });
+  const dndRef = useRef(dndEnabled);
+  useEffect(() => { dndRef.current = dndEnabled; }, [dndEnabled]);
+
+  const setDndEnabled = useCallback((on) => {
+    const next = !!on;
+    setDndEnabledState(next);
+    try { localStorage.setItem('nexforge_dnd', next ? '1' : '0'); } catch { /* ignore */ }
+  }, []);
 
   const userRef = useRef(null);
   useEffect(() => { userRef.current = user; }, [user]);
@@ -372,7 +383,11 @@ export function NexForgeProvider({ children }) {
         counts[row.sender_id] = (counts[row.sender_id] || 0) + 1;
       }
       const total = (data || []).length;
-      if (unreadSoundBaselineRef.current !== null && total > unreadSoundBaselineRef.current) {
+      if (
+        unreadSoundBaselineRef.current !== null
+        && total > unreadSoundBaselineRef.current
+        && !dndRef.current
+      ) {
         playMessageChirp();
       }
       unreadSoundBaselineRef.current = total;
@@ -455,11 +470,18 @@ export function NexForgeProvider({ children }) {
           for (const p of profs || []) tagCache[p.id] = p.gamer_tag;
         }
         if (cancelled) return;
+        if (dndRef.current) {
+          refreshUnread();
+          return;
+        }
+        // Approximate unread for the toast badge; exact total refreshes after.
+        const approxUnread = (Object.values(unreadBySender).reduce((s, n) => s + n, 0) || 0) + fresh.length;
         for (const m of fresh) {
           nf.overlayNotify({
             sender: tagCache[m.sender_id] || 'Friend',
             body: m.body || '',
             image: !!m.image_path,
+            unread: approxUnread,
           });
         }
         refreshUnread();
@@ -475,6 +497,36 @@ export function NexForgeProvider({ children }) {
       clearInterval(id);
     };
   }, [gameActive, user, refreshUnread]);
+
+  // Ctrl+Shift+O — force an overlay peek with the current unread total.
+  useEffect(() => {
+    const nf = window.nexforge;
+    if (!nf?.onOverlayHotkey) return undefined;
+    return nf.onOverlayHotkey(async () => {
+      if (dndRef.current) {
+        showToast('Do Not Disturb is on — unmute to see overlay toasts.', 'error');
+        return;
+      }
+      let count = Object.values(unreadBySender).reduce((s, n) => s + n, 0);
+      const u = userRef.current;
+      if (u) {
+        try {
+          const { count: c } = await sb
+            .from('messages')
+            .select('id', { count: 'exact', head: true })
+            .eq('recipient_id', u.id)
+            .is('read_at', null);
+          if (typeof c === 'number') count = c;
+        } catch { /* use cached total */ }
+      }
+      nf.overlayNotify({
+        force: true,
+        sender: 'NexForge',
+        body: count > 0 ? `You have ${count} unread message${count === 1 ? '' : 's'}` : 'No unread messages',
+        unread: count,
+      });
+    });
+  }, [showToast, unreadBySender]);
 
   // Game session tracking lives here (always mounted) so finished sessions are
   // saved even when the Analytics screen is closed.
@@ -611,6 +663,8 @@ export function NexForgeProvider({ children }) {
     unreadBySender,
     unreadTotal,
     refreshUnread,
+    dndEnabled,
+    setDndEnabled,
     communityGames,
     gameCatalog: gameCatalog.length ? gameCatalog : GAME_CATALOG,
     knownGames: knownGames.length ? knownGames : KNOWN_MAIN_GAMES,

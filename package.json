@@ -1,6 +1,6 @@
 {
   "name": "nexforge-desktop",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "NexForge Desktop",
   "main": "main.js",
   "author": "fevrpulse",
@@ -63,8 +63,10 @@
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",
+      "executableName": "NexForge",
       "signAndEditExecutable": false
     },
+    "afterPack": "./build/afterPack.js",
     "mac": {
       "target": "dmg",
       "icon": "build/icon.png"
@@ -88,6 +90,7 @@
     "cross-env": "^10.1.0",
     "electron": "^35.0.0",
     "electron-builder": "^25.1.8",
+    "resedit": "^3.0.2",
     "vite": "^8.1.5",
     "wait-on": "^9.1.0"
   }

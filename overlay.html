@@ -52,7 +52,12 @@
       color: var(--neon); text-transform: uppercase; margin-bottom: 2px;
       font-family: Consolas, monospace;
     }
-    .sender { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .sender { font-size: 13.5px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 7px; }
+    .unread {
+      margin-left: auto; background: var(--neon); color: #111;
+      font-size: 10px; font-weight: 800; border-radius: 999px;
+      padding: 1px 7px; font-family: Consolas, monospace;
+    }
     .body {
       font-size: 12px; color: var(--muted); margin-top: 1px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -93,7 +98,13 @@
 
       const sender = document.createElement('div');
       sender.className = 'sender';
-      sender.textContent = msg.sender || 'Friend';
+      sender.appendChild(document.createTextNode(msg.sender || 'Friend'));
+      if (msg.unread > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'unread';
+        badge.textContent = msg.unread > 99 ? '99+' : String(msg.unread);
+        sender.appendChild(badge);
+      }
 
       const body = document.createElement('div');
       body.className = 'body';

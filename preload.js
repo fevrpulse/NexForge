@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('nexforge', {
   onAuthCallback: (callback) => subscribe('auth-callback', callback),
   onUpdateStatus: (callback) => subscribe('update-status', callback),
   overlayNotify: (payload) => ipcRenderer.invoke('overlay-notify', payload),
+  onOverlayHotkey: (callback) => subscribe('overlay-hotkey', callback),
   startGameTracking: () => ipcRenderer.invoke('start-game-tracking'),
   stopGameTracking: () => ipcRenderer.invoke('stop-game-tracking'),
   getActiveGameSession: () => ipcRenderer.invoke('get-active-game-session'),

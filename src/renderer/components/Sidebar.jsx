@@ -18,7 +18,10 @@ const SECONDARY_NAV = [
 ];
 
 export default function Sidebar() {
-  const { screen, setScreen, profile, guestMode, signOut, appVersion, checkForUpdates, unreadTotal } = useNexForge();
+  const {
+    screen, setScreen, profile, guestMode, signOut, appVersion,
+    checkForUpdates, unreadTotal, dndEnabled, setDndEnabled,
+  } = useNexForge();
   const tag = profile?.gamer_tag || 'Player';
   const initials = tag.slice(0, 2).toUpperCase();
   const rank = guestMode ? 'No account' : mmrToRank(profile?.mmr ?? 1200);
@@ -67,6 +70,15 @@ export default function Sidebar() {
         <button className="signout-btn" onClick={signOut}>
           {guestMode ? 'Exit Guest' : 'Sign out'}
         </button>
+        {!guestMode && (
+          <button
+            className={`sb-update-btn ${dndEnabled ? 'dnd-on' : ''}`}
+            onClick={() => setDndEnabled(!dndEnabled)}
+            title="Mute message sounds and in-game overlay toasts"
+          >
+            {dndEnabled ? 'Do Not Disturb · On' : 'Do Not Disturb'}
+          </button>
+        )}
         <button className="sb-update-btn" onClick={checkForUpdates}>
           Check for updates
         </button>

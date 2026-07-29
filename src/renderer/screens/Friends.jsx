@@ -34,8 +34,21 @@ function presenceLine(p) {
   return `${p.main_game || '—'} · ${mmrToRank(p.mmr)}`;
 }
 
+function PresenceBlock({ p, offlineDetail }) {
+  if (!p) return <div className="player-game">—</div>;
+  const online = isOnline(p);
+  return (
+    <>
+      <div className={`player-game ${online ? 'presence-online' : ''}`}>
+        {online ? presenceLine(p) : offlineDetail}
+      </div>
+      {p.custom_status && <div className="player-custom-status">{p.custom_status}</div>}
+    </>
+  );
+}
+
 export default function Friends() {
-  const { user, profile, showToast, reportCloudError, unreadBySender, refreshUnread } = useNexForge();
+  const { user, profile, showToast, reportCloudError, unreadBySender, refreshUnread, refreshProfile } = useNexForge();
   const myId = user?.id;
 
   const [rows, setRows] = useState([]);
@@ -55,8 +68,14 @@ export default function Friends() {
   const [reactions, setReactions] = useState({});
   const [pickerFor, setPickerFor] = useState(null);
   const [challenging, setChallenging] = useState(false);
+  const [pinnedIds, setPinnedIds] = useState(() => new Set());
+  const [statusDraft, setStatusDraft] = useState('');
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [msgSearch, setMsgSearch] = useState('');
+  const [friendTyping, setFriendTyping] = useState(false);
 
   const scrollRef = useRef(null);
+  const typingTimerRef = useRef(null);
   const fileInputRef = useRef(null);
   const selectedRef = useRef(null);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
@@ -66,18 +85,23 @@ export default function Friends() {
   const loadFriendships = useCallback(async () => {
     if (!myId) return;
     try {
-      const { data, error } = await sb
-        .from('friendships')
-        .select('id,requester_id,addressee_id,status,created_at')
-        .order('created_at', { ascending: false });
+      const [{ data, error }, { data: pins, error: pinErr }] = await Promise.all([
+        sb
+          .from('friendships')
+          .select('id,requester_id,addressee_id,status,created_at')
+          .order('created_at', { ascending: false }),
+        sb.from('friend_pins').select('friend_id').eq('user_id', myId),
+      ]);
       if (error) throw error;
+      if (pinErr) throw pinErr;
       const list = data || [];
       setRows(list);
+      setPinnedIds(new Set((pins || []).map((p) => p.friend_id)));
       const otherIds = [...new Set(list.map((r) => (r.requester_id === myId ? r.addressee_id : r.requester_id)))];
       if (otherIds.length) {
         const { data: profs, error: pErr } = await sb
           .from('profiles')
-          .select('id,gamer_tag,mmr,main_game,platform,last_seen_at,playing_game')
+          .select('id,gamer_tag,mmr,main_game,platform,last_seen_at,playing_game,custom_status')
           .in('id', otherIds);
         if (pErr) throw pErr;
         setProfiles((prev) => {
@@ -90,6 +114,15 @@ export default function Friends() {
       await reportCloudError(err);
     }
   }, [myId, reportCloudError]);
+
+  const clearTyping = useCallback(async (peerId) => {
+    if (!myId || !peerId) return;
+    try {
+      await sb.from('typing_signals').delete().eq('user_id', myId).eq('peer_id', peerId);
+    } catch {
+      /* best-effort */
+    }
+  }, [myId]);
 
   const loadConversation = useCallback(async (friendId, { markRead = false } = {}) => {
     if (!myId || !friendId) return;
@@ -162,6 +195,8 @@ export default function Friends() {
     setReplyTo(null);
     setPickerFor(null);
     setReactions({});
+    setMsgSearch('');
+    setFriendTyping(false);
     if (!selectedId) {
       setMessages(null);
       return undefined;
@@ -172,8 +207,69 @@ export default function Friends() {
       const hasUnread = (unreadBySenderRef.current[selectedRef.current] || 0) > 0;
       loadConversation(selectedRef.current, { markRead: hasUnread });
     }, 3000);
-    return () => clearInterval(id);
-  }, [selectedId, loadConversation]);
+    return () => {
+      clearInterval(id);
+      clearTyping(selectedId);
+    };
+  }, [selectedId, loadConversation, clearTyping]);
+
+  useEffect(() => {
+    setStatusDraft(profile?.custom_status || '');
+  }, [profile?.custom_status]);
+
+  useEffect(() => {
+    if (!selectedId || !myId) return undefined;
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    if (!draft.trim()) {
+      clearTyping(selectedId);
+      return undefined;
+    }
+    typingTimerRef.current = setTimeout(async () => {
+      try {
+        const { error } = await sb.from('typing_signals').upsert(
+          { user_id: myId, peer_id: selectedId, updated_at: new Date().toISOString() },
+          { onConflict: 'user_id,peer_id' },
+        );
+        if (error) throw error;
+      } catch (err) {
+        await reportCloudError(err);
+      }
+    }, 400);
+    return () => {
+      if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    };
+  }, [draft, selectedId, myId, clearTyping, reportCloudError]);
+
+  useEffect(() => {
+    if (!selectedId || !myId) {
+      setFriendTyping(false);
+      return undefined;
+    }
+    async function pollTyping() {
+      try {
+        const { data, error } = await sb
+          .from('typing_signals')
+          .select('updated_at')
+          .eq('user_id', selectedId)
+          .eq('peer_id', myId)
+          .maybeSingle();
+        if (error) throw error;
+        if (data?.updated_at) {
+          setFriendTyping(Date.now() - new Date(data.updated_at).getTime() < 3000);
+        } else {
+          setFriendTyping(false);
+        }
+      } catch {
+        setFriendTyping(false);
+      }
+    }
+    pollTyping();
+    const id = setInterval(pollTyping, 2000);
+    return () => {
+      clearInterval(id);
+      setFriendTyping(false);
+    };
+  }, [selectedId, myId]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -191,10 +287,63 @@ export default function Friends() {
       else if (r.addressee_id === myId) inc.push(item);
       else out.push(item);
     }
+    f.sort((a, b) => {
+      const aPin = pinnedIds.has(a.otherId) ? 0 : 1;
+      const bPin = pinnedIds.has(b.otherId) ? 0 : 1;
+      return aPin - bPin;
+    });
     return { friends: f, incoming: inc, outgoing: out };
-  }, [rows, profiles, myId]);
+  }, [rows, profiles, myId, pinnedIds]);
 
   const relatedIds = useMemo(() => new Set(rows.map((r) => (r.requester_id === myId ? r.addressee_id : r.requester_id))), [rows, myId]);
+
+  async function saveStatus() {
+    const val = statusDraft.trim();
+    setSavingStatus(true);
+    try {
+      const { error } = await sb
+        .from('profiles')
+        .update({ custom_status: val || null })
+        .eq('id', myId);
+      if (error) throw error;
+      await refreshProfile();
+      showToast('Status updated', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not update status.', 'error');
+      await reportCloudError(err);
+    } finally {
+      setSavingStatus(false);
+    }
+  }
+
+  async function togglePin(friendId, e) {
+    e.stopPropagation();
+    const pinned = pinnedIds.has(friendId);
+    try {
+      if (pinned) {
+        const { error } = await sb
+          .from('friend_pins')
+          .delete()
+          .eq('user_id', myId)
+          .eq('friend_id', friendId);
+        if (error) throw error;
+        setPinnedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(friendId);
+          return next;
+        });
+      } else {
+        const { error } = await sb
+          .from('friend_pins')
+          .insert({ user_id: myId, friend_id: friendId });
+        if (error) throw error;
+        setPinnedIds((prev) => new Set(prev).add(friendId));
+      }
+    } catch (err) {
+      showToast(err?.message || 'Pin update failed.', 'error');
+      await reportCloudError(err);
+    }
+  }
 
   async function searchPlayers() {
     const q = query.trim();
@@ -327,6 +476,7 @@ export default function Friends() {
       setReplyTo(null);
       setAttachFile(null);
       setAttachPreview(null);
+      clearTyping(selectedId);
       setMessages((prev) => [...(prev || []), data]);
     } catch (err) {
       showToast(err?.message || 'Message failed to send.', 'error');
@@ -426,6 +576,17 @@ export default function Friends() {
     return map;
   }, [messages]);
 
+  const displayedMessages = useMemo(() => {
+    if (!messages) return null;
+    const q = msgSearch.trim().toLowerCase();
+    if (!q) return messages;
+    return messages.filter((m) => {
+      if (m.body?.toLowerCase().includes(q)) return true;
+      if (m.image_path && 'photo'.includes(q)) return true;
+      return false;
+    });
+  }, [messages, msgSearch]);
+
   function quoteLabel(m) {
     return m.sender_id === myId ? 'You' : friendTag;
   }
@@ -436,11 +597,12 @@ export default function Friends() {
     return m.image_path ? 'Photo' : '';
   }
 
-  function renderPersonRow(item, actions) {
+  function renderPersonRow(item, actions, { showPin = false } = {}) {
     const p = item.profile;
     const tag = p?.gamer_tag || 'Player';
     const col = avatarColor(item.otherId);
     const unread = unreadBySender[item.otherId] || 0;
+    const isPinned = pinnedIds.has(item.otherId);
     return (
       <div
         key={item.id}
@@ -453,8 +615,17 @@ export default function Friends() {
         </div>
         <div className="player-info">
           <div className="player-tag">{tag}</div>
-          <div className={`player-game ${isOnline(p) ? 'presence-online' : ''}`}>{presenceLine(p)}</div>
+          <PresenceBlock p={p} offlineDetail={presenceLine(p)} />
         </div>
+        {showPin && (
+          <button
+            className={`friend-pin-btn ${isPinned ? 'pinned' : ''}`}
+            title={isPinned ? 'Unpin' : 'Pin'}
+            onClick={(e) => togglePin(item.otherId, e)}
+          >
+            📌
+          </button>
+        )}
         {unread > 0 && !actions && <span className="unread-pill">{unread}</span>}
         {actions}
       </div>
@@ -464,6 +635,19 @@ export default function Friends() {
   return (
     <div className="friends-layout">
       <div className="card friends-list">
+        <div className="status-edit-row">
+          <input
+            type="text"
+            placeholder="Set a custom status…"
+            value={statusDraft}
+            maxLength={60}
+            onChange={(e) => setStatusDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveStatus(); }}
+          />
+          <button className="action-btn ghost" onClick={saveStatus} disabled={savingStatus}>
+            {savingStatus ? '…' : 'Save'}
+          </button>
+        </div>
         <div className="card-title">Add Friends</div>
         <div className="friend-search">
           <input
@@ -531,7 +715,7 @@ export default function Friends() {
         {friends.length === 0 ? (
           <div className="friends-empty">No friends yet — search a gamer tag above to send a request.</div>
         ) : (
-          friends.map((item) => renderPersonRow(item))
+          friends.map((item) => renderPersonRow(item, null, { showPin: true }))
         )}
       </div>
 
@@ -550,11 +734,12 @@ export default function Friends() {
               </div>
               <div className="player-info">
                 <div className="player-tag">{selectedProfile?.gamer_tag || 'Player'}</div>
-                <div className={`player-game ${isOnline(selectedProfile) ? 'presence-online' : ''}`}>
-                  {isOnline(selectedProfile)
-                    ? presenceLine(selectedProfile)
-                    : selectedProfile ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}` : '—'}
-                </div>
+                <PresenceBlock
+                  p={selectedProfile}
+                  offlineDetail={selectedProfile
+                    ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}`
+                    : '—'}
+                />
               </div>
               <button
                 className="action-btn primary friend-mini-btn"
@@ -574,13 +759,23 @@ export default function Friends() {
                 Remove
               </button>
             </div>
+            <div className="chat-search">
+              <input
+                type="text"
+                placeholder="Search messages…"
+                value={msgSearch}
+                onChange={(e) => setMsgSearch(e.target.value)}
+              />
+            </div>
             <div className="chat-messages" ref={scrollRef}>
               {messages === null ? (
                 <div className="friends-empty">Loading…</div>
-              ) : messages.length === 0 ? (
-                <div className="friends-empty">No messages yet — say hi!</div>
+              ) : displayedMessages.length === 0 ? (
+                <div className="friends-empty">
+                  {msgSearch.trim() ? 'No messages match your search.' : 'No messages yet — say hi!'}
+                </div>
               ) : (
-                messages.map((m) => {
+                displayedMessages.map((m) => {
                   const quoted = m.reply_to_id ? messagesById[m.reply_to_id] : null;
                   const imgUrl = m.image_path ? imageUrls[m.image_path] : null;
                   const mine = m.sender_id === myId;
@@ -675,6 +870,9 @@ export default function Friends() {
                   </div>
                 )}
               </div>
+            )}
+            {friendTyping && (
+              <div className="chat-typing">{friendTag} is typing…</div>
             )}
             <div className="chat-input-row">
               <input

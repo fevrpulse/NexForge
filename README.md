@@ -50,6 +50,7 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 8. **`friends-messages.sql`** (friendships + direct messages with RLS)
 9. **`message-replies-photos.sql`** (message replies + private `chat-images` storage bucket)
 10. **`presence-reactions-delete.sql`** (online presence / now-playing, emoji reactions, sender message deletion)
+11. **`v127-social-extras.sql`** (custom status, friend pins, typing signals, friend activity feed RPC)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 
@@ -68,7 +69,8 @@ When **5+ players** share the same custom main-game name, `sync_community_games`
 - Public open queues + mutual duel result confirmation (player-hosted lobbies — NexForge does not host game servers)
 - Shooter K/D/A reporting on duels and tracked sessions
 - Session RAM / CPU / GPU / probe ping summaries (Windows process tracking)
-- Friends with online / now-playing presence, direct messages with replies + photos + emoji reactions + deletion, duel challenges from chat, and an in-game message overlay (borderless / windowed-fullscreen games)
-- Per-session RAM / CPU / GPU / ping performance graphs in Analytics
+- Friends with online / now-playing presence, custom status, pins, typing, chat search, direct messages with replies + photos + emoji reactions + deletion, duel challenges from chat, Do Not Disturb, overlay hotkey (Ctrl+Shift+O), and an in-game message overlay
+- Per-session RAM / CPU / GPU / ping graphs and side-by-side session compare in Analytics
+- Friend activity feed on the Dashboard
 - Cash / in-app tournaments with host-only payout fields
 - Community-promoted custom games, guest browse mode, and first-run main-game onboarding

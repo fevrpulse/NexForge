@@ -1,9 +1,14 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog, screen } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, screen, globalShortcut } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
 const { GameTracker } = require('./game-tracker');
+
+// Packaged builds stamp the .exe as NexForge; set these so app.getName() / process
+// title match even when running unpackaged.
+app.setName('NexForge');
+process.title = 'NexForge';
 
 const AUTH_PORT = 17890;
 const AUTH_HOST = '127.0.0.1';
@@ -461,14 +466,17 @@ ipcMain.handle('get-app-info', () => ({
 
 ipcMain.handle('overlay-notify', (_event, payload) => {
   if (!payload || typeof payload !== 'object') return { ok: false, reason: 'bad-payload' };
-  // No point drawing the overlay while the user is already looking at the app.
-  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
+  const force = !!payload.force;
+  // No point drawing the overlay while the user is already looking at the app
+  // (unless they hit the overlay hotkey).
+  if (!force && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
     return { ok: false, reason: 'app-focused' };
   }
   showOverlayMessage({
     sender: String(payload.sender || 'Friend').slice(0, 40),
     body: String(payload.body || '').slice(0, 120),
     image: !!payload.image,
+    unread: Math.max(0, Number(payload.unread) || 0),
   });
   return { ok: true };
 });
@@ -487,6 +495,13 @@ app.whenReady().then(async () => {
     gameTracker.start();
   }
 
+  // Ctrl+Shift+O — peek unread messages on the in-game overlay.
+  globalShortcut.register('CommandOrControl+Shift+O', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('overlay-hotkey');
+    }
+  });
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
@@ -494,16 +509,15 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  gameTracker.stop();
+  if (authServer) {
+    try { authServer.close(); } catch { /* ignore */ }
+    authServer = null;
   }
 });
 
-app.on('will-quit', () => {
-  gameTracker.stop();
-  if (authServer) {
-    authServer.close();
-    authServer = null;
-  }
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
 });

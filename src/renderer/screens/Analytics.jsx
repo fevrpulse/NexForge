@@ -59,11 +59,67 @@ function SessionCharts({ session }) {
   );
 }
 
+function fmtPing(v) {
+  return v != null ? `${Math.round(v)} ms` : '—';
+}
+
+function fmtRam(v) {
+  return v != null ? `${Math.round(v)} MB` : '—';
+}
+
+function fmtPct(v) {
+  return v != null ? `${Number(v).toFixed(0)}%` : '—';
+}
+
+function SessionComparePanel({ sessions, onClear }) {
+  return (
+    <div className="session-compare-wrap">
+      <div className="session-compare-head">
+        <span className="session-compare-label">Comparing {sessions.length} sessions</span>
+        <button type="button" className="action-btn ghost" style={{ padding: '4px 10px', fontSize: 11 }} onClick={onClear}>
+          Clear
+        </button>
+      </div>
+      <div className="session-compare">
+        {sessions.map((s) => {
+          const when = s.ended_at ? new Date(s.ended_at).toLocaleString() : '—';
+          return (
+            <div className="session-compare-col" key={s.id}>
+              <div className="session-compare-game">{s.game || 'Unknown'}</div>
+              <div className="session-compare-meta">{formatDuration(s.duration_sec)} · {when}</div>
+              <div className="session-compare-metrics">
+                <div className="session-compare-metric">
+                  <span>Ping</span>
+                  <span>avg {fmtPing(s.avg_ping_ms)} · max {fmtPing(s.max_ping_ms)}</span>
+                </div>
+                <div className="session-compare-metric">
+                  <span>RAM</span>
+                  <span>avg {fmtRam(s.avg_ram_mb)} · max {fmtRam(s.max_ram_mb)}</span>
+                </div>
+                <div className="session-compare-metric">
+                  <span>CPU</span>
+                  <span>avg {fmtPct(s.avg_cpu_pct)} · max {fmtPct(s.max_cpu_pct)}</span>
+                </div>
+                <div className="session-compare-metric">
+                  <span>GPU</span>
+                  <span>avg {fmtPct(s.avg_gpu_pct)} · max {fmtPct(s.max_gpu_pct)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function Analytics() {
   const { user, profile, refreshProfile, appPlatform, sessionSaveTick } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [expandedSession, setExpandedSession] = useState(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareIds, setCompareIds] = useState([]);
   const isWindows = String(appPlatform || '').toLowerCase().includes('win');
 
   useEffect(() => {
@@ -124,6 +180,37 @@ export default function Analytics() {
 
   const last7 = matches.slice(0, 7).reverse();
   const maxMMR = Math.max(1, ...last7.map((m) => Math.abs(m.mmr_change || 1)));
+
+  const compareSessions = compareIds
+    .map((id) => sessions.find((s) => s.id === id))
+    .filter(Boolean);
+
+  const toggleCompareMode = () => {
+    setCompareMode((on) => {
+      if (on) {
+        setCompareIds([]);
+      } else {
+        setExpandedSession(null);
+      }
+      return !on;
+    });
+  };
+
+  const toggleCompareSelection = (id) => {
+    setCompareIds((prev) => {
+      if (prev.includes(id)) return prev.filter((x) => x !== id);
+      if (prev.length >= 2) return [prev[1], id];
+      return [...prev, id];
+    });
+  };
+
+  const handleSessionRowClick = (s) => {
+    if (compareMode) {
+      toggleCompareSelection(s.id);
+      return;
+    }
+    setExpandedSession((cur) => (cur === s.id ? null : s.id));
+  };
 
   return (
     <div>
@@ -205,7 +292,30 @@ export default function Analytics() {
       </div>
 
       <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-title">Performance Sessions</div>
+        <div className="session-card-head">
+          <div className="card-title" style={{ marginBottom: 0 }}>Performance Sessions</div>
+          {sessions.length > 0 && (
+            <button
+              type="button"
+              className={`action-btn ghost ${compareMode ? 'primary' : ''}`}
+              style={{ padding: '6px 12px', fontSize: 11 }}
+              onClick={toggleCompareMode}
+            >
+              {compareMode ? 'Exit Compare' : 'Compare'}
+            </button>
+          )}
+        </div>
+        {compareMode && compareSessions.length === 2 && (
+          <SessionComparePanel
+            sessions={compareSessions}
+            onClear={() => setCompareIds([])}
+          />
+        )}
+        {compareMode && compareSessions.length < 2 && (
+          <div className="session-compare-hint">
+            Select {2 - compareSessions.length} more session{compareSessions.length === 1 ? '' : 's'} to compare
+          </div>
+        )}
         {sessions.length === 0 ? (
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '16px 0', textAlign: 'center' }}>
             Play a tracked game to see RAM, CPU, GPU, and ping summaries here
@@ -225,13 +335,14 @@ export default function Analytics() {
               s.max_gpu_pct != null ? `GPU ${Number(s.max_gpu_pct).toFixed(0)}%` : null,
             ].filter(Boolean).join(' · ');
             const tips = Array.isArray(s.tips) ? s.tips.slice(0, 2) : [];
-            const expanded = expandedSession === s.id;
+            const expanded = !compareMode && expandedSession === s.id;
+            const selected = compareMode && compareIds.includes(s.id);
             return (
               <React.Fragment key={s.id}>
                 <div
-                  className={`session-row session-row-clickable ${expanded ? 'expanded' : ''}`}
-                  onClick={() => setExpandedSession(expanded ? null : s.id)}
-                  title={expanded ? 'Hide performance graphs' : 'Show performance graphs'}
+                  className={`session-row session-row-clickable ${expanded ? 'expanded' : ''} ${selected ? 'session-row-selected' : ''}`}
+                  onClick={() => handleSessionRowClick(s)}
+                  title={compareMode ? (selected ? 'Deselect session' : 'Select session to compare') : (expanded ? 'Hide performance graphs' : 'Show performance graphs')}
                 >
                   <div style={{ minWidth: 0 }}>
                     <div className="session-row-game">{s.game || 'Unknown'}</div>
@@ -247,7 +358,9 @@ export default function Analytics() {
                   <div className="session-row-stats" title={peaks ? `Peaks — ${peaks}` : undefined}>
                     Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}
                   </div>
-                  <span className={`session-row-caret ${expanded ? 'open' : ''}`}>▾</span>
+                  {!compareMode && (
+                    <span className={`session-row-caret ${expanded ? 'open' : ''}`}>▾</span>
+                  )}
                 </div>
                 {expanded && <SessionCharts session={s} />}
               </React.Fragment>
