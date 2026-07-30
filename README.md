@@ -55,6 +55,7 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 13. **`v128-blocks-privacy-profile.sql`** (block/report, hide match history privacy, richer friend profiles)
 14. **`cosmetics-avatars.sql`** (Forge Coins, cosmetics shop RPCs, public `avatars` storage bucket)
 15. **`v129-cosmetics-extras.sql`** (match-win coin rewards, gift cosmetics RPC, avatar presets)
+16. **`premium-ring-payments.sql`** (high-MMR ring pricing, cash prices, Stripe payment audit)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 
@@ -67,6 +68,20 @@ When **5+ players** share the same custom main-game name, `sync_community_games`
 - Auth callback requires a one-time nonce from the Electron app.
 - Do **not** put a Supabase `service_role` key in this repo or the desktop client.
 - Clients may only update identity profile fields (`gamer_tag`, `platform`, `main_game`, `main_game_description`, `onboarding_done`).
+- Stripe entitlements are granted only by a signature-verified Edge Function webhook.
+
+### Stripe ring checkout
+
+Set `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` as Supabase Edge Function
+secrets. Configure Stripe to send `checkout.session.completed` and
+`checkout.session.async_payment_succeeded` to:
+
+`https://nfaxokwpmaxyhnvatrwf.supabase.co/functions/v1/stripe-ring-webhook`
+
+Deploy `create-ring-checkout` with JWT verification. Deploy
+`stripe-ring-webhook` and `stripe-checkout-return` without gateway JWT
+verification; the webhook verifies Stripe's signature itself and the return
+function serves only a static confirmation page.
 
 ## Features
 

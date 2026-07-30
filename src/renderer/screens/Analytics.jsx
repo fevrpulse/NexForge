@@ -158,13 +158,6 @@ export default function Analytics() {
   let totalK = profile.total_kills || 0;
   let totalD = profile.total_deaths || 0;
   let totalA = profile.total_assists || 0;
-  let totalDmg = 0;
-  let kdaMatches = 0;
-  matches.forEach((m) => {
-    const st = m.stats || {};
-    if (st.kills !== undefined) kdaMatches += 1;
-    if (st.damage) totalDmg += st.damage;
-  });
   if (!totalK && !totalD && !totalA) {
     matches.forEach((m) => {
       const st = m.stats || {};
@@ -176,7 +169,6 @@ export default function Analytics() {
     });
   }
   const kda = (totalK || totalD || totalA) ? ((totalK + totalA) / Math.max(totalD, 1)).toFixed(2) : '—';
-  const avgDmg = kdaMatches > 0 ? Math.round(totalDmg / kdaMatches).toLocaleString() : '—';
 
   const last7 = matches.slice(0, 7).reverse();
   const maxMMR = Math.max(1, ...last7.map((m) => Math.abs(m.mmr_change || 1)));
@@ -278,10 +270,6 @@ export default function Analytics() {
         <div className="card">
           <div className="card-title">Profile Info</div>
           <div className="row"><span>Main Game</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--neon)' }}>{profile.main_game || '—'}</span></div>
-          <div className="row"><span>Total Kills</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--neon)' }}>{totalK.toLocaleString()}</span></div>
-          <div className="row"><span>Total Deaths</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--red)' }}>{totalD.toLocaleString()}</span></div>
-          <div className="row"><span>Total Assists</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{totalA.toLocaleString()}</span></div>
-          <div className="row"><span>Avg Damage</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{avgDmg}</span></div>
           <div className="row"><span>Wins</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#4ade80' }}>{profile.wins || 0}</span></div>
           <div className="row"><span>Losses</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--red)' }}>{profile.losses || 0}</span></div>
           <div className="row"><span>Platform</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{profile.platform || 'PC'}</span></div>

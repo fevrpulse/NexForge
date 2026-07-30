@@ -10,6 +10,7 @@ function subscribe(channel, callback) {
 contextBridge.exposeInMainWorld('nexforge', {
   platform: process.platform,
   openAuthBrowser: (mode) => ipcRenderer.invoke('open-auth-browser', mode),
+  openExternalUrl: (url) => ipcRenderer.invoke('open-external-url', url),
   getPendingAuth: () => ipcRenderer.invoke('get-pending-auth'),
   getAppInfo: () => ipcRenderer.invoke('get-app-info'),
   checkForUpdates: () => ipcRenderer.invoke('check-for-updates'),

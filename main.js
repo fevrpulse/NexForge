@@ -18,6 +18,7 @@ const AUTH_PORT = 17890;
 const AUTH_HOST = '127.0.0.1';
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   'nfaxokwpmaxyhnvatrwf.supabase.co',
+  'checkout.stripe.com',
   'github.com',
   'www.github.com',
 ]);
@@ -360,6 +361,15 @@ function isAllowedNavigation(urlString) {
   }
 }
 
+function isAllowedExternalUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'https:' && ALLOWED_EXTERNAL_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function setupTray() {
   const iconIco = path.join(__dirname, 'build', 'icon.ico');
   const iconPng = path.join(__dirname, 'build', 'icon.png');
@@ -469,6 +479,14 @@ ipcMain.handle('open-auth-browser', async (_event, mode) => {
   rotateAuthNonce();
   const tab = mode === 'signup' ? 'signup' : 'login';
   await shell.openExternal(`http://${AUTH_HOST}:${AUTH_PORT}/auth?mode=${tab}`);
+});
+
+ipcMain.handle('open-external-url', async (_event, url) => {
+  if (!isAllowedExternalUrl(url)) {
+    throw new Error('Blocked untrusted external URL');
+  }
+  await shell.openExternal(url);
+  return { ok: true };
 });
 
 ipcMain.handle('check-for-updates', async () => {

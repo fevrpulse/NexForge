@@ -251,6 +251,9 @@ body{
 .action-btn.danger{background:var(--red);color:#fff}
 .action-btn.ghost{background:transparent;color:var(--muted2);border:1px solid var(--border)}
 .action-btn.ghost:hover{border-color:var(--text);color:var(--text)}
+.action-btn.cash{margin-top:7px;background:linear-gradient(135deg,#7357ff,#9b5cff);color:#fff}
+.action-btn.cash:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.action-btn:disabled{opacity:.52;cursor:not-allowed;transform:none!important;filter:none!important}
 .action-btn.full{width:100%}
 .dots{display:none;align-items:center;gap:8px;justify-content:center;margin-top:16px}
 .dots.show{display:flex}

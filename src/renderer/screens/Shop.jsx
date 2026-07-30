@@ -19,6 +19,8 @@ export default function Shop() {
   const [claiming, setClaiming] = useState(false);
   const [friendOptions, setFriendOptions] = useState([]);
   const [giftTarget, setGiftTarget] = useState(null);
+  const [cashBusyId, setCashBusyId] = useState(null);
+  const [pendingCash, setPendingCash] = useState(() => new Set());
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -37,6 +39,41 @@ export default function Shop() {
   }, [user, reportCloudError]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!user || pendingCash.size === 0) return undefined;
+    let active = true;
+
+    const checkPurchases = async () => {
+      const pendingIds = [...pendingCash];
+      const { data, error } = await sb
+        .from('user_cosmetics')
+        .select('cosmetic_id')
+        .eq('user_id', user.id)
+        .in('cosmetic_id', pendingIds);
+      if (!active || error || !data?.length) return;
+
+      const purchased = new Set(data.map((row) => row.cosmetic_id));
+      setOwned((current) => new Set([...current, ...purchased]));
+      setPendingCash((current) => {
+        const next = new Set(current);
+        purchased.forEach((id) => next.delete(id));
+        return next;
+      });
+      purchased.forEach((id) => {
+        const item = catalog.find((entry) => entry.id === id);
+        showToast(`${item?.name || 'Ring'} unlocked — ready to equip`, 'success');
+      });
+      await refreshProfile();
+    };
+
+    checkPurchases();
+    const timer = setInterval(checkPurchases, 3000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [catalog, pendingCash, refreshProfile, showToast, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -142,6 +179,31 @@ export default function Shop() {
     }
   }
 
+  async function buyWithMoney(item) {
+    if (!user || cashBusyId || isOwned(item)) return;
+    setCashBusyId(item.id);
+    try {
+      const { data, error } = await sb.functions.invoke('create-ring-checkout', {
+        body: { cosmeticId: item.id },
+      });
+      if (error) throw error;
+      if (!data?.url) throw new Error(data?.error || 'Checkout did not return a secure URL');
+
+      if (window.nexforge?.openExternalUrl) {
+        await window.nexforge.openExternalUrl(data.url);
+      } else {
+        window.open(data.url, '_blank', 'noopener,noreferrer');
+      }
+      setPendingCash((current) => new Set(current).add(item.id));
+      showToast('Secure checkout opened in your browser. NexForge will unlock the ring after payment.', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not start secure checkout.', 'error');
+      await reportCloudError(err);
+    } finally {
+      setCashBusyId(null);
+    }
+  }
+
   async function claimDaily() {
     if (claiming) return;
     setClaiming(true);
@@ -207,6 +269,8 @@ export default function Shop() {
           const lockedMmr = mmr < item.min_mmr;
           const canBuy = !lockedMmr && (item.price === 0 || coins >= item.price);
           const showGift = ownedItem || canBuy;
+          const cashPrice = (item.real_money_cents || 0) / 100;
+          const awaitingPayment = pendingCash.has(item.id);
           const active = equipped[item.slot] === item.id;
           const giftingThis = giftTarget?.cosmetic?.id === item.id;
           return (
@@ -224,6 +288,7 @@ export default function Shop() {
                 <span className={`rarity-pill rarity-${item.rarity}`}>{item.rarity}</span>
                 {item.min_mmr > 0 && <span>{item.min_mmr}+ MMR</span>}
                 <span>{item.price > 0 ? `${item.price} coins` : 'Free'}</span>
+                {cashPrice > 0 && !ownedItem && <span className="cash-price">or ${cashPrice.toFixed(2)}</span>}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
@@ -254,6 +319,21 @@ export default function Shop() {
                   </button>
                 )}
               </div>
+              {cashPrice > 0 && !ownedItem && (
+                <button
+                  type="button"
+                  className="action-btn cash full"
+                  disabled={!!cashBusyId || awaitingPayment}
+                  onClick={() => buyWithMoney(item)}
+                  title="Cash purchase bypasses the MMR and Forge Coin requirements"
+                >
+                  {cashBusyId === item.id
+                    ? 'Opening secure checkout…'
+                    : awaitingPayment
+                      ? 'Waiting for payment…'
+                      : `Skip requirements · $${cashPrice.toFixed(2)}`}
+                </button>
+              )}
               {giftingThis && (
                 <div className="shop-gift-panel">
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', marginBottom: 8 }}>

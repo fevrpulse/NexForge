@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '1.2.10',
+    highlights: [
+      'Pulse and Orbit rings need high MMR and more Forge Coins',
+      'Cash checkout option to skip ring requirements (Stripe)',
+      'Cleaned up Analytics career stats',
+    ],
+  },
+  {
     version: '1.2.9',
     highlights: [
       'Skill tags, cosmetics shop, and profile photos',
