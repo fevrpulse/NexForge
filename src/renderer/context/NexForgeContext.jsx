@@ -76,6 +76,7 @@ export function NexForgeProvider({ children }) {
   // Bumped whenever a finished session is saved so screens can refetch history.
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
   const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
+  const [pendingMatchLog, setPendingMatchLog] = useState(null);
   // sender_id -> count of unread DMs; drives the sidebar badge + Friends screen.
   const [unreadBySender, setUnreadBySender] = useState({});
   const [dndEnabled, setDndEnabledState] = useState(() => {
@@ -191,11 +192,15 @@ export function NexForgeProvider({ children }) {
       return data;
     }
     // Identity-only insert — MMR/wins/losses are DB defaults / RPC-owned (security-hardening.sql).
-    const tag = authUser.user_metadata?.gamer_tag || authUser.email?.split('@')[0] || 'Player';
+    const tag = authUser.user_metadata?.gamer_tag
+      || authUser.user_metadata?.full_name
+      || authUser.user_metadata?.name
+      || authUser.email?.split('@')[0]
+      || 'Player';
     const plat = authUser.user_metadata?.platform || 'PC';
     const identity = {
       id: authUser.id,
-      gamer_tag: tag,
+      gamer_tag: String(tag).replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20) || 'Player',
       platform: plat,
       main_game: 'Valorant',
       main_game_description: null,
@@ -564,7 +569,7 @@ export function NexForgeProvider({ children }) {
         return;
       }
       try {
-        const { error } = await sb.from('game_sessions').insert({
+        const { data: saved, error } = await sb.from('game_sessions').insert({
           user_id: u.id,
           game: summary.game,
           process_name: summary.processName || null,
@@ -581,12 +586,25 @@ export function NexForgeProvider({ children }) {
           samples: summary.samples || [],
           started_at: summary.startedAt,
           ended_at: summary.endedAt,
-        });
+        }).select('id').single();
         if (error) throw error;
         showToast(`${summary.game} session saved`, 'success');
+        setPendingMatchLog({
+          sessionId: saved?.id ?? null,
+          game: summary.game,
+          durationSec: summary.durationSec,
+          mode: null,
+        });
       } catch (err) {
         showToast(`${summary.game} session ended (cloud save failed)`, 'error');
         await reportCloudError(err);
+        // Still offer a quick log even if session save failed (no session link).
+        setPendingMatchLog({
+          sessionId: null,
+          game: summary.game,
+          durationSec: summary.durationSec,
+          mode: null,
+        });
       } finally {
         setSessionSaveTick((t) => t + 1);
       }
@@ -645,6 +663,10 @@ export function NexForgeProvider({ children }) {
     }
   }, [showToast]);
 
+  const clearPendingMatchLog = useCallback(() => {
+    setPendingMatchLog(null);
+  }, []);
+
   const value = {
     loading,
     user,
@@ -684,6 +706,8 @@ export function NexForgeProvider({ children }) {
     pendingFriendChatId,
     openFriendChat,
     clearPendingFriendChat,
+    pendingMatchLog,
+    clearPendingMatchLog,
   };
 
   return (

@@ -186,16 +186,27 @@ export default function Shop() {
       const { data, error } = await sb.functions.invoke('create-ring-checkout', {
         body: { cosmeticId: item.id },
       });
-      if (error) throw error;
-      if (!data?.url) throw new Error(data?.error || 'Checkout did not return a secure URL');
+      let payload = data;
+      if (error) {
+        let detail = error.message || 'Could not start secure checkout.';
+        try {
+          if (error.context && typeof error.context.json === 'function') {
+            payload = await error.context.json();
+          } else if (typeof data === 'object' && data?.error) {
+            payload = data;
+          }
+        } catch { /* keep generic detail */ }
+        throw new Error(payload?.error || detail);
+      }
+      if (!payload?.url) throw new Error(payload?.error || 'Checkout did not return a secure URL');
 
       if (window.nexforge?.openExternalUrl) {
-        await window.nexforge.openExternalUrl(data.url);
+        await window.nexforge.openExternalUrl(payload.url);
       } else {
-        window.open(data.url, '_blank', 'noopener,noreferrer');
+        window.open(payload.url, '_blank', 'noopener,noreferrer');
       }
       setPendingCash((current) => new Set(current).add(item.id));
-      showToast('Secure checkout opened in your browser. NexForge will unlock the ring after payment.', 'success');
+      showToast('Secure checkout opened in your browser. NexForge will unlock the item after payment.', 'success');
     } catch (err) {
       showToast(err?.message || 'Could not start secure checkout.', 'error');
       await reportCloudError(err);
@@ -287,8 +298,8 @@ export default function Shop() {
               <div className="shop-card-meta">
                 <span className={`rarity-pill rarity-${item.rarity}`}>{item.rarity}</span>
                 {item.min_mmr > 0 && <span>{item.min_mmr}+ MMR</span>}
-                <span>{item.price > 0 ? `${item.price} coins` : 'Free'}</span>
-                {cashPrice > 0 && !ownedItem && <span className="cash-price">or ${cashPrice.toFixed(2)}</span>}
+                <span>{item.price > 0 ? `${item.price} coins` : (item.min_mmr > 0 ? 'MMR unlock' : 'Free')}</span>
+                {cashPrice > 0 && <span className="cash-price">${cashPrice.toFixed(2)}</span>}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button

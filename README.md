@@ -56,10 +56,24 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 14. **`cosmetics-avatars.sql`** (Forge Coins, cosmetics shop RPCs, public `avatars` storage bucket)
 15. **`v129-cosmetics-extras.sql`** (match-win coin rewards, gift cosmetics RPC, avatar presets)
 16. **`premium-ring-payments.sql`** (high-MMR ring pricing, cash prices, Stripe payment audit)
+17. **`match-result-log.sql`** (casual/session W/L logging via `log_match_result`, match `source` tags)
+18. **`cosmetic-cash-prices.sql`** (rarity-based USD price tags for shop cosmetics)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 
 When **5+ players** share the same custom main-game name, `sync_community_games` marks it `live` and the desktop app shows it under **Community** in matchmaking / profile / tournaments / squad finder.
+
+## Auth
+
+Browser sign-in supports email/password and **Continue with Google**.
+
+1. Enable Google in [Auth Providers](https://supabase.com/dashboard/project/nfaxokwpmaxyhnvatrwf/auth/providers).
+2. Create a Google Cloud **Web** OAuth client and paste Client ID / Secret into that page.
+3. Add these **Redirect URLs** under Auth URL configuration:
+   - `http://127.0.0.1:17890/auth`
+   - `http://127.0.0.1:17890/`
+4. Google’s authorized redirect URI must be your Supabase callback:
+   `https://nfaxokwpmaxyhnvatrwf.supabase.co/auth/v1/callback`
 
 ### Security notes
 

@@ -1,11 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const expectedPurchases: Record<string, number> = {
-  frame_pulse: 499,
-  frame_spin: 699,
-};
-
 function hex(bytes: ArrayBuffer) {
   return [...new Uint8Array(bytes)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -89,9 +84,19 @@ Deno.serve(async (req) => {
   const cosmeticId = String(session?.metadata?.cosmetic_id || "");
   const amount = Number(session?.amount_total);
   const currency = String(session?.currency || "").toLowerCase();
-  const expectedAmount = expectedPurchases[cosmeticId];
   const validUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     .test(userId);
+
+  const admin = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: cosmetic } = await admin
+    .from("cosmetics")
+    .select("id,real_money_cents")
+    .eq("id", cosmeticId)
+    .maybeSingle();
+  const expectedAmount = Number(cosmetic?.real_money_cents) || 0;
 
   if (
     session?.mode !== "payment" ||
@@ -99,15 +104,12 @@ Deno.serve(async (req) => {
     !validUserId ||
     !expectedAmount ||
     amount !== expectedAmount ||
-    currency !== "usd"
+    currency !== "usd" ||
+    expectedAmount > 699
   ) {
     console.error("Rejected inconsistent Stripe checkout session", session?.id);
     return new Response("Checkout data did not match the catalog", { status: 400 });
   }
-
-  const admin = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   const { data: recorded } = await admin
     .from("cosmetic_payments")

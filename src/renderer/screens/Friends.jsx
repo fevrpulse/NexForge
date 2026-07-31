@@ -177,14 +177,19 @@ function FriendProfileModal({ data, loading, onClose, onMessage, showToast, myId
               matches.map((m) => (
                 <div className="row" key={m.id}>
                   <div>
-                    <div className="row-title">{m.game}</div>
+                    <div className="row-title">
+                      {m.game}
+                      {m.source === 'self_report' && <span className="match-source-badge">logged</span>}
+                    </div>
                     <div className="row-sub">
                       {m.mode || 'Match'}
                       {m.played_at ? ` · ${new Date(m.played_at).toLocaleString()}` : ''}
                     </div>
                   </div>
                   <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`}>
-                    {m.result === 'win' ? `WIN +${m.mmr_change || 0}` : `LOSS ${m.mmr_change || 0}`}
+                    {m.source === 'self_report'
+                      ? (m.result === 'win' ? 'WIN' : 'LOSS')
+                      : (m.result === 'win' ? `WIN +${m.mmr_change || 0}` : `LOSS ${m.mmr_change || 0}`)}
                   </div>
                 </div>
               ))

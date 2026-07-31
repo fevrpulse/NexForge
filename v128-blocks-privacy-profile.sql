@@ -171,7 +171,7 @@ begin
     'matches', case when hide_hist then '[]'::json else (
       select coalesce(json_agg(row_to_json(m)), '[]'::json)
       from (
-        select id, game, mode, result, mmr_change, played_at
+        select id, game, mode, result, mmr_change, played_at, source
         from public.matches
         where user_id = p_friend_id
         order by played_at desc nulls last

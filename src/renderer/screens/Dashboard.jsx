@@ -5,6 +5,8 @@ import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
+import MatchResultPrompt from '../components/MatchResultPrompt.jsx';
+import QuickMatchLog from '../components/QuickMatchLog.jsx';
 
 function shortCosmeticId(id) {
   if (!id) return '—';
@@ -29,6 +31,7 @@ export default function Dashboard() {
   const { profile, user, guestMode, setScreen, showToast, createAccount, openFriendChat } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [friendActivity, setFriendActivity] = useState([]);
+  const [matchTick, setMatchTick] = useState(0);
 
   useEffect(() => {
     if (!user || guestMode) {
@@ -44,7 +47,7 @@ export default function Dashboard() {
       .then(({ data }) => { if (active) setMatches(data || []); })
       .catch(() => { if (active) setMatches([]); });
     return () => { active = false; };
-  }, [user, guestMode]);
+  }, [user, guestMode, matchTick, profile?.wins, profile?.losses]);
 
   useEffect(() => {
     if (!user || guestMode) {
@@ -71,6 +74,7 @@ export default function Dashboard() {
   return (
     <div>
       <LiveSessionBanner />
+      <MatchResultPrompt />
       {!guestMode && (
         <div className={`card loadout-showcase banner-${bannerStyleKey(profile.equipped_banner)}`}>
           <PlayerAvatar profile={profile} size={88} />
@@ -121,6 +125,8 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {!guestMode && <QuickMatchLog onLogged={() => setMatchTick((t) => t + 1)} />}
+
       <div className="three-col">
         <div className="card">
           <div className="card-title">Recent Matches</div>
@@ -148,14 +154,20 @@ export default function Dashboard() {
               if (st.goals !== undefined) bits.push(`${st.goals} goals`);
               if (st.mvp) bits.push('MVP');
               if (st.ace) bits.push('ACE');
+              const logged = m.source === 'self_report';
               return (
                 <div className="row" key={m.id}>
                   <div>
-                    <div className="row-title">{m.game}</div>
+                    <div className="row-title">
+                      {m.game}
+                      {logged && <span className="match-source-badge">logged</span>}
+                    </div>
                     <div className="row-sub">{m.mode}{bits.length ? ` · ${bits.join(' · ')}` : ''}</div>
                   </div>
                   <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`}>
-                    {m.result === 'win' ? `WIN +${m.mmr_change}` : `LOSS ${m.mmr_change}`}
+                    {logged
+                      ? (m.result === 'win' ? 'WIN' : 'LOSS')
+                      : (m.result === 'win' ? `WIN +${m.mmr_change}` : `LOSS ${m.mmr_change}`)}
                   </div>
                 </div>
               );

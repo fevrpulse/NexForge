@@ -398,9 +398,16 @@ export default function Profile() {
                     </div>
                   </div>
                   <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`} style={{ flexShrink: 0, marginLeft: 8 }}>
-                    {m.result === 'win' ? `WIN +${m.mmr_change}` : `LOSS ${m.mmr_change}`}
+                    {m.source === 'self_report'
+                      ? (m.result === 'win' ? 'WIN' : 'LOSS')
+                      : (m.result === 'win' ? `WIN +${m.mmr_change}` : `LOSS ${m.mmr_change}`)}
                   </div>
                 </div>
+                {m.source === 'self_report' && (
+                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', marginBottom: 6 }}>
+                    <span className="match-source-badge">logged</span> self-reported · no MMR
+                  </div>
+                )}
                 {line && (
                   <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', background: 'var(--panel)', padding: '6px 10px', borderRadius: 6 }}>
                     {line}

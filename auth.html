@@ -69,6 +69,20 @@
     }
     .auth-btn:hover { background: #b8ef00; transform: translateY(-1px); }
     .auth-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+    .auth-divider {
+      display: flex; align-items: center; gap: 12px; margin: 18px 0 14px;
+      font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .auth-divider::before, .auth-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border2);
+    }
+    .auth-btn.google {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      background: #fff; color: #1f1f1f; margin-top: 0;
+    }
+    .auth-btn.google:hover { background: #f3f3f3; transform: translateY(-1px); }
+    .auth-btn.google svg { flex-shrink: 0; }
     .auth-msg {
       font-family: var(--mono); font-size: 11px; text-align: center;
       margin-top: 12px; min-height: 16px;
@@ -95,6 +109,16 @@
     </div>
 
     <div id="tab-login">
+      <button class="auth-btn google" id="google-login-btn" type="button" onclick="handleGoogleSignIn('login')">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <div class="auth-divider">or email</div>
       <div class="field"><label>Email</label><input type="email" id="login-email" placeholder="your@email.com" /></div>
       <div class="field"><label>Password</label><input type="password" id="login-password" placeholder="••••••••" /></div>
       <button class="auth-btn" id="login-btn" onclick="handleLogin()">Enter the Forge →</button>
@@ -102,6 +126,16 @@
     </div>
 
     <div id="tab-signup" style="display:none">
+      <button class="auth-btn google" id="google-signup-btn" type="button" onclick="handleGoogleSignIn('signup')">
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <div class="auth-divider">or email</div>
       <div class="field"><label>Gamer Tag</label><input type="text" id="signup-tag" placeholder="GhostAxe99" maxlength="20" /></div>
       <div class="field"><label>Email</label><input type="email" id="signup-email" placeholder="your@email.com" /></div>
       <div class="field"><label>Password</label><input type="password" id="signup-password" placeholder="Min. 6 characters" /></div>
@@ -126,17 +160,70 @@
     /*__NEXFORGE_AUTH_NONCE__*/
     const SUPABASE_URL = 'https://nfaxokwpmaxyhnvatrwf.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mYXhva3dwbWF4eWhudmF0cndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDc3NTcsImV4cCI6MjA5NDEyMzc1N30.22fLTgCxh5ne9zrod9gc2-idnw6biFUIDNZLEZkJUSk';
-    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const AUTH_REDIRECT = window.location.origin + '/auth';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: {
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+        persistSession: true,
+        autoRefreshToken: false,
+      },
+    });
 
     const params = new URLSearchParams(window.location.search);
     const initialMode = params.get('mode') === 'signup' ? 'signup' : 'login';
     switchTab(initialMode);
+    finishOAuthIfNeeded();
 
     function switchTab(tab) {
       document.getElementById('tab-login-btn').classList.toggle('active', tab === 'login');
       document.getElementById('tab-signup-btn').classList.toggle('active', tab === 'signup');
       document.getElementById('tab-login').style.display = tab === 'login' ? 'block' : 'none';
       document.getElementById('tab-signup').style.display = tab === 'signup' ? 'block' : 'none';
+    }
+
+    function activeMsgEl() {
+      const signupVisible = document.getElementById('tab-signup').style.display !== 'none';
+      return document.getElementById(signupVisible ? 'signup-msg' : 'login-msg');
+    }
+
+    function setBusy(busy, label) {
+      ['login-btn', 'signup-btn', 'google-login-btn', 'google-signup-btn'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.disabled = busy;
+      });
+      if (busy && label) {
+        const msg = activeMsgEl();
+        msg.className = 'auth-msg';
+        msg.textContent = label;
+      }
+    }
+
+    function gamerTagFromUser(user) {
+      const meta = user?.user_metadata || {};
+      const raw = meta.gamer_tag || meta.full_name || meta.name || user?.email?.split('@')[0] || 'Player';
+      return String(raw).replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20) || 'Player';
+    }
+
+    async function ensureProfile(user) {
+      const { data: existing } = await sb
+        .from('profiles')
+        .select('id,onboarding_done')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (existing) {
+        return existing.onboarding_done === false;
+      }
+      await sb.from('profiles').upsert({
+        id: user.id,
+        gamer_tag: gamerTagFromUser(user),
+        platform: 'PC',
+        main_game: 'Valorant',
+        main_game_description: null,
+        onboarding_done: false,
+      }, { onConflict: 'id' });
+      return true;
     }
 
     async function sendSessionToApp(session, needsOnboarding) {
@@ -167,6 +254,74 @@
       window.location.href = '/success';
     }
 
+    async function finishOAuthIfNeeded() {
+      const url = new URL(window.location.href);
+      const oauthError = url.searchParams.get('error_description') || url.searchParams.get('error');
+      if (oauthError) {
+        const msg = activeMsgEl();
+        msg.className = 'auth-msg error';
+        msg.textContent = decodeURIComponent(oauthError);
+        return;
+      }
+
+      const code = url.searchParams.get('code');
+      if (!code && !window.location.hash.includes('access_token')) return;
+
+      setBusy(true, 'Finishing Google sign-in...');
+      try {
+        let session = null;
+        if (code) {
+          const { data, error } = await sb.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          session = data.session;
+        } else {
+          const { data, error } = await sb.auth.getSession();
+          if (error) throw error;
+          session = data.session;
+        }
+        if (!session?.user) throw new Error('Google sign-in did not return a session.');
+        const needsOnboarding = await ensureProfile(session.user);
+        // Clean OAuth params from the URL before handing off.
+        window.history.replaceState({}, document.title, '/auth');
+        await sendSessionToApp(session, needsOnboarding);
+      } catch (err) {
+        setBusy(false);
+        const msg = activeMsgEl();
+        msg.className = 'auth-msg error';
+        msg.textContent = err.message || 'Google sign-in failed.';
+      }
+    }
+
+    async function handleGoogleSignIn(mode) {
+      const msg = document.getElementById(mode === 'signup' ? 'signup-msg' : 'login-msg');
+      const btn = document.getElementById(mode === 'signup' ? 'google-signup-btn' : 'google-login-btn');
+      setBusy(true, 'Redirecting to Google...');
+      msg.className = 'auth-msg';
+      msg.textContent = '';
+      try {
+        const { data, error } = await sb.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: AUTH_REDIRECT,
+            queryParams: { prompt: 'select_account' },
+          },
+        });
+        if (error) throw error;
+        if (data?.url) {
+          window.location.href = data.url;
+          return;
+        }
+        throw new Error('Could not start Google sign-in.');
+      } catch (err) {
+        setBusy(false);
+        msg.className = 'auth-msg error';
+        msg.textContent = err.message || 'Google sign-in is not available yet.';
+        if (btn) {
+          btn.disabled = false;
+        }
+      }
+    }
+
     async function handleLogin() {
       const email = document.getElementById('login-email').value.trim();
       const pass = document.getElementById('login-password').value;
@@ -194,12 +349,7 @@
 
       let needsOnboarding = false;
       try {
-        const { data: profile } = await sb
-          .from('profiles')
-          .select('onboarding_done')
-          .eq('id', data.user.id)
-          .maybeSingle();
-        needsOnboarding = profile ? profile.onboarding_done === false : false;
+        needsOnboarding = await ensureProfile(data.user);
       } catch (_) {
         needsOnboarding = false;
       }

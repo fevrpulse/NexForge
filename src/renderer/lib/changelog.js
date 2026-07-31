@@ -4,6 +4,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.0.0',
+    highlights: [
+      'Continue with Google on browser sign-in',
+      'Quick Match Log and post-session Won/Lost prompts',
+      'USD price tags on cosmetics — cash unlock by rarity',
+      'Stripe checkout for the full cosmetics catalog',
+      'Self-reported matches marked as logged (no MMR)',
+    ],
+  },
+  {
     version: '1.2.10',
     highlights: [
       'Pulse and Orbit rings need high MMR and more Forge Coins',

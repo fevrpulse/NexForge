@@ -3,6 +3,7 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
+import MatchResultPrompt from '../components/MatchResultPrompt.jsx';
 
 const SESSION_SERIES = [
   { key: 'ramMb', label: 'RAM', unit: 'MB', color: '#3B7EFF' },
@@ -215,6 +216,7 @@ export default function Analytics() {
         </div>
       )}
       <LiveSessionBanner />
+      <MatchResultPrompt />
 
       <div className="stats-grid">
         <div className="stat-card">
@@ -251,8 +253,13 @@ export default function Analytics() {
               last7.map((m) => {
                 const h = Math.max(12, Math.round((Math.abs(m.mmr_change || 10) / maxMMR) * 80));
                 const st = m.stats || {};
-                const tip = [m.game, m.result.toUpperCase(), st.kills !== undefined ? `${st.kills}K/${st.deaths || 0}D` : '', st.placement || '']
-                  .filter(Boolean).join(' · ');
+                const tip = [
+                  m.game,
+                  m.result.toUpperCase(),
+                  m.source === 'self_report' ? 'logged' : '',
+                  st.kills !== undefined ? `${st.kills}K/${st.deaths || 0}D` : '',
+                  st.placement || '',
+                ].filter(Boolean).join(' · ');
                 return (
                   <div className="bar-wrap" key={m.id}>
                     <div

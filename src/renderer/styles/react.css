@@ -393,6 +393,7 @@
 .shop-card-meta{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted2);margin:8px 0 10px}
 .rarity-pill{padding:2px 6px;border-radius:4px;text-transform:uppercase}
 .rarity-common{color:var(--muted2)}.rarity-rare{color:#3B7EFF}.rarity-epic{color:#9B5CFF}.rarity-legendary{color:#E8C547}
+.cash-price{color:#4ade80;font-weight:700}
 .profile-banner,.banner-swatch{border-radius:10px}
 .banner-grid{background:linear-gradient(135deg,#C9FF0011,#0000),repeating-linear-gradient(0deg,transparent,transparent 6px,#C9FF0010 7px)}
 .banner-aurora{background:linear-gradient(120deg,#3B7EFF33,#9B5CFF33,#0000)}
@@ -422,4 +423,17 @@
 .shop-gift-friend:hover{border-color:var(--neon)}
 .loadout-showcase{display:flex;align-items:center;gap:18px;padding:18px;margin-bottom:16px}
 .loadout-showcase-meta{font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.5}
+.match-result-prompt{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+.match-result-prompt-sub{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.match-result-prompt-actions{display:flex;gap:8px;flex-wrap:wrap}
+.quick-match-log{margin-bottom:16px}
+.quick-match-log-sub{font-family:var(--mono);font-size:11px;color:var(--muted2);margin-bottom:12px;line-height:1.45}
+.quick-match-log-label{display:flex;flex-direction:column;gap:6px;font-family:var(--mono);font-size:11px;color:var(--muted2);margin-bottom:12px}
+.quick-match-log-label select{padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-family:var(--font);font-size:13px}
+.quick-match-log-actions{display:flex;gap:8px}
+.match-source-badge{
+  display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;
+  font-family:var(--mono);font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+  background:rgba(59,126,255,.14);color:#3B7EFF;vertical-align:middle;
+}
 
