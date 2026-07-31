@@ -77,6 +77,7 @@ export function NexForgeProvider({ children }) {
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
   const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
   const [pendingMatchLog, setPendingMatchLog] = useState(null);
+  const [party, setParty] = useState(null);
   // sender_id -> count of unread DMs; drives the sidebar badge + Friends screen.
   const [unreadBySender, setUnreadBySender] = useState({});
   const [dndEnabled, setDndEnabledState] = useState(() => {
@@ -237,6 +238,7 @@ export function NexForgeProvider({ children }) {
   const enterGuest = useCallback(() => {
     setGuestMode(true);
     setUser(null);
+    setParty(null);
     setProfile(GUEST_PROFILE);
     setScreenState('dashboard');
   }, []);
@@ -251,6 +253,7 @@ export function NexForgeProvider({ children }) {
     await sb.auth.signOut();
     setUser(null);
     setProfile(null);
+    setParty(null);
     setScreenState('dashboard');
     showToast('Signed out', 'success');
   }, [guestMode, showToast]);
@@ -598,7 +601,7 @@ export function NexForgeProvider({ children }) {
       } catch (err) {
         showToast(`${summary.game} session ended (cloud save failed)`, 'error');
         await reportCloudError(err);
-        // Still offer a quick log even if session save failed (no session link).
+        // Still offer a result prompt even if session save failed (no session link).
         setPendingMatchLog({
           sessionId: null,
           game: summary.game,
@@ -667,6 +670,97 @@ export function NexForgeProvider({ children }) {
     setPendingMatchLog(null);
   }, []);
 
+  const refreshParty = useCallback(async () => {
+    if (!user || guestMode) {
+      setParty(null);
+      return null;
+    }
+    try {
+      const { data, error } = await sb.rpc('get_my_party');
+      if (error) throw error;
+      setParty(data || null);
+      return data || null;
+    } catch (err) {
+      // Don't flip the whole app offline for a missing party RPC.
+      console.warn('get_my_party failed', err);
+      return null;
+    }
+  }, [user, guestMode]);
+
+  const runPartyRpc = useCallback(async (fnName, args = {}) => {
+    const { data, error } = await sb.rpc(fnName, args);
+    if (error) throw error;
+    // leave/disband/decline return {ok:true} without a party snapshot.
+    if (data && typeof data === 'object' && data.id) {
+      setParty(data);
+      return data;
+    }
+    await refreshParty();
+    return data;
+  }, [refreshParty]);
+
+  const createParty = useCallback(async (game = null) => {
+    const data = await runPartyRpc('create_party', { p_game: game });
+    showToast('Party created', 'success');
+    return data;
+  }, [runPartyRpc, showToast]);
+
+  const inviteToParty = useCallback(async (friendId, game = null) => {
+    const data = await runPartyRpc('invite_to_party', { p_friend_id: friendId, p_game: game });
+    showToast('Party invite sent', 'success');
+    return data;
+  }, [runPartyRpc, showToast]);
+
+  const respondPartyInvite = useCallback(async (partyId, accept) => {
+    const data = await runPartyRpc('respond_party_invite', {
+      p_party_id: partyId,
+      p_accept: !!accept,
+    });
+    showToast(accept ? 'Joined party' : 'Invite declined', 'success');
+    return data;
+  }, [runPartyRpc, showToast]);
+
+  const setPartyReady = useCallback(async (ready) => {
+    return runPartyRpc('set_party_ready', { p_ready: !!ready });
+  }, [runPartyRpc]);
+
+  const leaveParty = useCallback(async () => {
+    await runPartyRpc('leave_party');
+    setParty(null);
+    showToast('Left party', 'success');
+  }, [runPartyRpc, showToast]);
+
+  const kickPartyMember = useCallback(async (userId) => {
+    const data = await runPartyRpc('kick_party_member', { p_user_id: userId });
+    showToast('Member removed', 'success');
+    return data;
+  }, [runPartyRpc, showToast]);
+
+  const disbandParty = useCallback(async () => {
+    await runPartyRpc('disband_party');
+    setParty(null);
+    showToast('Party disbanded', 'success');
+  }, [runPartyRpc, showToast]);
+
+  // Poll party state while signed in (same pattern as friends / duels).
+  useEffect(() => {
+    if (!user || guestMode) {
+      setParty(null);
+      return undefined;
+    }
+    let active = true;
+    const tick = async () => {
+      if (!active) return;
+      await refreshParty();
+    };
+    tick();
+    const id = setInterval(tick, 5000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [user, guestMode, refreshParty]);
+
   const value = {
     loading,
     user,
@@ -708,6 +802,15 @@ export function NexForgeProvider({ children }) {
     clearPendingFriendChat,
     pendingMatchLog,
     clearPendingMatchLog,
+    party,
+    refreshParty,
+    createParty,
+    inviteToParty,
+    respondPartyInvite,
+    setPartyReady,
+    leaveParty,
+    kickPartyMember,
+    disbandParty,
   };
 
   return (

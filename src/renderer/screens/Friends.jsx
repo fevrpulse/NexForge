@@ -4,6 +4,7 @@ import { sb } from '../lib/supabase.js';
 import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
+import PartyPanel from '../components/PartyPanel.jsx';
 import { formatDuration } from '../lib/format.js';
 
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
@@ -274,6 +275,8 @@ export default function Friends() {
     refreshProfile,
     pendingFriendChatId,
     clearPendingFriendChat,
+    party,
+    inviteToParty,
   } = useNexForge();
   const myId = user?.id;
 
@@ -294,6 +297,7 @@ export default function Friends() {
   const [reactions, setReactions] = useState({});
   const [pickerFor, setPickerFor] = useState(null);
   const [challenging, setChallenging] = useState(false);
+  const [invitingParty, setInvitingParty] = useState(false);
   const [profileView, setProfileView] = useState(null);
   const [profileLoading, setProfileLoading] = useState(false);
   const [pinnedIds, setPinnedIds] = useState(() => new Set());
@@ -842,6 +846,31 @@ export default function Friends() {
     }
   }
 
+  async function inviteFriendToParty() {
+    if (!selectedId || invitingParty) return;
+    const target = profiles[selectedId];
+    const game = target?.main_game || profile?.main_game || null;
+    setInvitingParty(true);
+    try {
+      await inviteToParty(selectedId, game);
+      const body = '🎉 Party invite — open Friends to Accept and ready up.';
+      const { data, error } = await sb
+        .from('messages')
+        .insert({ sender_id: myId, recipient_id: selectedId, body })
+        .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
+        .single();
+      if (!error && data) setMessages((prev) => [...(prev || []), data]);
+    } catch (err) {
+      showToast(err?.message || 'Could not send party invite.', 'error');
+      await reportCloudError(err);
+    } finally {
+      setInvitingParty(false);
+    }
+  }
+
+  const canInviteToParty = !party
+    || (party.my_status === 'joined' && party.host_id === myId);
+
   const selectedProfile = selectedId ? profiles[selectedId] : null;
   const friendTag = selectedProfile?.gamer_tag || 'Friend';
 
@@ -954,7 +983,9 @@ export default function Friends() {
   }
 
   return (
-    <div className="friends-layout">
+    <div>
+      <PartyPanel />
+      <div className="friends-layout">
       <div className="card friends-list">
         <div className="status-edit-row">
           <input
@@ -1074,6 +1105,14 @@ export default function Friends() {
                 title="View wins, recent matches, and sessions"
               >
                 Profile
+              </button>
+              <button
+                className="action-btn ghost friend-mini-btn"
+                onClick={inviteFriendToParty}
+                disabled={invitingParty || !canInviteToParty}
+                title={canInviteToParty ? 'Invite this friend to your party' : 'Only the party host can invite'}
+              >
+                {invitingParty ? '…' : 'Party'}
               </button>
               <button
                 className="action-btn primary friend-mini-btn"
@@ -1268,6 +1307,7 @@ export default function Friends() {
           onReport={reportPlayer}
         />
       )}
+      </div>
     </div>
   );
 }

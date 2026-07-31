@@ -134,7 +134,7 @@ export default function Analytics() {
       .then(({ data }) => { if (active) setMatches(data || []); })
       .catch(() => { if (active) setMatches([]); });
     return () => { active = false; };
-  }, [user]);
+  }, [user, profile?.wins, profile?.losses]);
 
   // sessionSaveTick bumps when a session finishes saving (handled in context),
   // so history refreshes even if it ended while another screen was open.
@@ -153,26 +153,19 @@ export default function Analytics() {
 
   if (!profile) return null;
 
-  const total = (profile.wins || 0) + (profile.losses || 0);
-  const wr = total > 0 ? `${Math.round((profile.wins / total) * 100)}%` : '—';
-
-  let totalK = profile.total_kills || 0;
-  let totalD = profile.total_deaths || 0;
-  let totalA = profile.total_assists || 0;
-  if (!totalK && !totalD && !totalA) {
-    matches.forEach((m) => {
-      const st = m.stats || {};
-      if (st.kills !== undefined) {
-        totalK += st.kills || 0;
-        totalD += st.deaths || 0;
-        totalA += st.assists || 0;
-      }
-    });
-  }
-  const kda = (totalK || totalD || totalA) ? ((totalK + totalA) / Math.max(totalD, 1)).toFixed(2) : '—';
+  const wins = profile.wins || 0;
+  const losses = profile.losses || 0;
+  const total = wins + losses;
+  const wr = total > 0 ? `${Math.round((wins / total) * 100)}%` : '—';
 
   const last7 = matches.slice(0, 7).reverse();
-  const maxMMR = Math.max(1, ...last7.map((m) => Math.abs(m.mmr_change || 1)));
+  const maxBar = Math.max(
+    1,
+    ...last7.map((m) => {
+      const delta = Math.abs(m.mmr_change || 0);
+      return delta > 0 ? delta : 10;
+    }),
+  );
 
   const compareSessions = compareIds
     .map((id) => sessions.find((s) => s.id === id))
@@ -220,24 +213,24 @@ export default function Analytics() {
 
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-label">Avg KDA</div>
-          <div className="stat-val neon">{kda}</div>
-          <div className="stat-sub">kills/deaths/assists</div>
+          <div className="stat-label">Wins</div>
+          <div className="stat-val" style={{ color: '#4ade80' }}>{wins}</div>
+          <div className="stat-sub">career wins</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Losses</div>
+          <div className="stat-val" style={{ color: 'var(--red)' }}>{losses}</div>
+          <div className="stat-sub">career losses</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Win Rate</div>
           <div className="stat-val">{wr}</div>
-          <div className="stat-sub">ranked matches</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Total Matches</div>
-          <div className="stat-val">{total}</div>
-          <div className="stat-sub">career total</div>
+          <div className="stat-sub">{total > 0 ? `${total} matches` : 'no matches yet'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">MMR</div>
           <div className="stat-val neon">{(profile.mmr || 1200).toLocaleString()}</div>
-          <div className="stat-sub">matchmaking rating</div>
+          <div className="stat-sub">{profile.main_game || 'matchmaking rating'}</div>
         </div>
       </div>
 
@@ -251,11 +244,12 @@ export default function Analytics() {
               </div>
             ) : (
               last7.map((m) => {
-                const h = Math.max(12, Math.round((Math.abs(m.mmr_change || 10) / maxMMR) * 80));
+                const delta = Math.abs(m.mmr_change || 0);
+                const h = Math.max(12, Math.round(((delta > 0 ? delta : 10) / maxBar) * 80));
                 const st = m.stats || {};
                 const tip = [
                   m.game,
-                  m.result.toUpperCase(),
+                  String(m.result || '').toUpperCase(),
                   m.source === 'self_report' ? 'logged' : '',
                   st.kills !== undefined ? `${st.kills}K/${st.deaths || 0}D` : '',
                   st.placement || '',
@@ -275,14 +269,41 @@ export default function Analytics() {
           </div>
         </div>
         <div className="card">
-          <div className="card-title">Profile Info</div>
-          <div className="row"><span>Main Game</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--neon)' }}>{profile.main_game || '—'}</span></div>
-          <div className="row"><span>Wins</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: '#4ade80' }}>{profile.wins || 0}</span></div>
-          <div className="row"><span>Losses</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--red)' }}>{profile.losses || 0}</span></div>
-          <div className="row"><span>Platform</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12 }}>{profile.platform || 'PC'}</span></div>
-          <button className="action-btn ghost full" style={{ marginTop: 12, padding: 8 }} onClick={refreshProfile}>
-            Refresh Stats
-          </button>
+          <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span>Recent Matches</span>
+            <button type="button" className="action-btn ghost" style={{ padding: '4px 10px', fontSize: 11 }} onClick={refreshProfile}>
+              Refresh
+            </button>
+          </div>
+          {matches.length === 0 ? (
+            <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
+              No matches yet — log a result after a session or finish a duel
+            </div>
+          ) : (
+            matches.slice(0, 8).map((m) => {
+              const logged = m.source === 'self_report';
+              const st = m.stats || {};
+              const bits = [];
+              if (m.mode) bits.push(m.mode);
+              if (st.kills !== undefined) bits.push(`${st.kills}/${st.deaths || 0}/${st.assists || 0}`);
+              if (logged) bits.push('no MMR');
+              else if (m.mmr_change != null) bits.push(`${m.mmr_change > 0 ? '+' : ''}${m.mmr_change} MMR`);
+              return (
+                <div className="row" key={m.id}>
+                  <div>
+                    <div className="row-title">
+                      {m.game || 'Match'}
+                      {logged && <span className="match-source-badge">logged</span>}
+                    </div>
+                    <div className="row-sub">{bits.join(' · ') || new Date(m.played_at).toLocaleString()}</div>
+                  </div>
+                  <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`}>
+                    {m.result === 'win' ? 'WIN' : 'LOSS'}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
 
@@ -316,51 +337,53 @@ export default function Analytics() {
             Play a tracked game to see RAM, CPU, GPU, and ping summaries here
           </div>
         ) : (
-          sessions.slice(0, 12).map((s) => {
-            const when = s.ended_at ? new Date(s.ended_at).toLocaleString() : '—';
-            const ping = s.avg_ping_ms != null ? `${Math.round(s.avg_ping_ms)} ms` : '—';
-            const ram = s.avg_ram_mb != null ? `${Math.round(s.avg_ram_mb)} MB` : '—';
-            const cpu = s.avg_cpu_pct != null ? `${Number(s.avg_cpu_pct).toFixed(0)}%` : '—';
-            const gpu = s.avg_gpu_pct != null ? `${Number(s.avg_gpu_pct).toFixed(0)}%` : '—';
-            const kdaLine = s.kills != null ? `${s.kills}/${s.deaths ?? 0}/${s.assists ?? 0}` : null;
-            const peaks = [
-              s.max_ping_ms != null ? `Ping ${Math.round(s.max_ping_ms)} ms` : null,
-              s.max_ram_mb != null ? `RAM ${Math.round(s.max_ram_mb)} MB` : null,
-              s.max_cpu_pct != null ? `CPU ${Number(s.max_cpu_pct).toFixed(0)}%` : null,
-              s.max_gpu_pct != null ? `GPU ${Number(s.max_gpu_pct).toFixed(0)}%` : null,
-            ].filter(Boolean).join(' · ');
-            const tips = Array.isArray(s.tips) ? s.tips.slice(0, 2) : [];
-            const expanded = !compareMode && expandedSession === s.id;
-            const selected = compareMode && compareIds.includes(s.id);
-            return (
-              <React.Fragment key={s.id}>
-                <div
-                  className={`session-row session-row-clickable ${expanded ? 'expanded' : ''} ${selected ? 'session-row-selected' : ''}`}
-                  onClick={() => handleSessionRowClick(s)}
-                  title={compareMode ? (selected ? 'Deselect session' : 'Select session to compare') : (expanded ? 'Hide performance graphs' : 'Show performance graphs')}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div className="session-row-game">{s.game || 'Unknown'}</div>
-                    <div className="session-row-meta">
-                      {formatDuration(s.duration_sec)} · {when}{kdaLine ? ` · ${kdaLine} K/D/A` : ''}
-                    </div>
-                    {tips.length > 0 && (
-                      <div className="session-row-tips">
-                        {tips.map((tip) => <div key={tip}>· {tip}</div>)}
+          <div className="session-list">
+            {sessions.slice(0, 12).map((s) => {
+              const when = s.ended_at ? new Date(s.ended_at).toLocaleString() : '—';
+              const ping = s.avg_ping_ms != null ? `${Math.round(s.avg_ping_ms)} ms` : '—';
+              const ram = s.avg_ram_mb != null ? `${Math.round(s.avg_ram_mb)} MB` : '—';
+              const cpu = s.avg_cpu_pct != null ? `${Number(s.avg_cpu_pct).toFixed(0)}%` : '—';
+              const gpu = s.avg_gpu_pct != null ? `${Number(s.avg_gpu_pct).toFixed(0)}%` : '—';
+              const kdaLine = s.kills != null ? `${s.kills}/${s.deaths ?? 0}/${s.assists ?? 0}` : null;
+              const peaks = [
+                s.max_ping_ms != null ? `Ping ${Math.round(s.max_ping_ms)} ms` : null,
+                s.max_ram_mb != null ? `RAM ${Math.round(s.max_ram_mb)} MB` : null,
+                s.max_cpu_pct != null ? `CPU ${Number(s.max_cpu_pct).toFixed(0)}%` : null,
+                s.max_gpu_pct != null ? `GPU ${Number(s.max_gpu_pct).toFixed(0)}%` : null,
+              ].filter(Boolean).join(' · ');
+              const tips = Array.isArray(s.tips) ? s.tips.slice(0, 2) : [];
+              const expanded = !compareMode && expandedSession === s.id;
+              const selected = compareMode && compareIds.includes(s.id);
+              return (
+                <div className="session-list-item" key={s.id}>
+                  <div
+                    className={`session-row session-row-clickable ${expanded ? 'expanded' : ''} ${selected ? 'session-row-selected' : ''}`}
+                    onClick={() => handleSessionRowClick(s)}
+                    title={compareMode ? (selected ? 'Deselect session' : 'Select session to compare') : (expanded ? 'Hide performance graphs' : 'Show performance graphs')}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div className="session-row-game">{s.game || 'Unknown'}</div>
+                      <div className="session-row-meta">
+                        {formatDuration(s.duration_sec)} · {when}{kdaLine ? ` · ${kdaLine} K/D/A` : ''}
                       </div>
+                      {tips.length > 0 && (
+                        <div className="session-row-tips">
+                          {tips.map((tip) => <div key={tip}>· {tip}</div>)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="session-row-stats" title={peaks ? `Peaks — ${peaks}` : undefined}>
+                      Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}
+                    </div>
+                    {!compareMode && (
+                      <span className={`session-row-caret ${expanded ? 'open' : ''}`}>▾</span>
                     )}
                   </div>
-                  <div className="session-row-stats" title={peaks ? `Peaks — ${peaks}` : undefined}>
-                    Ping {ping}<br />RAM {ram}<br />CPU {cpu}<br />GPU {gpu}
-                  </div>
-                  {!compareMode && (
-                    <span className={`session-row-caret ${expanded ? 'open' : ''}`}>▾</span>
-                  )}
+                  {expanded && <SessionCharts session={s} />}
                 </div>
-                {expanded && <SessionCharts session={s} />}
-              </React.Fragment>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

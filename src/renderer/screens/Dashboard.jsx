@@ -6,7 +6,6 @@ import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
 import MatchResultPrompt from '../components/MatchResultPrompt.jsx';
-import QuickMatchLog from '../components/QuickMatchLog.jsx';
 
 function shortCosmeticId(id) {
   if (!id) return '—';
@@ -31,7 +30,6 @@ export default function Dashboard() {
   const { profile, user, guestMode, setScreen, showToast, createAccount, openFriendChat } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [friendActivity, setFriendActivity] = useState([]);
-  const [matchTick, setMatchTick] = useState(0);
 
   useEffect(() => {
     if (!user || guestMode) {
@@ -47,7 +45,7 @@ export default function Dashboard() {
       .then(({ data }) => { if (active) setMatches(data || []); })
       .catch(() => { if (active) setMatches([]); });
     return () => { active = false; };
-  }, [user, guestMode, matchTick, profile?.wins, profile?.losses]);
+  }, [user, guestMode, profile?.wins, profile?.losses]);
 
   useEffect(() => {
     if (!user || guestMode) {
@@ -124,8 +122,6 @@ export default function Dashboard() {
           <div className="stat-sub">NexForge player</div>
         </div>
       </div>
-
-      {!guestMode && <QuickMatchLog onLogged={() => setMatchTick((t) => t + 1)} />}
 
       <div className="three-col">
         <div className="card">
