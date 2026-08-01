@@ -1,0 +1,17 @@
+{
+  "name": "NexForge Companion",
+  "short_name": "NexForge",
+  "description": "Chat, party, lobby codes, and tournament check-in while you play on desktop.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#080808",
+  "theme_color": "#c9ff00",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

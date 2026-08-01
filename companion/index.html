@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#c9ff00" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>NexForge Companion</title>
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" href="./icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #080808; --surface: #101010; --panel: #181818;
+      --border: #242424; --text: #efefef; --muted: #888;
+      --neon: #c9ff00; --red: #ff3d1f; --blue: #3B7EFF; --orange: #FF8C42;
+      --font: 'Nunito', system-ui, sans-serif; --mono: 'JetBrains Mono', monospace;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font); background: var(--bg); color: var(--text);
+      min-height: 100dvh; padding-bottom: calc(72px + var(--safe-b));
+    }
+    .wrap { max-width: 480px; margin: 0 auto; padding: 16px; }
+    .logo { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+    .logo span { color: var(--neon); }
+    .tag { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin: 4px 0 18px; }
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 14px; margin-bottom: 12px;
+    }
+    .card h2 { font-size: 14px; font-weight: 800; margin-bottom: 8px; }
+    .muted { font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.5; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .pill {
+      font-family: var(--mono); font-size: 10px; font-weight: 700; padding: 3px 8px;
+      border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+    }
+    .pill.neon { color: var(--neon); border-color: rgba(201,255,0,.35); }
+    .pill.hot { color: var(--red); border-color: rgba(255,61,31,.35); }
+    .btn {
+      border: none; border-radius: 10px; padding: 11px 14px; font-family: var(--font);
+      font-weight: 800; font-size: 13px; cursor: pointer; background: var(--neon); color: #111;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn.full { width: 100%; }
+    .btn.danger { background: transparent; color: var(--red); border: 1px solid rgba(255,61,31,.35); }
+    .field { margin-bottom: 12px; }
+    .field label {
+      display: block; font-family: var(--mono); font-size: 10px; color: var(--muted);
+      letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .field input {
+      width: 100%; background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 12px; color: var(--text); font-size: 15px; outline: none;
+    }
+    .field input:focus { border-color: var(--neon); }
+    .msg { font-family: var(--mono); font-size: 11px; min-height: 16px; margin-top: 8px; }
+    .msg.err { color: var(--red); }
+    .msg.ok { color: var(--neon); }
+    .nav {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+      background: rgba(8,8,8,.94); border-top: 1px solid var(--border);
+      padding: 8px 8px calc(8px + var(--safe-b)); display: none;
+      justify-content: space-around; max-width: 480px; margin: 0 auto;
+    }
+    .nav.show { display: flex; }
+    .nav button {
+      background: transparent; border: none; color: var(--muted); font-family: var(--font);
+      font-size: 11px; font-weight: 700; padding: 8px 10px; cursor: pointer;
+    }
+    .nav button.active { color: var(--neon); }
+    .list-item {
+      padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .list-item:last-child { border-bottom: none; }
+    .list-title { font-size: 14px; font-weight: 700; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .code {
+      font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--neon);
+      letter-spacing: 0.12em; margin: 6px 0;
+    }
+    .hidden { display: none !important; }
+    .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap" id="app">
+    <div id="auth-view">
+      <div class="logo">Nex<span>Forge</span></div>
+      <div class="tag">Companion · phone while you play</div>
+      <div class="card">
+        <div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" /></div>
+        <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" /></div>
+        <button class="btn full" id="login-btn" type="button">Sign in</button>
+        <div class="msg" id="auth-msg"></div>
+        <p class="muted" style="margin-top:12px">Use the same account as the desktop app. Desktop still handles tracking & overlay.</p>
+      </div>
+    </div>
+
+    <div id="home-view" class="hidden">
+      <div class="topbar">
+        <div>
+          <div class="logo">Nex<span>Forge</span></div>
+          <div class="tag" id="hello">Companion</div>
+        </div>
+        <button class="btn ghost" id="signout-btn" type="button">Sign out</button>
+      </div>
+      <div id="home-body"></div>
+    </div>
+
+    <div id="inbox-view" class="hidden">
+      <div class="logo">Inbox</div>
+      <div class="tag">Recent messages</div>
+      <div id="inbox-body"></div>
+    </div>
+
+    <div id="party-view" class="hidden">
+      <div class="logo">Party & Lobby</div>
+      <div class="tag">Live session helpers</div>
+      <div id="party-body"></div>
+    </div>
+
+    <div id="events-view" class="hidden">
+      <div class="logo">Events</div>
+      <div class="tag">Tournament check-in</div>
+      <div id="events-body"></div>
+    </div>
+  </div>
+
+  <nav class="nav" id="nav">
+    <button type="button" data-tab="home" class="active">Home</button>
+    <button type="button" data-tab="inbox">Inbox</button>
+    <button type="button" data-tab="party">Party</button>
+    <button type="button" data-tab="events">Events</button>
+  </nav>
+
+  <script>
+    const SUPABASE_URL = 'https://nfaxokwpmaxyhnvatrwf.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5mYXhva3dwbWF4eWhudmF0cndmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1NDc3NTcsImV4cCI6MjA5NDEyMzc1N30.22fLTgCxh5ne9zrod9gc2-idnw6biFUIDNZLEZkJUSk';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+      global: { headers: { 'X-Client-Info': 'nexforge-companion' } },
+    });
+
+    let home = null;
+    let tab = 'home';
+    let pollId = null;
+
+    const $ = (id) => document.getElementById(id);
+    const views = {
+      auth: $('auth-view'),
+      home: $('home-view'),
+      inbox: $('inbox-view'),
+      party: $('party-view'),
+      events: $('events-view'),
+    };
+
+    function setMsg(el, text, ok) {
+      el.textContent = text || '';
+      el.className = 'msg ' + (ok ? 'ok' : text ? 'err' : '');
+    }
+
+    function showTab(name) {
+      tab = name;
+      Object.entries(views).forEach(([k, el]) => {
+        if (k === 'auth') return;
+        el.classList.toggle('hidden', k !== name);
+      });
+      document.querySelectorAll('#nav button').forEach((b) => {
+        b.classList.toggle('active', b.dataset.tab === name);
+      });
+      render();
+    }
+
+    function setAuthed(on) {
+      views.auth.classList.toggle('hidden', on);
+      $('nav').classList.toggle('show', on);
+      if (on) showTab(tab === 'auth' ? 'home' : tab);
+      else {
+        Object.keys(views).forEach((k) => {
+          if (k !== 'auth') views[k].classList.add('hidden');
+        });
+      }
+    }
+
+    async function refreshHome() {
+      const { data, error } = await sb.rpc('get_companion_home');
+      if (error) throw error;
+      home = data;
+      render();
+    }
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[c]));
+    }
+
+    function renderHome() {
+      if (!home) {
+        $('home-body').innerHTML = '<div class="card muted">Loading…</div>';
+        return;
+      }
+      const p = home.profile || {};
+      $('hello').textContent = `${p.gamer_tag || 'Player'} · ${p.mmr ?? '—'} MMR`;
+      const coach = home.coach;
+      const lobby = home.lobby;
+      const party = home.party;
+      $('home-body').innerHTML = `
+        <div class="card">
+          <div class="row">
+            <h2 style="margin:0">Alerts</h2>
+            <span class="pill ${home.unread_count ? 'neon' : ''}">${home.unread_count || 0} unread</span>
+          </div>
+          <p class="muted" style="margin-top:8px">Desktop owns tracking & overlay. Companion is for chat, party, lobby codes, and check-in.</p>
+        </div>
+        ${coach ? `
+          <div class="card">
+            <div class="row">
+              <h2 style="margin:0">Coach</h2>
+              <span class="pill ${(coach.tilt_score || 0) >= 50 ? 'hot' : 'neon'}">Tilt ${coach.tilt_score ?? 0}</span>
+            </div>
+            <p class="muted" style="margin-top:8px">${esc(coach.summary || '')}</p>
+          </div>` : ''}
+        ${lobby?.lobby_code ? `
+          <div class="card">
+            <h2>Lobby code</h2>
+            <div class="code">${esc(lobby.lobby_code)}</div>
+            <p class="muted">${esc(lobby.game || '')} · ${esc(lobby.status || '')}</p>
+            <div class="actions">
+              <button class="btn" type="button" data-copy="${esc(lobby.lobby_code)}">Copy code</button>
+            </div>
+          </div>` : ''}
+        ${party?.my_status === 'invited' ? `
+          <div class="card">
+            <h2>Party invite</h2>
+            <p class="muted">${esc(party.game || 'Party')} waiting</p>
+            <div class="actions">
+              <button class="btn" type="button" data-party-accept="${esc(party.id)}">Accept</button>
+              <button class="btn ghost" type="button" data-party-decline="${esc(party.id)}">Decline</button>
+            </div>
+          </div>` : party?.my_status === 'joined' ? `
+          <div class="card">
+            <h2>In party</h2>
+            <p class="muted">${esc(party.game || 'Party')} · ${(party.members || []).filter(m => m.status === 'joined').length} joined</p>
+          </div>` : ''}
+        ${(home.clan && home.clan.my_status === 'invited') ? `
+          <div class="card">
+            <h2>Clan invite</h2>
+            <p class="muted">[${esc(home.clan.tag)}] ${esc(home.clan.name)}</p>
+            <div class="actions">
+              <button class="btn" type="button" data-clan-accept="${esc(home.clan.id)}">Accept</button>
+              <button class="btn ghost" type="button" data-clan-decline="${esc(home.clan.id)}">Decline</button>
+            </div>
+          </div>` : ''}
+      `;
+    }
+
+    function renderInbox() {
+      const msgs = home?.messages || [];
+      if (!msgs.length) {
+        $('inbox-body').innerHTML = '<div class="card muted">No messages yet.</div>';
+        return;
+      }
+      $('inbox-body').innerHTML = `<div class="card">${msgs.map((m) => `
+        <div class="list-item">
+          <div class="row">
+            <div class="list-title">${esc(m.sender_tag)}</div>
+            ${m.read_at ? '' : '<span class="pill neon">NEW</span>'}
+          </div>
+          <p class="muted">${esc(m.body || '(media)')}</p>
+        </div>`).join('')}</div>
+        <button class="btn full ghost" type="button" id="mark-read">Mark all read</button>`;
+    }
+
+    function renderParty() {
+      const party = home?.party;
+      const lobby = home?.lobby;
+      let html = '';
+      if (lobby) {
+        html += `<div class="card">
+          <h2>Match lobby</h2>
+          <p class="muted">${esc(lobby.game || '')} · ${esc(lobby.mode || '')} · ${esc(lobby.status || '')}</p>
+          ${lobby.lobby_code ? `<div class="code">${esc(lobby.lobby_code)}</div>
+            <div class="actions"><button class="btn" type="button" data-copy="${esc(lobby.lobby_code)}">Copy code</button></div>` : '<p class="muted">Waiting for host code…</p>'}
+        </div>`;
+      } else {
+        html += `<div class="card muted">No active lobby. Queue from desktop Matchmaking.</div>`;
+      }
+      if (party?.my_status === 'joined') {
+        const members = (party.members || []).filter((m) => m.status === 'joined');
+        html += `<div class="card"><h2>Party</h2>
+          ${members.map((m) => `<div class="list-item"><div class="list-title">${esc(m.gamer_tag)}</div>
+            <p class="muted">${esc(m.role)}${m.ready ? ' · ready' : ''}</p></div>`).join('')}
+          <div class="actions">
+            <button class="btn ghost" type="button" data-party-ready="${party.status === 'ready' ? '0' : '1'}">${party.status === 'ready' ? 'Unready' : 'Ready up'}</button>
+            <button class="btn danger" type="button" data-party-leave="1">Leave</button>
+          </div>
+        </div>`;
+      } else if (party?.my_status === 'invited') {
+        html += `<div class="card"><h2>Party invite</h2>
+          <div class="actions">
+            <button class="btn" type="button" data-party-accept="${esc(party.id)}">Accept</button>
+            <button class="btn ghost" type="button" data-party-decline="${esc(party.id)}">Decline</button>
+          </div></div>`;
+      } else {
+        html += `<div class="card muted">No party. Invite friends from desktop Friends.</div>`;
+      }
+      $('party-body').innerHTML = html;
+    }
+
+    function renderEvents() {
+      const list = home?.tournaments || [];
+      if (!list.length) {
+        $('events-body').innerHTML = '<div class="card muted">No open tournaments you are registered for.</div>';
+        return;
+      }
+      $('events-body').innerHTML = `<div class="card">${list.map((t) => `
+        <div class="list-item">
+          <div class="list-title">${esc(t.name)}</div>
+          <p class="muted">${esc(t.game || '')} · ${t.starts_at ? new Date(t.starts_at).toLocaleString() : 'TBD'}</p>
+          <div class="actions">
+            ${t.checked_in
+              ? '<span class="pill neon">CHECKED IN</span>'
+              : `<button class="btn" type="button" data-checkin="${esc(t.id)}">Check in</button>`}
+          </div>
+        </div>`).join('')}</div>`;
+    }
+
+    function render() {
+      if (!home && tab !== 'auth') {
+        // still render shells
+      }
+      if (tab === 'home') renderHome();
+      if (tab === 'inbox') renderInbox();
+      if (tab === 'party') renderParty();
+      if (tab === 'events') renderEvents();
+    }
+
+    async function boot() {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) {
+        setAuthed(false);
+        return;
+      }
+      setAuthed(true);
+      try {
+        await sb.rpc('register_companion_device', {
+          p_platform: 'web',
+          p_device_label: navigator.userAgent.slice(0, 80),
+          p_push_token: null,
+        });
+      } catch { /* optional */ }
+      try {
+        await refreshHome();
+      } catch (err) {
+        $('home-body').innerHTML = `<div class="card"><p class="muted">${esc(err.message || 'Failed to load')}</p></div>`;
+      }
+      if (pollId) clearInterval(pollId);
+      pollId = setInterval(() => {
+        refreshHome().catch(() => {});
+      }, 8000);
+    }
+
+    $('login-btn').onclick = async () => {
+      const email = $('email').value.trim();
+      const password = $('password').value;
+      setMsg($('auth-msg'), 'Signing in…', true);
+      const { error } = await sb.auth.signInWithPassword({ email, password });
+      if (error) {
+        setMsg($('auth-msg'), error.message, false);
+        return;
+      }
+      setMsg($('auth-msg'), '', true);
+      await boot();
+    };
+
+    $('signout-btn').onclick = async () => {
+      if (pollId) clearInterval(pollId);
+      await sb.auth.signOut();
+      home = null;
+      setAuthed(false);
+    };
+
+    document.querySelectorAll('#nav button').forEach((b) => {
+      b.onclick = () => showTab(b.dataset.tab);
+    });
+
+    document.body.addEventListener('click', async (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLElement)) return;
+      const copy = t.getAttribute('data-copy');
+      if (copy) {
+        try {
+          await navigator.clipboard.writeText(copy);
+          t.textContent = 'Copied';
+        } catch {
+          t.textContent = copy;
+        }
+        return;
+      }
+      const accept = t.getAttribute('data-party-accept');
+      if (accept) {
+        await sb.rpc('respond_party_invite', { p_party_id: accept, p_accept: true });
+        await refreshHome();
+        return;
+      }
+      const decline = t.getAttribute('data-party-decline');
+      if (decline) {
+        await sb.rpc('respond_party_invite', { p_party_id: decline, p_accept: false });
+        await refreshHome();
+        return;
+      }
+      const clanA = t.getAttribute('data-clan-accept');
+      if (clanA) {
+        await sb.rpc('respond_clan_invite', { p_clan_id: clanA, p_accept: true });
+        await refreshHome();
+        return;
+      }
+      const clanD = t.getAttribute('data-clan-decline');
+      if (clanD) {
+        await sb.rpc('respond_clan_invite', { p_clan_id: clanD, p_accept: false });
+        await refreshHome();
+        return;
+      }
+      const ready = t.getAttribute('data-party-ready');
+      if (ready != null) {
+        await sb.rpc('set_party_ready', { p_ready: ready === '1' });
+        await refreshHome();
+        return;
+      }
+      if (t.getAttribute('data-party-leave')) {
+        await sb.rpc('leave_party');
+        await refreshHome();
+        return;
+      }
+      const checkin = t.getAttribute('data-checkin');
+      if (checkin) {
+        await sb.rpc('check_in_tournament', { p_tournament_id: checkin });
+        await refreshHome();
+        return;
+      }
+      if (t.id === 'mark-read' && home?.messages?.length) {
+        const ids = home.messages.filter((m) => !m.read_at).map((m) => m.id);
+        if (ids.length) {
+          await sb.from('messages').update({ read_at: new Date().toISOString() }).in('id', ids);
+          await refreshHome();
+        }
+      }
+    });
+
+    boot();
+  </script>
+</body>
+</html>

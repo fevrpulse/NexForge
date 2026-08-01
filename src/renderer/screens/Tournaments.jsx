@@ -3,6 +3,69 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { maskAccount, formatPrizeLabel } from '../lib/format.js';
 
+function BracketView({
+  tournament,
+  bracket,
+  userId,
+  isHost,
+  busy,
+  onReport,
+}) {
+  const matches = Array.isArray(bracket?.matches) ? bracket.matches : [];
+  if (!matches.length) {
+    return (
+      <div className="bracket-empty">
+        No bracket yet{isHost ? ' — generate after check-ins.' : '.'}
+      </div>
+    );
+  }
+  const rounds = [...new Set(matches.map((m) => m.round))].sort((a, b) => a - b);
+  return (
+    <div className="bracket-board">
+      {rounds.map((round) => (
+        <div className="bracket-round" key={round}>
+          <div className="bracket-round-label">Round {round}</div>
+          {matches.filter((m) => m.round === round).map((m) => {
+            const canReport = isHost
+              && m.status === 'ready'
+              && m.slot_a
+              && m.slot_b
+              && !m.winner_id;
+            return (
+              <div className={`bracket-match status-${m.status}`} key={`${m.round}-${m.match_index}`}>
+                <button
+                  type="button"
+                  className={`bracket-slot ${m.winner_id === m.slot_a ? 'winner' : ''}`}
+                  disabled={!canReport || busy || !m.slot_a}
+                  onClick={() => onReport(m, m.slot_a)}
+                >
+                  {m.tag_a || (m.slot_a ? 'Player' : 'Bye')}
+                  {m.slot_a === userId ? ' (you)' : ''}
+                </button>
+                <button
+                  type="button"
+                  className={`bracket-slot ${m.winner_id === m.slot_b ? 'winner' : ''}`}
+                  disabled={!canReport || busy || !m.slot_b}
+                  onClick={() => onReport(m, m.slot_b)}
+                >
+                  {m.tag_b || (m.slot_b ? 'Player' : 'Bye')}
+                  {m.slot_b === userId ? ' (you)' : ''}
+                </button>
+                {m.status === 'done' && m.winner_tag && (
+                  <div className="bracket-winner-label">→ {m.winner_tag}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ))}
+      {tournament.status === 'completed' && (
+        <div className="bracket-complete">Tournament complete</div>
+      )}
+    </div>
+  );
+}
+
 const FORMATS = ['1v1', '2v2', '5v5', 'Solo BR', 'Squad BR', 'Custom'];
 const TOURNEY_COLUMNS = 'id,host_id,host_tag,name,game,format,max_slots,starts_at,rules,prize_type,cash_amount,inapp_reward,status,registrations,created_at,bank_account_last4';
 
@@ -49,6 +112,10 @@ export default function Tournaments() {
   const [form, setForm] = useState(emptyForm);
   const [formMsg, setFormMsg] = useState(null);
   const [publishing, setPublishing] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const [brackets, setBrackets] = useState({});
+  const [checkedIn, setCheckedIn] = useState({});
+  const [bracketBusy, setBracketBusy] = useState(false);
 
   async function loadTournaments() {
     try {
@@ -218,6 +285,94 @@ export default function Tournaments() {
     } else {
       await reportCloudError(error);
       showToast(error?.message || 'Could not leave — cloud required.', 'error');
+    }
+  }
+
+  async function loadBracket(tournamentId) {
+    if (!tournamentId) return null;
+    try {
+      const { data, error } = await sb.rpc('get_tournament_bracket', { p_tournament_id: tournamentId });
+      if (error) throw error;
+      setBrackets((prev) => ({ ...prev, [tournamentId]: data || { matches: [], checkins: 0 } }));
+      if (user) {
+        const { data: mine } = await sb
+          .from('tournament_checkins')
+          .select('user_id')
+          .eq('tournament_id', tournamentId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        setCheckedIn((prev) => ({ ...prev, [tournamentId]: !!mine }));
+      }
+      return data;
+    } catch (err) {
+      console.warn('get_tournament_bracket failed', err);
+      return null;
+    }
+  }
+
+  async function toggleBracket(id) {
+    if (expandedId === id) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(id);
+    await loadBracket(id);
+  }
+
+  async function checkIn(id) {
+    if (!user || guestMode || bracketBusy) return;
+    setBracketBusy(true);
+    try {
+      const { error } = await sb.rpc('check_in_tournament', { p_tournament_id: id });
+      if (error) throw error;
+      setCheckedIn((prev) => ({ ...prev, [id]: true }));
+      showToast('Checked in', 'success');
+      await loadBracket(id);
+    } catch (err) {
+      showToast(err?.message || 'Check-in failed.', 'error');
+      await reportCloudError(err);
+    } finally {
+      setBracketBusy(false);
+    }
+  }
+
+  async function generateBracket(id) {
+    if (bracketBusy) return;
+    setBracketBusy(true);
+    try {
+      const { data, error } = await sb.rpc('host_generate_bracket', { p_tournament_id: id });
+      if (error) throw error;
+      setBrackets((prev) => ({ ...prev, [id]: data }));
+      showToast('Bracket generated', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not generate bracket.', 'error');
+      await reportCloudError(err);
+    } finally {
+      setBracketBusy(false);
+    }
+  }
+
+  async function reportWinner(tournamentId, match, winnerId) {
+    if (bracketBusy || !winnerId) return;
+    setBracketBusy(true);
+    try {
+      const { data, error } = await sb.rpc('host_report_bracket_winner', {
+        p_tournament_id: tournamentId,
+        p_round: match.round,
+        p_match_index: match.match_index,
+        p_winner_id: winnerId,
+      });
+      if (error) throw error;
+      setBrackets((prev) => ({ ...prev, [tournamentId]: data }));
+      if (data && tournaments.find((x) => x.id === tournamentId)?.status !== 'completed') {
+        loadTournaments();
+      }
+      showToast('Match result recorded', 'success');
+    } catch (err) {
+      showToast(err?.message || 'Could not report winner.', 'error');
+      await reportCloudError(err);
+    } finally {
+      setBracketBusy(false);
     }
   }
 
@@ -392,6 +547,10 @@ export default function Tournaments() {
             ? new Date(t.starts_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
             : 'TBD';
           const registered = isRegistered(t, user?.id);
+          const isHost = !!(user && t.host_id === user.id);
+          const expanded = expandedId === t.id;
+          const bracket = brackets[t.id];
+          const amCheckedIn = !!checkedIn[t.id];
           return (
             <div className="tourney-card" key={t.id}>
               <div className="tourney-top">
@@ -406,6 +565,7 @@ export default function Tournaments() {
                 <span>👥 {filled}/{slots}</span>
                 <span>{status === 'open' ? '🟢 Open' : '⬛ Completed'}</span>
                 {registered && <span className="badge badge-neon">REGISTERED</span>}
+                {amCheckedIn && <span className="badge badge-muted">CHECKED IN</span>}
               </div>
               {t.rules && (
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginTop: 10, lineHeight: 1.5 }}>
@@ -422,7 +582,7 @@ export default function Tournaments() {
                   Cash payout funded by organizer · {maskAccount(t.bank_account_last4)}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                 {status === 'open' && !registered && (
                   <button className="action-btn primary" style={{ padding: '8px 14px', fontSize: 12 }} onClick={() => registerForTournament(t.id)}>
                     Register
@@ -433,7 +593,55 @@ export default function Tournaments() {
                     Leave
                   </button>
                 )}
+                {registered && !amCheckedIn && status === 'open' && (
+                  <button
+                    className="action-btn primary"
+                    style={{ padding: '8px 14px', fontSize: 12 }}
+                    disabled={bracketBusy}
+                    onClick={() => checkIn(t.id)}
+                  >
+                    Check in
+                  </button>
+                )}
+                <button
+                  className="action-btn ghost"
+                  style={{ padding: '8px 14px', fontSize: 12 }}
+                  onClick={() => toggleBracket(t.id)}
+                >
+                  {expanded ? 'Hide bracket' : 'Bracket'}
+                </button>
               </div>
+              {expanded && (
+                <div className="bracket-panel">
+                  <div className="bracket-panel-head">
+                    <span>
+                      Check-ins · {bracket?.checkins ?? '—'}
+                      {Array.isArray(bracket?.matches) && bracket.matches.length
+                        ? ` · ${bracket.matches.length} matches`
+                        : ''}
+                    </span>
+                    {isHost && !(bracket?.matches?.length) && (
+                      <button
+                        type="button"
+                        className="action-btn primary"
+                        style={{ padding: '6px 12px', fontSize: 11 }}
+                        disabled={bracketBusy}
+                        onClick={() => generateBracket(t.id)}
+                      >
+                        Generate bracket
+                      </button>
+                    )}
+                  </div>
+                  <BracketView
+                    tournament={t}
+                    bracket={bracket}
+                    userId={user?.id}
+                    isHost={isHost}
+                    busy={bracketBusy}
+                    onReport={(match, winnerId) => reportWinner(t.id, match, winnerId)}
+                  />
+                </div>
+              )}
             </div>
           );
         })

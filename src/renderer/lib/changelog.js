@@ -4,6 +4,20 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.2.0',
+    highlights: [
+      'Ranked seasons with season MMR on Dashboard and Leaderboard',
+      'Match lobbies — auto-pair, host lobby codes, ready timers',
+      'Tournament brackets with check-in and host results',
+      'Overlay 2.0 — party invites and lobby codes while you play',
+      'Season Pass tiers + challenges in the Shop',
+      'Clans — create, invite friends, leave / disband',
+      'AI Coach tips from sessions, ping, and W/L streaks',
+      'Verified Stats — link Riot / Steam / Tracker handles',
+      'Web Companion for chat, party, lobby codes, and check-in',
+    ],
+  },
+  {
     version: '3.1.0',
     highlights: [
       'Parties — invite friends, ready up, kick / leave / disband',

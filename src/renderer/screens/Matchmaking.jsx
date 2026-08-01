@@ -8,6 +8,7 @@ import {
 import { mmrToRank } from '../lib/ranks.js';
 import { GameIcon, hasGameIcon } from '../components/icons.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
+import LobbyPanel from '../components/LobbyPanel.jsx';
 
 const STEP_LABELS = ['1 · Game', '2 · Queue', '3 · Details'];
 
@@ -306,6 +307,7 @@ export default function Matchmaking() {
   return (
     <div>
       <PartyPanel compact />
+      <LobbyPanel game={selectedGame} mode={title} details={details} />
       <div className="mm-steps">
         {STEP_LABELS.map((label, i) => (
           <React.Fragment key={label}>

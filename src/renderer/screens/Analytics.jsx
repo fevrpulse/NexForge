@@ -4,6 +4,7 @@ import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
 import MatchResultPrompt from '../components/MatchResultPrompt.jsx';
+import CoachPanel from '../components/CoachPanel.jsx';
 
 const SESSION_SERIES = [
   { key: 'ramMb', label: 'RAM', unit: 'MB', color: '#3B7EFF' },
@@ -115,7 +116,7 @@ function SessionComparePanel({ sessions, onClear }) {
 }
 
 export default function Analytics() {
-  const { user, profile, refreshProfile, appPlatform, sessionSaveTick } = useNexForge();
+  const { user, profile, refreshProfile, appPlatform, sessionSaveTick, activeSeason, seasonRating } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [sessions, setSessions] = useState([]);
   const [expandedSession, setExpandedSession] = useState(null);
@@ -210,6 +211,7 @@ export default function Analytics() {
       )}
       <LiveSessionBanner />
       <MatchResultPrompt />
+      <CoachPanel />
 
       <div className="stats-grid">
         <div className="stat-card">
@@ -230,7 +232,11 @@ export default function Analytics() {
         <div className="stat-card">
           <div className="stat-label">MMR</div>
           <div className="stat-val neon">{(profile.mmr || 1200).toLocaleString()}</div>
-          <div className="stat-sub">{profile.main_game || 'matchmaking rating'}</div>
+          <div className="stat-sub">
+            {seasonRating?.mmr != null
+              ? `${activeSeason?.name || 'Season'} · ${seasonRating.mmr}`
+              : (profile.main_game || 'lifetime MMR')}
+          </div>
         </div>
       </div>
 

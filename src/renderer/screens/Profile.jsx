@@ -5,6 +5,7 @@ import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { AVATAR_PRESETS, bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import { isBuiltinGame } from '../lib/games.js';
+import VerifiedStatsPanel from '../components/VerifiedStatsPanel.jsx';
 
 function statBits(st) {
   const bits = [];
@@ -290,6 +291,8 @@ export default function Profile() {
           </div>
         </div>
       </div>
+
+      <VerifiedStatsPanel />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title">Main Game</div>

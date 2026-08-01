@@ -531,6 +531,7 @@ ipcMain.handle('overlay-notify', (_event, payload) => {
     return { ok: false, reason: 'app-focused' };
   }
   showOverlayMessage({
+    kind: String(payload.kind || 'message').slice(0, 24),
     sender: String(payload.sender || 'Friend').slice(0, 40),
     body: String(payload.body || '').slice(0, 120),
     image: !!payload.image,

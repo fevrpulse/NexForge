@@ -94,7 +94,18 @@
 
       const brand = document.createElement('div');
       brand.className = 'brand';
-      brand.textContent = 'NexForge Message';
+      const kind = String(msg.kind || 'message').toLowerCase();
+      brand.textContent = kind === 'party'
+        ? 'NexForge Party'
+        : kind === 'lobby'
+          ? 'NexForge Lobby'
+          : kind === 'duel'
+            ? 'NexForge Duel'
+            : 'NexForge Message';
+
+      if (kind === 'party') el.style.borderLeftColor = '#3B7EFF';
+      if (kind === 'lobby') el.style.borderLeftColor = '#FF8C42';
+      if (kind === 'duel') el.style.borderLeftColor = '#C9FF00';
 
       const sender = document.createElement('div');
       sender.className = 'sender';

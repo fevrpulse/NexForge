@@ -12,7 +12,7 @@ import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.j
 const NexForgeContext = createContext(null);
 
 /** Screens that guests cannot access — matches legacy GUEST_LOCKED behavior. */
-export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop'];
+export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans'];
 
 const GUEST_LOCKED_LABELS = {
   matchmaking: 'Matchmaking is locked in Guest Mode',
@@ -21,6 +21,7 @@ const GUEST_LOCKED_LABELS = {
   squad: 'Squad Finder requires an account',
   friends: 'Friends & messages require an account',
   shop: 'The cosmetics shop requires an account',
+  clans: 'Clans require an account',
 };
 
 const GUEST_PROFILE = {
@@ -78,6 +79,10 @@ export function NexForgeProvider({ children }) {
   const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
   const [pendingMatchLog, setPendingMatchLog] = useState(null);
   const [party, setParty] = useState(null);
+  const [clan, setClan] = useState(null);
+  const [activeSeason, setActiveSeason] = useState(null);
+  const [seasonRating, setSeasonRating] = useState(null);
+  const [battlePassXp, setBattlePassXp] = useState(null);
   // sender_id -> count of unread DMs; drives the sidebar badge + Friends screen.
   const [unreadBySender, setUnreadBySender] = useState({});
   const [dndEnabled, setDndEnabledState] = useState(() => {
@@ -239,6 +244,10 @@ export function NexForgeProvider({ children }) {
     setGuestMode(true);
     setUser(null);
     setParty(null);
+    setClan(null);
+    setActiveSeason(null);
+    setSeasonRating(null);
+    setBattlePassXp(null);
     setProfile(GUEST_PROFILE);
     setScreenState('dashboard');
   }, []);
@@ -254,6 +263,10 @@ export function NexForgeProvider({ children }) {
     setUser(null);
     setProfile(null);
     setParty(null);
+    setClan(null);
+    setActiveSeason(null);
+    setSeasonRating(null);
+    setBattlePassXp(null);
     setScreenState('dashboard');
     showToast('Signed out', 'success');
   }, [guestMode, showToast]);
@@ -497,6 +510,7 @@ export function NexForgeProvider({ children }) {
         const approxUnread = (Object.values(unreadBySender).reduce((s, n) => s + n, 0) || 0) + fresh.length;
         for (const m of fresh) {
           nf.overlayNotify({
+            kind: 'message',
             sender: tagCache[m.sender_id] || 'Friend',
             body: m.body || '',
             image: !!m.image_path,
@@ -761,6 +775,202 @@ export function NexForgeProvider({ children }) {
     };
   }, [user, guestMode, refreshParty]);
 
+  const refreshSeason = useCallback(async () => {
+    if (!user || guestMode) {
+      setActiveSeason(null);
+      setSeasonRating(null);
+      return null;
+    }
+    try {
+      const { data, error } = await sb.rpc('get_my_season_ratings');
+      if (error) throw error;
+      const season = data?.season || null;
+      const ratings = Array.isArray(data?.ratings) ? data.ratings : [];
+      const global = ratings.find((r) => r.game === '_global') || ratings[0] || null;
+      setActiveSeason(season);
+      setSeasonRating(global);
+      return data;
+    } catch (err) {
+      console.warn('get_my_season_ratings failed', err);
+      try {
+        const { data } = await sb.rpc('get_active_season');
+        setActiveSeason(data || null);
+      } catch {
+        setActiveSeason(null);
+      }
+      setSeasonRating(null);
+      return null;
+    }
+  }, [user, guestMode]);
+
+  useEffect(() => {
+    if (!user || guestMode) {
+      setActiveSeason(null);
+      setSeasonRating(null);
+      return undefined;
+    }
+    refreshSeason();
+    return undefined;
+  }, [user, guestMode, refreshSeason, profile?.mmr, profile?.wins, profile?.losses]);
+
+  const refreshClan = useCallback(async () => {
+    if (!user || guestMode) {
+      setClan(null);
+      return null;
+    }
+    try {
+      const { data, error } = await sb.rpc('get_my_clan');
+      if (error) throw error;
+      setClan(data || null);
+      return data || null;
+    } catch (err) {
+      console.warn('get_my_clan failed', err);
+      return null;
+    }
+  }, [user, guestMode]);
+
+  const runClanRpc = useCallback(async (fnName, args = {}) => {
+    const { data, error } = await sb.rpc(fnName, args);
+    if (error) throw error;
+    if (data && typeof data === 'object' && data.id) {
+      setClan(data);
+      return data;
+    }
+    await refreshClan();
+    return data;
+  }, [refreshClan]);
+
+  const createClan = useCallback(async (name, tag) => {
+    const data = await runClanRpc('create_clan', { p_name: name, p_tag: tag });
+    showToast('Clan created', 'success');
+    return data;
+  }, [runClanRpc, showToast]);
+
+  const inviteToClan = useCallback(async (friendId) => {
+    const data = await runClanRpc('invite_to_clan', { p_friend_id: friendId });
+    showToast('Clan invite sent', 'success');
+    return data;
+  }, [runClanRpc, showToast]);
+
+  const respondClanInvite = useCallback(async (clanId, accept) => {
+    const data = await runClanRpc('respond_clan_invite', {
+      p_clan_id: clanId,
+      p_accept: !!accept,
+    });
+    showToast(accept ? 'Joined clan' : 'Invite declined', 'success');
+    return data;
+  }, [runClanRpc, showToast]);
+
+  const leaveClan = useCallback(async () => {
+    await runClanRpc('leave_clan');
+    setClan(null);
+    showToast('Left clan', 'success');
+  }, [runClanRpc, showToast]);
+
+  const disbandClan = useCallback(async () => {
+    await runClanRpc('disband_clan');
+    setClan(null);
+    showToast('Clan disbanded', 'success');
+  }, [runClanRpc, showToast]);
+
+  useEffect(() => {
+    if (!user || guestMode) {
+      setClan(null);
+      return undefined;
+    }
+    let active = true;
+    const tick = async () => {
+      if (!active) return;
+      await refreshClan();
+    };
+    tick();
+    const id = setInterval(tick, 8000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [user, guestMode, refreshClan]);
+
+  const refreshBattlePassXp = useCallback(async () => {
+    if (!user || guestMode) {
+      setBattlePassXp(null);
+      return null;
+    }
+    try {
+      const { data, error } = await sb.rpc('get_my_battle_pass');
+      if (error) throw error;
+      setBattlePassXp(data?.season ? (data.xp ?? 0) : null);
+      return data;
+    } catch (err) {
+      console.warn('get_my_battle_pass failed', err);
+      setBattlePassXp(null);
+      return null;
+    }
+  }, [user, guestMode]);
+
+  useEffect(() => {
+    if (!user || guestMode) {
+      setBattlePassXp(null);
+      return undefined;
+    }
+    refreshBattlePassXp();
+    return undefined;
+  }, [user, guestMode, refreshBattlePassXp, profile?.wins, profile?.losses, activeSeason?.id]);
+
+  // Overlay 2.0 — party invites + lobby codes (click-through; respects DND).
+  const overlaySeenRef = useRef({ partyInviteKey: null, lobbyCodeKey: null });
+  useEffect(() => {
+    if (!user || guestMode) return undefined;
+    const nf = window.nexforge;
+    if (!nf?.overlayNotify) return undefined;
+
+    if (party?.my_status === 'invited' && party.id) {
+      const key = `invite:${party.id}`;
+      if (overlaySeenRef.current.partyInviteKey !== key) {
+        overlaySeenRef.current.partyInviteKey = key;
+        if (!dndRef.current) {
+          const host = (party.members || []).find((m) => m.role === 'host');
+          nf.overlayNotify({
+            kind: 'party',
+            sender: host?.gamer_tag || 'Party',
+            body: party.game
+              ? `Party invite · ${party.game}`
+              : 'Party invite — open Friends to accept',
+            unread: 0,
+          });
+        }
+      }
+    } else if (party?.my_status === 'joined') {
+      overlaySeenRef.current.partyInviteKey = null;
+    }
+
+    let cancelled = false;
+    async function pollLobbyOverlay() {
+      try {
+        const { data, error } = await sb.rpc('get_my_lobby');
+        if (error || cancelled || !data?.lobby_code) return;
+        const key = `${data.id}:${data.lobby_code}`;
+        if (overlaySeenRef.current.lobbyCodeKey === key) return;
+        overlaySeenRef.current.lobbyCodeKey = key;
+        if (dndRef.current) return;
+        nf.overlayNotify({
+          kind: 'lobby',
+          sender: data.game || 'Lobby',
+          body: `Lobby code: ${data.lobby_code}`,
+          unread: 0,
+        });
+      } catch {
+        /* overlay best-effort */
+      }
+    }
+    pollLobbyOverlay();
+    const id = setInterval(pollLobbyOverlay, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [user, guestMode, party]);
+
   const value = {
     loading,
     user,
@@ -811,6 +1021,18 @@ export function NexForgeProvider({ children }) {
     leaveParty,
     kickPartyMember,
     disbandParty,
+    clan,
+    refreshClan,
+    createClan,
+    inviteToClan,
+    respondClanInvite,
+    leaveClan,
+    disbandClan,
+    activeSeason,
+    seasonRating,
+    refreshSeason,
+    battlePassXp,
+    refreshBattlePassXp,
   };
 
   return (

@@ -3,6 +3,7 @@ import { useNexForge, GUEST_LOCKED_SCREENS } from '../context/NexForgeContext.js
 import { mmrToRank, mmrToSkillTag } from '../lib/ranks.js';
 import { NavIcon } from './icons.jsx';
 import PlayerAvatar, { GamerTag } from './PlayerAvatar.jsx';
+import { COMPANION_URL } from '../lib/companion.js';
 
 const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -13,6 +14,7 @@ const PRIMARY_NAV = [
 
 const SECONDARY_NAV = [
   { id: 'friends', label: 'Friends' },
+  { id: 'clans', label: 'Clans' },
   { id: 'shop', label: 'Shop' },
   { id: 'profile', label: 'My Profile' },
   { id: 'analytics', label: 'Analytics' },
@@ -71,6 +73,21 @@ export default function Sidebar() {
         <button className="signout-btn" onClick={signOut}>
           {guestMode ? 'Exit Guest' : 'Sign out'}
         </button>
+        {!guestMode && (
+          <button
+            className="sb-update-btn"
+            onClick={() => {
+              if (window.nexforge?.openExternalUrl) {
+                window.nexforge.openExternalUrl(COMPANION_URL);
+              } else {
+                window.open(COMPANION_URL, '_blank', 'noopener,noreferrer');
+              }
+            }}
+            title="Open the mobile/web companion for chat, party, lobby codes, and check-in"
+          >
+            Open Companion
+          </button>
+        )}
         {!guestMode && (
           <button
             className={`sb-update-btn ${dndEnabled ? 'dnd-on' : ''}`}

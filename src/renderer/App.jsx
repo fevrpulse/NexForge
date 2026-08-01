@@ -16,14 +16,16 @@ import Analytics from './screens/Analytics.jsx';
 import Squad from './screens/Squad.jsx';
 import Friends from './screens/Friends.jsx';
 import Shop from './screens/Shop.jsx';
+import Clans from './screens/Clans.jsx';
 import { NavIcon } from './components/icons.jsx';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
   matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
   tournaments: { title: 'Tournaments', badge: 'OPEN' },
-  leaderboard: { title: 'Leaderboard', badge: 'GLOBAL' },
+  leaderboard: { title: 'Leaderboard', badge: 'SEASON' },
   friends: { title: 'Friends', badge: 'SOCIAL' },
+  clans: { title: 'Clans', badge: 'CREW' },
   shop: { title: 'Cosmetics Shop', badge: 'FORGE' },
   profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
   analytics: { title: 'Analytics', badge: 'STATS' },
@@ -36,6 +38,7 @@ const SCREEN_COMPONENTS = {
   tournaments: Tournaments,
   leaderboard: Leaderboard,
   friends: Friends,
+  clans: Clans,
   shop: Shop,
   profile: Profile,
   analytics: Analytics,

@@ -6,6 +6,8 @@ import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
 import MatchResultPrompt from '../components/MatchResultPrompt.jsx';
+import CoachPanel from '../components/CoachPanel.jsx';
+import { COMPANION_URL } from '../lib/companion.js';
 
 function shortCosmeticId(id) {
   if (!id) return '—';
@@ -27,7 +29,7 @@ function formatRelativeTime(dateStr) {
 }
 
 export default function Dashboard() {
-  const { profile, user, guestMode, setScreen, showToast, createAccount, openFriendChat } = useNexForge();
+  const { profile, user, guestMode, setScreen, showToast, createAccount, openFriendChat, activeSeason, seasonRating, battlePassXp } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [friendActivity, setFriendActivity] = useState([]);
 
@@ -73,6 +75,7 @@ export default function Dashboard() {
     <div>
       <LiveSessionBanner />
       <MatchResultPrompt />
+      {!guestMode && <CoachPanel compact />}
       {!guestMode && (
         <div className={`card loadout-showcase banner-${bannerStyleKey(profile.equipped_banner)}`}>
           <PlayerAvatar profile={profile} size={88} />
@@ -81,10 +84,16 @@ export default function Dashboard() {
             <div className="loadout-showcase-meta">
               {skillTag} · {mmrToRank(profile.mmr)} · {coins.toLocaleString()} coins ·{' '}
               {shortCosmeticId(profile.equipped_frame)} / {shortCosmeticId(profile.equipped_banner)} / {shortCosmeticId(profile.equipped_nameplate)}
+              {activeSeason?.name ? ` · ${activeSeason.name}` : ''}
+              {seasonRating?.mmr != null ? ` · season ${seasonRating.mmr}` : ''}
+              {battlePassXp != null ? ` · pass ${battlePassXp} XP` : ''}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <span className={`badge ${skillTagClass(skillTag)}`}>{skillTag}</span>
               <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
+              {activeSeason?.name && (
+                <span className="badge season-badge">{activeSeason.name}</span>
+              )}
               <button className="action-btn ghost" style={{ padding: '6px 12px' }} onClick={() => setScreen('shop')}>
                 Customize
               </button>
@@ -98,7 +107,13 @@ export default function Dashboard() {
           <div className="stat-val neon" style={guestMode ? { filter: 'blur(4px)' } : undefined}>
             {guestMode ? '???' : (profile.mmr || 1200).toLocaleString()}
           </div>
-          <div className="stat-sub up">Your rank score</div>
+          <div className="stat-sub up">
+            {guestMode
+              ? 'Your rank score'
+              : seasonRating?.mmr != null
+                ? `Lifetime · season ${seasonRating.mmr}`
+                : 'Lifetime career MMR'}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Win Rate</div>
@@ -211,6 +226,21 @@ export default function Dashboard() {
               <button className="action-btn ghost full" style={{ padding: 9 }} onClick={() => setScreen('tournaments')}>
                 Browse Tournaments
               </button>
+              {!guestMode && (
+                <button
+                  className="action-btn ghost full"
+                  style={{ padding: 9 }}
+                  onClick={() => {
+                    if (window.nexforge?.openExternalUrl) {
+                      window.nexforge.openExternalUrl(COMPANION_URL);
+                    } else {
+                      window.open(COMPANION_URL, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                >
+                  Open Companion
+                </button>
+              )}
             </div>
           </div>
         </div>
