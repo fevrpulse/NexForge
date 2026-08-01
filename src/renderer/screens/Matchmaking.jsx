@@ -86,15 +86,39 @@ export default function Matchmaking() {
 
   const refreshDuels = useCallback(async () => {
     try {
-      const { data, error } = await sb
-        .from('duels')
-        .select('*')
-        .in('status', ['open', 'active'])
-        .order('created_at', { ascending: false })
-        .limit(40);
-      if (error) throw error;
+      // Prefer RPC that auto-cancels open queues older than 5 minutes.
+      let all = null;
+      const { data: rpcData, error: rpcErr } = await sb.rpc('list_open_duels', { p_limit: 40 });
+      if (!rpcErr && Array.isArray(rpcData)) {
+        all = rpcData;
+      } else {
+        const { data, error } = await sb
+          .from('duels')
+          .select('*')
+          .in('status', ['open', 'active'])
+          .order('created_at', { ascending: false })
+          .limit(40);
+        if (error) throw error;
+        const cutoff = Date.now() - 5 * 60 * 1000;
+        all = (data || []).filter((d) => {
+          if (d.status !== 'open') return true;
+          const t = d.created_at ? new Date(d.created_at).getTime() : 0;
+          return t >= cutoff;
+        });
+        // Best-effort: cancel my own stale open queue.
+        if (user) {
+          const staleMine = (data || []).find((d) => (
+            d.status === 'open'
+            && d.host_id === user.id
+            && d.created_at
+            && new Date(d.created_at).getTime() < cutoff
+          ));
+          if (staleMine) {
+            await sb.rpc('cancel_duel', { p_duel_id: staleMine.id }).catch(() => {});
+          }
+        }
+      }
       setCloudOffline(false);
-      const all = data || [];
       setOpenQueues(all.filter((d) => d.status === 'open'));
       if (user) {
         const mineOpen = all.find((d) => d.status === 'open' && d.host_id === user.id);
@@ -464,7 +488,18 @@ export default function Matchmaking() {
                 {myOpenDuel && (
                   <div className="dots show">
                     <div className="dot" /><div className="dot" /><div className="dot" />
-                    <span className="mm-timer">Waiting for challenger…</span>
+                    <span className="mm-timer">
+                      Waiting for challenger
+                      {myOpenDuel.created_at ? (() => {
+                        const left = Math.max(
+                          0,
+                          Math.ceil((new Date(myOpenDuel.created_at).getTime() + 5 * 60 * 1000 - Date.now()) / 1000),
+                        );
+                        const m = Math.floor(left / 60);
+                        const s = String(left % 60).padStart(2, '0');
+                        return ` · ${m}:${s} left`;
+                      })() : '…'}
+                    </span>
                   </div>
                 )}
               </div>

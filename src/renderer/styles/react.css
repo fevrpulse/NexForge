@@ -595,3 +595,24 @@
 .verified-empty{font-family:var(--mono);font-size:11px;color:var(--muted2);padding:8px 0}
 .verified-badge-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 
+.clan-tag-prefix{
+  color:var(--neon);font-family:var(--mono);font-weight:800;letter-spacing:.04em;
+}
+.clan-tabs{display:flex;gap:8px;margin-bottom:14px}
+.clan-check{
+  display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--muted2);cursor:pointer;
+}
+.clan-browse-list{display:flex;flex-direction:column;gap:10px}
+.clan-browse-row{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:10px 0;border-bottom:1px solid var(--border);
+}
+.clan-browse-row:last-child{border-bottom:none}
+.clan-browse-name{font-size:14px;font-weight:700}
+.clan-reward-box{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  margin:12px 0 14px;padding:12px;border-radius:10px;border:1px solid rgba(201,255,0,.28);
+  background:rgba(201,255,0,.06);
+}
+.clan-reward-title{font-size:13px;font-weight:800;margin-bottom:4px}
+

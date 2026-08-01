@@ -463,7 +463,7 @@ begin
   ) values (
     g, mmode, 'open', uid, reg, det, tsize,
     my_mmr, greatest(800, my_mmr - band), my_mmr + band, sid,
-    now() + interval '15 minutes'
+    now() + interval '5 minutes'
   )
   returning id into lid;
 

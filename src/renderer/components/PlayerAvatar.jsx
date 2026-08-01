@@ -58,8 +58,11 @@ export default function PlayerAvatar({
 
 export function GamerTag({ profile, className = '' }) {
   const plate = nameplateStyleKey(profile?.equipped_nameplate);
+  const clanTag = profile?.clan_tag ? String(profile.clan_tag).trim().toUpperCase() : '';
   return (
     <span className={`gamer-tag-text nameplate-${plate} ${className}`}>
+      {clanTag ? <span className="clan-tag-prefix">[{clanTag}]</span> : null}
+      {clanTag ? ' ' : ''}
       {profile?.gamer_tag || 'Player'}
     </span>
   );

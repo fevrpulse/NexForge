@@ -38,6 +38,7 @@ export default function LobbyPanel({ game, mode, details }) {
       if (data?.lobby_code) setCodeDraft(data.lobby_code);
     } catch (err) {
       console.warn('get_my_lobby failed', err);
+      await reportCloudError(err);
     }
   }
 
@@ -99,6 +100,7 @@ export default function LobbyPanel({ game, mode, details }) {
 
   const codeSec = secondsLeft(lobby?.code_deadline_at);
   const readySec = secondsLeft(lobby?.ready_deadline_at);
+  const queueSec = lobby?.status === 'open' ? secondsLeft(lobby?.expires_at) : null;
   void tick;
 
   return (
@@ -107,7 +109,7 @@ export default function LobbyPanel({ game, mode, details }) {
         <div>
           <div className="card-title" style={{ marginBottom: 4 }}>Match Lobby</div>
           <div className="lobby-panel-sub">
-            Auto-match by MMR · you host the in-game lobby code
+            Auto-match by MMR · queues expire after 5 minutes
           </div>
         </div>
       </div>
@@ -130,7 +132,7 @@ export default function LobbyPanel({ game, mode, details }) {
               !partyReady
                 ? 'Party must be fully ready'
                 : !isPartyHost
-                  ? 'Only the party host can queue'
+                  ? 'Only the party host can queue the party'
                   : 'Queue your ready party together'
             }
             onClick={() => findLobby(true)}
@@ -148,6 +150,11 @@ export default function LobbyPanel({ game, mode, details }) {
             </span>
           </div>
 
+          {queueSec != null && (
+            <div className="lobby-timer">
+              Queue closes in {Math.floor(queueSec / 60)}:{String(queueSec % 60).padStart(2, '0')}
+            </div>
+          )}
           {(lobby.status === 'forming' || lobby.status === 'open') && codeSec != null && lobby.status === 'forming' && (
             <div className="lobby-timer">Host: paste lobby code · {codeSec}s</div>
           )}

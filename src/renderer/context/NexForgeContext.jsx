@@ -697,9 +697,10 @@ export function NexForgeProvider({ children }) {
     } catch (err) {
       // Don't flip the whole app offline for a missing party RPC.
       console.warn('get_my_party failed', err);
+      await reportCloudError(err);
       return null;
     }
-  }, [user, guestMode]);
+  }, [user, guestMode, reportCloudError]);
 
   const runPartyRpc = useCallback(async (fnName, args = {}) => {
     const { data, error } = await sb.rpc(fnName, args);
@@ -825,9 +826,10 @@ export function NexForgeProvider({ children }) {
       return data || null;
     } catch (err) {
       console.warn('get_my_clan failed', err);
+      await reportCloudError(err);
       return null;
     }
-  }, [user, guestMode]);
+  }, [user, guestMode, reportCloudError]);
 
   const runClanRpc = useCallback(async (fnName, args = {}) => {
     const { data, error } = await sb.rpc(fnName, args);
@@ -840,11 +842,17 @@ export function NexForgeProvider({ children }) {
     return data;
   }, [refreshClan]);
 
-  const createClan = useCallback(async (name, tag) => {
-    const data = await runClanRpc('create_clan', { p_name: name, p_tag: tag });
+  const createClan = useCallback(async (name, tag, minMmr = 0, isOpen = true) => {
+    const data = await runClanRpc('create_clan', {
+      p_name: name,
+      p_tag: tag,
+      p_min_mmr: Number(minMmr) || 0,
+      p_is_open: !!isOpen,
+    });
     showToast('Clan created', 'success');
+    await refreshProfile();
     return data;
-  }, [runClanRpc, showToast]);
+  }, [runClanRpc, showToast, refreshProfile]);
 
   const inviteToClan = useCallback(async (friendId) => {
     const data = await runClanRpc('invite_to_clan', { p_friend_id: friendId });
@@ -858,20 +866,50 @@ export function NexForgeProvider({ children }) {
       p_accept: !!accept,
     });
     showToast(accept ? 'Joined clan' : 'Invite declined', 'success');
+    await refreshProfile();
     return data;
-  }, [runClanRpc, showToast]);
+  }, [runClanRpc, showToast, refreshProfile]);
 
   const leaveClan = useCallback(async () => {
     await runClanRpc('leave_clan');
     setClan(null);
     showToast('Left clan', 'success');
-  }, [runClanRpc, showToast]);
+    await refreshProfile();
+  }, [runClanRpc, showToast, refreshProfile]);
 
   const disbandClan = useCallback(async () => {
     await runClanRpc('disband_clan');
     setClan(null);
     showToast('Clan disbanded', 'success');
+    await refreshProfile();
+  }, [runClanRpc, showToast, refreshProfile]);
+
+  const joinClan = useCallback(async (clanId) => {
+    const data = await runClanRpc('join_clan', { p_clan_id: clanId });
+    showToast('Joined clan', 'success');
+    await refreshProfile();
+    return data;
+  }, [runClanRpc, showToast, refreshProfile]);
+
+  const updateClanSettings = useCallback(async ({ minMmr, isOpen, description } = {}) => {
+    const data = await runClanRpc('update_clan_settings', {
+      p_min_mmr: minMmr == null ? null : Number(minMmr),
+      p_is_open: isOpen == null ? null : !!isOpen,
+      p_description: description == null ? null : description,
+    });
+    showToast('Clan settings saved', 'success');
+    return data;
   }, [runClanRpc, showToast]);
+
+  const claimClanReward = useCallback(async () => {
+    const { data, error } = await sb.rpc('claim_clan_reward');
+    if (error) throw error;
+    if (data?.clan) setClan(data.clan);
+    else await refreshClan();
+    await refreshProfile();
+    showToast(`+${data?.coins || 0} clan coins`, 'success');
+    return data;
+  }, [refreshClan, refreshProfile, showToast]);
 
   useEffect(() => {
     if (!user || guestMode) {
@@ -1028,6 +1066,9 @@ export function NexForgeProvider({ children }) {
     respondClanInvite,
     leaveClan,
     disbandClan,
+    joinClan,
+    updateClanSettings,
+    claimClanReward,
     activeSeason,
     seasonRating,
     refreshSeason,

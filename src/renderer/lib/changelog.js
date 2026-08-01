@@ -4,6 +4,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.3.0',
+    highlights: [
+      'Open clan join with min MMR gates and clan settings',
+      'Clan tags on names plus a Clans leaderboard',
+      'Clan join bonus and weekly clan rewards',
+      'Match / duel queues expire after 5 minutes',
+      'Supabase hardening for tournaments and internal RPCs',
+    ],
+  },
+  {
     version: '3.2.0',
     highlights: [
       'Ranked seasons with season MMR on Dashboard and Leaderboard',

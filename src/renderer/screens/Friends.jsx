@@ -333,7 +333,7 @@ export default function Friends() {
       if (otherIds.length) {
         const { data: profs, error: pErr } = await sb
           .from('profiles')
-          .select('id,gamer_tag,mmr,main_game,platform,last_seen_at,playing_game,custom_status,avatar_path,equipped_frame,equipped_banner,equipped_nameplate')
+          .select('id,gamer_tag,mmr,main_game,platform,last_seen_at,playing_game,custom_status,avatar_path,equipped_frame,equipped_banner,equipped_nameplate,clan_tag')
           .in('id', otherIds);
         if (pErr) throw pErr;
         setProfiles((prev) => {

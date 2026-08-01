@@ -2,16 +2,41 @@
 -- Run in Supabase SQL editor after combat-stats.sql / duels.sql
 
 -- 1) TOURNAMENTS: public browse without bank/PII
+-- Prefer v141-supabase-hardening.sql for the current tournaments lockdown.
+-- Public browse uses security_invoker + column grants (no bank PII via SELECT).
+revoke all on table public.tournaments from anon, authenticated;
+
+grant select (
+  id, host_id, host_tag, name, game, format, max_slots, starts_at, rules,
+  prize_type, cash_amount, inapp_reward, status, registrations, created_at,
+  bank_account_last4
+) on table public.tournaments to anon, authenticated;
+
+grant insert (
+  id, host_id, host_tag, name, game, format, max_slots, starts_at, rules,
+  prize_type, cash_amount, inapp_reward, status, registrations, created_at,
+  bank_holder, bank_name, bank_routing, bank_account, bank_account_last4,
+  bank_type, bank_country, payout_email, payout_phone
+) on table public.tournaments to authenticated;
+
+grant update (
+  host_tag, name, game, format, max_slots, starts_at, rules,
+  prize_type, cash_amount, inapp_reward, status, registrations,
+  bank_holder, bank_name, bank_routing, bank_account, bank_account_last4,
+  bank_type, bank_country, payout_email, payout_phone
+) on table public.tournaments to authenticated;
+
 drop policy if exists "Anyone can view tournaments" on public.tournaments;
-
+drop policy if exists "Anyone can browse tournaments" on public.tournaments;
 drop policy if exists "Hosts can view own tournaments full" on public.tournaments;
-create policy "Hosts can view own tournaments full"
+create policy "Anyone can browse tournaments"
   on public.tournaments for select
-  to authenticated
-  using (auth.uid() = host_id);
+  to anon, authenticated
+  using (true);
 
-create or replace view public.tournaments_public
-with (security_invoker = false)
+drop view if exists public.tournaments_public;
+create view public.tournaments_public
+with (security_invoker = true)
 as
 select
   t.id,
@@ -29,15 +54,7 @@ select
   t.status,
   t.registrations,
   t.created_at,
-  t.bank_account_last4,
-  case when auth.uid() = t.host_id then t.bank_holder else null end as bank_holder,
-  case when auth.uid() = t.host_id then t.bank_name else null end as bank_name,
-  case when auth.uid() = t.host_id then t.bank_routing else null end as bank_routing,
-  case when auth.uid() = t.host_id then t.bank_account else null end as bank_account,
-  case when auth.uid() = t.host_id then t.bank_type else null end as bank_type,
-  case when auth.uid() = t.host_id then t.bank_country else null end as bank_country,
-  case when auth.uid() = t.host_id then t.payout_email else null end as payout_email,
-  case when auth.uid() = t.host_id then t.payout_phone else null end as payout_phone
+  t.bank_account_last4
 from public.tournaments t;
 
 grant select on public.tournaments_public to anon, authenticated;
