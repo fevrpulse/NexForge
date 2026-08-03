@@ -86,6 +86,20 @@
     }
     .hidden { display: none !important; }
     .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+    .ai-log {
+      display: flex; flex-direction: column; gap: 10px; max-height: 52dvh; overflow-y: auto;
+      padding: 4px 2px 12px;
+    }
+    .ai-bubble {
+      max-width: 92%; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.45;
+      background: var(--panel); border: 1px solid var(--border); white-space: pre-wrap; word-break: break-word;
+    }
+    .ai-bubble.mine {
+      align-self: flex-end; background: rgba(201,255,0,.12); border-color: rgba(201,255,0,.28);
+    }
+    .ai-bubble.bot { align-self: flex-start; }
+    .ai-compose { display: flex; gap: 8px; margin-top: 8px; }
+    .ai-compose input { flex: 1; }
   </style>
 </head>
 <body>
@@ -125,6 +139,12 @@
       <div id="party-body"></div>
     </div>
 
+    <div id="ai-view" class="hidden">
+      <div class="logo">Nex<span>Panion</span></div>
+      <div class="tag">AI companion · gaming tips & anything else</div>
+      <div id="ai-body"></div>
+    </div>
+
     <div id="events-view" class="hidden">
       <div class="logo">Events</div>
       <div class="tag">Tournament check-in</div>
@@ -135,6 +155,7 @@
   <nav class="nav" id="nav">
     <button type="button" data-tab="home" class="active">Home</button>
     <button type="button" data-tab="inbox">Inbox</button>
+    <button type="button" data-tab="ai">NexPanion</button>
     <button type="button" data-tab="party">Party</button>
     <button type="button" data-tab="events">Events</button>
   </nav>
@@ -150,12 +171,17 @@
     let home = null;
     let tab = 'home';
     let pollId = null;
+    let aiBusy = false;
+    let aiMsgs = [
+      { role: 'assistant', content: "Hey — I'm NexPanion. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
+    ];
 
     const $ = (id) => document.getElementById(id);
     const views = {
       auth: $('auth-view'),
       home: $('home-view'),
       inbox: $('inbox-view'),
+      ai: $('ai-view'),
       party: $('party-view'),
       events: $('events-view'),
     };
@@ -217,7 +243,7 @@
             <h2 style="margin:0">Alerts</h2>
             <span class="pill ${home.unread_count ? 'neon' : ''}">${home.unread_count || 0} unread</span>
           </div>
-          <p class="muted" style="margin-top:8px">Desktop owns tracking & overlay. Companion is for chat, party, lobby codes, and check-in.</p>
+          <p class="muted" style="margin-top:8px">Desktop owns tracking & overlay. Companion is for chat, NexPanion AI, party, lobby codes, and check-in.</p>
         </div>
         ${coach ? `
           <div class="card">
@@ -332,12 +358,67 @@
         </div>`).join('')}</div>`;
     }
 
-    function render() {
-      if (!home && tab !== 'auth') {
-        // still render shells
+    function renderAi() {
+      const body = $('ai-body');
+      body.innerHTML = `
+        <div class="card">
+          <div class="ai-log" id="ai-log">
+            ${aiMsgs.map((m) => `
+              <div class="ai-bubble ${m.role === 'user' ? 'mine' : 'bot'}">${esc(m.content)}</div>
+            `).join('')}
+          </div>
+          <div class="ai-compose">
+            <input id="ai-input" type="text" maxlength="2000" placeholder="Ask NexPanion…" ${aiBusy ? 'disabled' : ''} />
+            <button class="btn" type="button" id="ai-send" ${aiBusy ? 'disabled' : ''}>${aiBusy ? '…' : 'Send'}</button>
+          </div>
+          <div class="actions">
+            <button class="btn ghost" type="button" id="ai-clear">Clear chat</button>
+          </div>
+          <div class="msg" id="ai-msg"></div>
+        </div>`;
+      const log = $('ai-log');
+      if (log) log.scrollTop = log.scrollHeight;
+      const input = $('ai-input');
+      if (input && !aiBusy) input.focus();
+    }
+
+    async function sendAi() {
+      const input = $('ai-input');
+      if (!input || aiBusy) return;
+      const text = input.value.trim();
+      if (!text) return;
+      aiBusy = true;
+      aiMsgs = [...aiMsgs, { role: 'user', content: text }];
+      renderAi();
+      try {
+        const history = aiMsgs
+          .slice(0, -1)
+          .filter((m, i) => !(i === 0 && m.role === 'assistant'))
+          .slice(-16)
+          .map((m) => ({ role: m.role, content: m.content }));
+        const { data, error } = await sb.functions.invoke('nexpanion-chat', {
+          body: { message: text, history },
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        const reply = String(data?.reply || '').trim();
+        if (!reply) throw new Error('Empty reply');
+        aiMsgs = [...aiMsgs, { role: 'assistant', content: reply }];
+      } catch (err) {
+        aiMsgs = [...aiMsgs, {
+          role: 'assistant',
+          content: `Sorry — ${err?.message || 'NexPanion is unavailable right now.'}`,
+        }];
+      } finally {
+        aiBusy = false;
+        renderAi();
       }
+    }
+
+    function render() {
       if (tab === 'home') renderHome();
       if (tab === 'inbox') renderInbox();
+      if (tab === 'ai') renderAi();
       if (tab === 'party') renderParty();
       if (tab === 'events') renderEvents();
     }
@@ -451,6 +532,24 @@
           await sb.from('messages').update({ read_at: new Date().toISOString() }).in('id', ids);
           await refreshHome();
         }
+        return;
+      }
+      if (t.id === 'ai-send') {
+        await sendAi();
+        return;
+      }
+      if (t.id === 'ai-clear') {
+        aiMsgs = [
+          { role: 'assistant', content: "Hey — I'm NexPanion. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
+        ];
+        renderAi();
+      }
+    });
+
+    document.body.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && e.target && e.target.id === 'ai-input') {
+        e.preventDefault();
+        sendAi();
       }
     });
 

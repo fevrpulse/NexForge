@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.5.0',
+    highlights: [
+      'NexPanion AI — always available in Friends chat, powered by Groq',
+      'NexPanion tab in the mobile/web Companion for tips while you play',
+      'Gaming-focused answers with help on anything else too',
+    ],
+  },
+  {
     version: '3.3.10',
     highlights: [
       'Communities tab — Discord-style servers with text & voice channels',

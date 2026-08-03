@@ -94,6 +94,9 @@
 .friend-actions{display:flex;gap:6px;flex-shrink:0}
 .friend-mini-btn{padding:5px 11px!important;font-size:11px!important;flex-shrink:0}
 .friend-hint{font-family:var(--mono);font-size:10px;color:var(--muted2);flex-shrink:0}
+.nexpanion-row .friend-hint{
+  color:var(--neon);border:1px solid rgba(201,255,0,.35);border-radius:8px;padding:2px 7px;
+}
 .friends-empty{
   font-family:var(--mono);font-size:11px;color:var(--muted2);
   padding:14px 4px;text-align:center;line-height:1.6;
