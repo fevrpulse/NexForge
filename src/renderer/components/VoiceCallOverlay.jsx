@@ -97,10 +97,12 @@ export function VoiceCallProvider({ children }) {
         if (next.state === 'ringing') {
           playRingtone();
           try {
+            window.nexforge?.showMainWindow?.();
             window.nexforge?.overlayNotify?.({
               kind: 'call',
               sender: 'Incoming call',
               body: 'Open NexForge to Accept or Decline',
+              force: true,
             });
           } catch { /* ignore */ }
         }

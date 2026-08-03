@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.3.6',
+    highlights: [
+      'More reliable voice calls — ICE candidates no longer dropped while ringing',
+      'Incoming calls bring NexForge to the front',
+    ],
+  },
+  {
     version: '3.3.4',
     highlights: [
       'Fixed a crash on launch that showed "Something went wrong" on v3.3.2 / v3.3.3',

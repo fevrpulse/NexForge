@@ -533,6 +533,14 @@ ipcMain.handle('get-app-info', () => ({
   packaged: app.isPackaged,
 }));
 
+ipcMain.handle('show-main-window', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+  return { ok: true };
+});
+
 ipcMain.handle('overlay-notify', (_event, payload) => {
   if (!payload || typeof payload !== 'object') return { ok: false, reason: 'bad-payload' };
   const force = !!payload.force;

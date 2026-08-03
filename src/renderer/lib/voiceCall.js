@@ -12,6 +12,10 @@ function callId() {
   return `call_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+function channelName(userId) {
+  return `nf-call-${userId}`;
+}
+
 /**
  * 1:1 voice calls via WebRTC + Supabase Realtime broadcast inboxes.
  * Each user listens on `nf-call-{userId}`; signals are sent to the peer's inbox.
@@ -28,6 +32,10 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let ringTimer = null;
   let muted = false;
   let audioEl = null;
+  let pendingOffer = null;
+  /** ICE that arrived before remote description / before PC existed. */
+  let pendingIce = [];
+  let remoteReady = false;
 
   function emit(patch = {}) {
     onState?.({
@@ -57,7 +65,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     if (audioEl) return audioEl;
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
-    audioEl.playsInline = true;
+    audioEl.setAttribute('playsinline', 'true');
     audioEl.style.display = 'none';
     document.body.appendChild(audioEl);
     return audioEl;
@@ -76,8 +84,21 @@ export function createVoiceCallController({ userId, onState, onError }) {
     return stream;
   }
 
+  async function flushPendingIce() {
+    if (!pc || !remoteReady || !pendingIce.length) return;
+    const queued = pendingIce.splice(0, pendingIce.length);
+    for (const candidate of queued) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      } catch {
+        /* stale candidates are fine */
+      }
+    }
+  }
+
   function createPc() {
     const conn = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    remoteReady = false;
     conn.onicecandidate = (ev) => {
       if (!ev.candidate || !peerId || !activeCallId) return;
       send(peerId, {
@@ -88,7 +109,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
       }).catch(() => {});
     };
     conn.ontrack = (ev) => {
-      remoteStream = ev.streams[0] || new MediaStream([ev.track]);
+      remoteStream = ev.streams?.[0] || new MediaStream([ev.track]);
       const el = ensureAudioEl();
       el.srcObject = remoteStream;
       el.play().catch(() => {});
@@ -96,26 +117,32 @@ export function createVoiceCallController({ userId, onState, onError }) {
     };
     conn.onconnectionstatechange = () => {
       const cs = conn.connectionState;
-      if (cs === 'connected') setState('connected');
-      if (cs === 'failed' || cs === 'disconnected' || cs === 'closed') {
+      if (cs === 'connected') {
+        clearRingTimer();
+        setState('connected');
+      }
+      // Do not hang up on transient "disconnected" — ICE restarts often recover.
+      if (cs === 'failed') {
         if (state !== 'idle') {
-          hangup({ notify: cs === 'failed' }).catch(() => {});
+          hangup({ notify: true }).catch(() => {});
+          onError?.(new Error('Call connection failed'));
         }
       }
     };
     return conn;
   }
 
-  async function subscribePeer(targetId) {
-    if (peerChannel) {
-      try { await sb.removeChannel(peerChannel); } catch { /* ignore */ }
-      peerChannel = null;
-    }
-    const ch = sb.channel(`nf-call-${targetId}`, {
-      config: { broadcast: { self: false } },
+  async function openChannel(targetId) {
+    const topic = channelName(targetId);
+    // Reuse an existing client channel for this topic when possible.
+    const existing = sb.getChannels?.().find((c) => String(c.topic || '').endsWith(topic));
+    if (existing && existing.state === 'joined') return existing;
+
+    const ch = sb.channel(topic, {
+      config: { broadcast: { self: false, ack: false } },
     });
     await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('Call channel timeout')), 8000);
+      const t = setTimeout(() => reject(new Error('Call channel timeout')), 10000);
       ch.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           clearTimeout(t);
@@ -127,35 +154,33 @@ export function createVoiceCallController({ userId, onState, onError }) {
         }
       });
     });
-    peerChannel = ch;
     return ch;
   }
 
+  async function subscribePeer(targetId) {
+    if (peerChannel) {
+      const same = String(peerChannel.topic || '').includes(targetId);
+      if (same && peerChannel.state === 'joined') return peerChannel;
+      try { await sb.removeChannel(peerChannel); } catch { /* ignore */ }
+      peerChannel = null;
+    }
+    peerChannel = await openChannel(targetId);
+    return peerChannel;
+  }
+
   async function send(targetId, payload) {
-    // Prefer an already-open peer channel; otherwise open briefly.
     let ch = peerChannel;
     let ephemeral = false;
-    if (!ch || !String(ch.topic || '').includes(targetId)) {
-      ch = sb.channel(`nf-call-${targetId}`, {
-        config: { broadcast: { self: false } },
-      });
-      ephemeral = true;
-      await new Promise((resolve, reject) => {
-        const t = setTimeout(() => reject(new Error('Signal timeout')), 8000);
-        ch.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            clearTimeout(t);
-            resolve();
-          }
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            clearTimeout(t);
-            reject(new Error('Signal failed'));
-          }
-        });
-      });
+    if (!ch || !String(ch.topic || '').includes(targetId) || ch.state !== 'joined') {
+      ch = await openChannel(targetId);
+      ephemeral = ch !== peerChannel;
+      if (!peerChannel) peerChannel = ch;
     }
-    await ch.send({ type: 'broadcast', event: 'signal', payload });
-    if (ephemeral) {
+    const result = await ch.send({ type: 'broadcast', event: 'signal', payload });
+    if (result === 'timed out' || result === 'error') {
+      throw new Error('Could not deliver call signal');
+    }
+    if (ephemeral && ch !== peerChannel) {
       try { await sb.removeChannel(ch); } catch { /* ignore */ }
     }
   }
@@ -175,9 +200,10 @@ export function createVoiceCallController({ userId, onState, onError }) {
       }
       peerId = payload.from;
       activeCallId = payload.callId;
+      pendingOffer = payload.sdp;
+      pendingIce = [];
+      remoteReady = false;
       setState('ringing');
-      // stash remote offer until accept
-      handleSignal._pendingOffer = payload.sdp;
       return;
     }
 
@@ -185,16 +211,23 @@ export function createVoiceCallController({ userId, onState, onError }) {
       if (!pc || payload.callId !== activeCallId) return;
       clearRingTimer();
       await pc.setRemoteDescription(payload.sdp);
+      remoteReady = true;
+      await flushPendingIce();
       setState('connecting');
       return;
     }
 
     if (payload.type === 'ice') {
-      if (!pc || payload.callId !== activeCallId || !payload.candidate) return;
+      if (payload.callId !== activeCallId || !payload.candidate) return;
+      // Queue until we have a PC + remote description (common while still ringing).
+      if (!pc || !remoteReady) {
+        pendingIce.push(payload.candidate);
+        return;
+      }
       try {
-        await pc.addIceCandidate(payload.candidate);
+        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
       } catch {
-        /* late/failed candidates are fine */
+        /* ignore */
       }
       return;
     }
@@ -216,6 +249,9 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
     peerId = targetId;
     activeCallId = callId();
+    pendingIce = [];
+    remoteReady = false;
+    pendingOffer = null;
     setState('calling');
 
     try {
@@ -248,8 +284,8 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
   async function accept() {
     if (state !== 'ringing' || !peerId) return;
-    const offer = handleSignal._pendingOffer;
-    handleSignal._pendingOffer = null;
+    const offer = pendingOffer;
+    pendingOffer = null;
     if (!offer) throw new Error('Missing call offer');
 
     setState('connecting');
@@ -259,6 +295,8 @@ export function createVoiceCallController({ userId, onState, onError }) {
       pc = createPc();
       localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
       await pc.setRemoteDescription(offer);
+      remoteReady = true;
+      await flushPendingIce();
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       await send(peerId, {
@@ -295,13 +333,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
     emit();
   }
 
-  async function hangup({ notify = true, reason = 'hangup' } = {}) {
+  async function hangup({ notify = true } = {}) {
     clearRingTimer();
     const target = peerId;
     const id = activeCallId;
 
     if (notify && target && id) {
-      await send(target, { type: reason === 'timeout' ? 'hangup' : 'hangup', callId: id, from: userId }).catch(() => {});
+      await send(target, { type: 'hangup', callId: id, from: userId }).catch(() => {});
     }
 
     if (pc) {
@@ -317,28 +355,41 @@ export function createVoiceCallController({ userId, onState, onError }) {
       audioEl.srcObject = null;
     }
     if (peerChannel) {
-      try { await sb.removeChannel(peerChannel); } catch { /* ignore */ }
+      // Never remove the inbox channel if it happens to be the same reference.
+      if (peerChannel !== inbox) {
+        try { await sb.removeChannel(peerChannel); } catch { /* ignore */ }
+      }
       peerChannel = null;
     }
     peerId = null;
     activeCallId = null;
-    handleSignal._pendingOffer = null;
+    pendingOffer = null;
+    pendingIce = [];
+    remoteReady = false;
     muted = false;
     setState('idle');
   }
 
   async function startInbox() {
     if (!userId || inbox) return;
-    const ch = sb.channel(`nf-call-${userId}`, {
-      config: { broadcast: { self: false } },
+    const topic = channelName(userId);
+    const ch = sb.channel(topic, {
+      config: { broadcast: { self: false, ack: false } },
     });
+    // Handlers must be registered before subscribe or early signals are missed.
     ch.on('broadcast', { event: 'signal' }, ({ payload }) => {
       handleSignal(payload).catch((err) => onError?.(err));
     });
-    await new Promise((resolve) => {
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('Call inbox timeout')), 10000);
       ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          resolve(status);
+        if (status === 'SUBSCRIBED') {
+          clearTimeout(t);
+          resolve();
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          clearTimeout(t);
+          reject(new Error('Could not join call inbox'));
         }
       });
     });
