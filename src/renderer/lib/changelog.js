@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.3.2',
+    highlights: [
+      'Voice Call button on Friends — ring a friend in-app',
+      'Accept / Decline overlay with mute and end controls',
+      'In-game overlay ping for incoming calls',
+    ],
+  },
+  {
     version: '3.3.1',
     highlights: [
       'Download NexForge.exe — one-click install, no admin needed',

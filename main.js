@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, screen, globalShortcut, session } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -557,6 +557,19 @@ ipcMain.on('overlay-empty', () => {
 
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
+
+  // Allow microphone for 1:1 voice calls (getUserMedia).
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
+    if (permission === 'media' || permission === 'microphone' || permission === 'audioCapture') {
+      callback(true);
+      return;
+    }
+    callback(false);
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
+    return permission === 'media' || permission === 'microphone' || permission === 'audioCapture';
+  });
+
   await startAuthServer();
   createWindow();
   setupTray();

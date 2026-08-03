@@ -17,7 +17,7 @@ import Squad from './screens/Squad.jsx';
 import Friends from './screens/Friends.jsx';
 import Shop from './screens/Shop.jsx';
 import Clans from './screens/Clans.jsx';
-import { NavIcon } from './components/icons.jsx';
+import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
@@ -120,7 +120,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <NexForgeProvider>
-        <AppShell />
+        <VoiceCallProvider>
+          <AppShell />
+        </VoiceCallProvider>
       </NexForgeProvider>
     </ErrorBoundary>
   );

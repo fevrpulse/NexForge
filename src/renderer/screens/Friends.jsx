@@ -5,6 +5,7 @@ import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
+import { useVoiceCall } from '../components/VoiceCallOverlay.jsx';
 import { formatDuration } from '../lib/format.js';
 
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
@@ -63,7 +64,7 @@ function SkillTagBadge({ mmr, small = false }) {
   );
 }
 
-function FriendProfileModal({ data, loading, onClose, onMessage, showToast, myId, onBlock, onReport }) {
+function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToast, myId, onBlock, onReport }) {
   const p = data?.profile;
   const matches = data?.matches || [];
   const sessions = data?.sessions || [];
@@ -129,6 +130,11 @@ function FriendProfileModal({ data, loading, onClose, onMessage, showToast, myId
                 {onMessage && (
                   <button className="action-btn primary friend-mini-btn" onClick={onMessage}>
                     Message
+                  </button>
+                )}
+                {onCall && (
+                  <button className="action-btn ghost friend-mini-btn" onClick={onCall}>
+                    Call
                   </button>
                 )}
               </div>
@@ -278,6 +284,7 @@ export default function Friends() {
     party,
     inviteToParty,
   } = useNexForge();
+  const { startCall, call, inCall } = useVoiceCall() || {};
   const myId = user?.id;
 
   const [rows, setRows] = useState([]);
@@ -1107,6 +1114,14 @@ export default function Friends() {
                 Profile
               </button>
               <button
+                className="action-btn primary friend-mini-btn"
+                onClick={() => startCall?.(selectedId)}
+                disabled={!selectedId || (inCall && call?.peerId !== selectedId)}
+                title={isOnline(selectedProfile) ? 'Start a voice call' : 'Friend may be offline — call anyway'}
+              >
+                {inCall && call?.peerId === selectedId ? 'In call' : 'Call'}
+              </button>
+              <button
                 className="action-btn ghost friend-mini-btn"
                 onClick={inviteFriendToParty}
                 disabled={invitingParty || !canInviteToParty}
@@ -1300,6 +1315,13 @@ export default function Friends() {
             setSelectedId(profileView.profile.id);
             setProfileView(null);
             setProfileLoading(false);
+          } : undefined}
+          onCall={profileView?.profile?.id ? () => {
+            const id = profileView.profile.id;
+            setProfileView(null);
+            setProfileLoading(false);
+            setSelectedId(id);
+            startCall?.(id);
           } : undefined}
           showToast={showToast}
           myId={myId}

@@ -616,3 +616,34 @@
 }
 .clan-reward-title{font-size:13px;font-weight:800;margin-bottom:4px}
 
+/* Voice calls */
+.voice-call-overlay{
+  position:fixed;left:0;right:0;bottom:24px;z-index:80;
+  display:flex;justify-content:center;pointer-events:none;padding:0 16px;
+}
+.voice-call-card{
+  pointer-events:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  min-width:280px;max-width:520px;padding:14px 16px;
+  background:rgba(12,14,18,.94);border:1px solid rgba(201,255,0,.35);
+  border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.45);
+  backdrop-filter:blur(10px);
+}
+.voice-call-overlay.incoming .voice-call-card{
+  border-color:rgba(59,126,255,.55);
+  animation:voice-pulse 1.4s ease-in-out infinite;
+}
+@keyframes voice-pulse{
+  0%,100%{box-shadow:0 12px 40px rgba(0,0,0,.45)}
+  50%{box-shadow:0 12px 40px rgba(59,126,255,.28)}
+}
+.voice-call-meta{flex:1;min-width:120px}
+.voice-call-name{font-size:15px;font-weight:800}
+.voice-call-status{
+  font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:3px;letter-spacing:.4px;
+}
+.voice-call-actions{display:flex;gap:8px;flex-wrap:wrap}
+.action-btn.voice-hangup{
+  background:rgba(255,80,80,.16)!important;border-color:rgba(255,80,80,.45)!important;color:#ff8f8f!important;
+}
+.action-btn.voice-muted{color:var(--red)!important;border-color:rgba(255,80,80,.4)!important}
+
