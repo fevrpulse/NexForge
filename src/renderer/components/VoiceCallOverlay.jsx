@@ -22,6 +22,7 @@ export function VoiceCallProvider({ children }) {
     state: 'idle',
     peerId: null,
     muted: false,
+    detail: '',
   });
   const [peerProfile, setPeerProfile] = useState(null);
   const ctrlRef = useRef(null);
@@ -76,7 +77,7 @@ export function VoiceCallProvider({ children }) {
     if (!user?.id) {
       ctrlRef.current?.stopInbox?.();
       ctrlRef.current = null;
-      setCall({ state: 'idle', peerId: null, muted: false });
+      setCall({ state: 'idle', peerId: null, muted: false, detail: '' });
       setPeerProfile(null);
       stopRingtone();
       return undefined;
@@ -89,6 +90,7 @@ export function VoiceCallProvider({ children }) {
           state: next.state,
           peerId: next.peerId,
           muted: next.muted,
+          detail: next.detail || '',
         });
         if (next.state === 'idle') {
           setPeerProfile(null);
@@ -206,11 +208,12 @@ export function VoiceCallProvider({ children }) {
   );
 }
 
-function statusLabel(state) {
-  if (state === 'calling') return 'Calling…';
-  if (state === 'ringing') return 'Incoming call';
-  if (state === 'connecting') return 'Connecting…';
-  if (state === 'connected') return 'Connected';
+function statusLabel(call) {
+  if (call?.detail) return call.detail;
+  if (call?.state === 'calling') return 'Calling…';
+  if (call?.state === 'ringing') return 'Incoming call';
+  if (call?.state === 'connecting') return 'Connecting…';
+  if (call?.state === 'connected') return 'Connected';
   return '';
 }
 
@@ -229,7 +232,7 @@ function VoiceCallOverlay() {
           <div className="voice-call-name">
             <GamerTag profile={peerProfile || { gamer_tag: 'Friend' }} />
           </div>
-          <div className="voice-call-status">{statusLabel(call.state)}</div>
+          <div className="voice-call-status">{statusLabel(call)}</div>
         </div>
         <div className="voice-call-actions">
           {call.state === 'ringing' ? (

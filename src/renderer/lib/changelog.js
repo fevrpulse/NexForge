@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.3.9',
+    highlights: [
+      'Voice calls reworked — database signaling, proper TURN auth, ready-before-offer handshake',
+      'Live call status shows ICE / link progress instead of spinning forever',
+    ],
+  },
+  {
     version: '3.3.8',
     highlights: [
       'Voice calls no longer stick on Connecting — TURN relay + shared call room',

@@ -1,71 +1,95 @@
 import { sb } from './supabase.js';
 
-/** STUN + public TURN so calls work across NATs/firewalls (not just LAN). */
-const ICE_SERVERS = [
-  { urls: 'stun:stun.l.google.com:19302' },
-  { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:openrelay.metered.ca:80' },
-  {
-    urls: 'turn:openrelay.metered.ca:80',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turns:openrelay.metered.ca:443',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-];
-
 const RING_TIMEOUT_MS = 45_000;
-const CONNECT_TIMEOUT_MS = 25_000;
+const CONNECT_TIMEOUT_MS = 30_000;
+const ICE_GATHER_TIMEOUT_MS = 6_000;
 
 function callId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `call_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function inboxTopic(userId) {
-  return `nf-call-${userId}`;
+function bytesToBase64(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 1) s += String.fromCharCode(bytes[i]);
+  return btoa(s);
 }
 
-function roomTopic(a, b) {
-  const ids = [String(a), String(b)].sort();
-  return `nf-call-room-${ids[0]}_${ids[1]}`;
+/** Metered Open Relay static-auth TURN (public secret from their docs). */
+async function buildIceServers() {
+  const stun = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ];
+
+  try {
+    const secret = 'openrelayprojectsecret';
+    const expiry = Math.floor(Date.now() / 1000) + 6 * 3600;
+    const username = String(expiry);
+    const enc = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-1' },
+      false,
+      ['sign'],
+    );
+    const sig = await crypto.subtle.sign('HMAC', key, enc.encode(username));
+    const credential = bytesToBase64(new Uint8Array(sig));
+    return [
+      ...stun,
+      { urls: 'stun:staticauth.openrelay.metered.ca:80' },
+      {
+        urls: [
+          'turn:staticauth.openrelay.metered.ca:80',
+          'turn:staticauth.openrelay.metered.ca:443',
+          'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+          'turns:staticauth.openrelay.metered.ca:443',
+        ],
+        username,
+        credential,
+      },
+    ];
+  } catch {
+    return stun;
+  }
+}
+
+function waitForIceGathering(pc, timeoutMs = ICE_GATHER_TIMEOUT_MS) {
+  if (pc.iceGatheringState === 'complete') return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      pc.removeEventListener('icegatheringstatechange', onChange);
+      resolve();
+    };
+    const onChange = () => {
+      if (pc.iceGatheringState === 'complete') done();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    pc.addEventListener('icegatheringstatechange', onChange);
+  });
 }
 
 /**
- * 1:1 voice calls via WebRTC.
- * Ring on personal inbox; SDP/ICE on a shared room channel so both peers
- * stay subscribed for the whole negotiation.
+ * 1:1 voice calls.
+ * Signaling uses voice_call_signals rows + Realtime postgres_changes.
+ * Handshake: ring → ready → offer (after ICE gather) → answer (after ICE gather).
  */
 export function createVoiceCallController({ userId, onState, onError }) {
-  let state = 'idle'; // idle | calling | ringing | connecting | connected
+  let state = 'idle';
   let peerId = null;
   let activeCallId = null;
   let pc = null;
   let localStream = null;
   let remoteStream = null;
-  let inbox = null;
-  let room = null;
+  let signalChannel = null;
   let ringTimer = null;
   let connectTimer = null;
   let muted = false;
   let audioEl = null;
-  let pendingOffer = null;
-  let pendingIce = [];
-  let remoteReady = false;
-  let makingOffer = false;
+  let iceServers = null;
+  let detail = '';
 
   function emit(patch = {}) {
     onState?.({
@@ -75,12 +99,14 @@ export function createVoiceCallController({ userId, onState, onError }) {
       muted,
       remoteStream,
       localStream,
+      detail,
       ...patch,
     });
   }
 
-  function setState(next) {
+  function setState(next, nextDetail = '') {
     state = next;
+    if (nextDetail !== undefined) detail = nextDetail;
     emit();
   }
 
@@ -100,7 +126,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     connectTimer = setTimeout(() => {
       if (state === 'connecting' || state === 'calling') {
         hangup({ notify: true }).catch(() => {});
-        onError?.(new Error('Could not connect — try again (firewall/network).'));
+        onError?.(new Error('Could not connect audio. Check mic permissions / try again.'));
       }
     }, CONNECT_TIMEOUT_MS);
   }
@@ -129,21 +155,14 @@ export function createVoiceCallController({ userId, onState, onError }) {
     return stream;
   }
 
-  async function flushPendingIce() {
-    if (!pc || !remoteReady || !pendingIce.length) return;
-    const queued = pendingIce.splice(0, pendingIce.length);
-    for (const candidate of queued) {
-      try {
-        await pc.addIceCandidate(candidate ? new RTCIceCandidate(candidate) : null);
-      } catch {
-        /* stale ok */
-      }
-    }
+  async function ensureIceServers() {
+    if (!iceServers) iceServers = await buildIceServers();
+    return iceServers;
   }
 
   function markConnected() {
     clearTimers();
-    setState('connected');
+    setState('connected', 'Connected');
     const el = ensureAudioEl();
     if (remoteStream) {
       el.srcObject = remoteStream;
@@ -151,23 +170,12 @@ export function createVoiceCallController({ userId, onState, onError }) {
     }
   }
 
-  function createPc() {
+  async function createPc() {
+    const servers = await ensureIceServers();
     const conn = new RTCPeerConnection({
-      iceServers: ICE_SERVERS,
-      iceCandidatePoolSize: 4,
+      iceServers: servers,
+      iceCandidatePoolSize: 8,
     });
-    remoteReady = false;
-
-    conn.onicecandidate = (ev) => {
-      // null candidate = end-of-candidates; still useful to forward
-      if (!peerId || !activeCallId || !room) return;
-      roomSend({
-        type: 'ice',
-        callId: activeCallId,
-        from: userId,
-        candidate: ev.candidate ? ev.candidate.toJSON() : null,
-      }).catch(() => {});
-    };
 
     conn.ontrack = (ev) => {
       remoteStream = ev.streams?.[0] || new MediaStream([ev.track]);
@@ -175,13 +183,12 @@ export function createVoiceCallController({ userId, onState, onError }) {
       el.srcObject = remoteStream;
       el.play().catch(() => {});
       emit();
-      if (conn.connectionState === 'connected' || conn.iceConnectionState === 'connected') {
-        markConnected();
-      }
     };
 
     conn.onconnectionstatechange = () => {
       const cs = conn.connectionState;
+      detail = `Link: ${cs}`;
+      emit();
       if (cs === 'connected') markConnected();
       if (cs === 'failed') {
         if (state !== 'idle') {
@@ -193,6 +200,8 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
     conn.oniceconnectionstatechange = () => {
       const ice = conn.iceConnectionState;
+      detail = `ICE: ${ice}`;
+      emit();
       if (ice === 'connected' || ice === 'completed') markConnected();
       if (ice === 'failed') {
         if (state !== 'idle') {
@@ -205,147 +214,111 @@ export function createVoiceCallController({ userId, onState, onError }) {
     return conn;
   }
 
-  async function subscribeChannel(topic, { onSignal } = {}) {
-    // Drop a previous non-inbox channel with the same topic if any.
-    const existing = sb.getChannels?.().find((c) => String(c.topic || '').endsWith(topic));
-    if (existing) {
-      try { await sb.removeChannel(existing); } catch { /* ignore */ }
-    }
-
-    const ch = sb.channel(topic, {
-      config: { broadcast: { self: false, ack: false } },
+  async function signal(recipientId, kind, body = {}) {
+    const { error } = await sb.from('voice_call_signals').insert({
+      call_id: activeCallId,
+      sender_id: userId,
+      recipient_id: recipientId,
+      kind,
+      body,
     });
-    if (onSignal) {
-      ch.on('broadcast', { event: 'signal' }, ({ payload }) => {
-        onSignal(payload);
-      });
-    }
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('Call channel timeout')), 12000);
-      ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          clearTimeout(t);
-          resolve();
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          clearTimeout(t);
-          reject(new Error('Could not join call channel'));
-        }
-      });
-    });
-    return ch;
+    if (error) throw error;
   }
 
-  async function joinRoom(otherId) {
-    if (room) {
-      try { await sb.removeChannel(room); } catch { /* ignore */ }
-      room = null;
-    }
-    const topic = roomTopic(userId, otherId);
-    room = await subscribeChannel(topic, {
-      onSignal: (payload) => {
-        handleSignal(payload).catch((err) => onError?.(err));
-      },
-    });
-    return room;
-  }
+  async function handleSignal(row) {
+    if (!row || row.sender_id === userId) return;
+    const { kind, body, call_id: cid, sender_id: from } = row;
 
-  async function roomSend(payload) {
-    if (!room || room.state !== 'joined') {
-      throw new Error('Call room not ready');
-    }
-    const result = await room.send({ type: 'broadcast', event: 'signal', payload });
-    if (result === 'timed out' || result === 'error') {
-      throw new Error('Could not deliver call signal');
-    }
-  }
-
-  async function inboxSend(targetId, payload) {
-    const topic = inboxTopic(targetId);
-    const ch = await subscribeChannel(topic);
-    try {
-      const result = await ch.send({ type: 'broadcast', event: 'signal', payload });
-      if (result === 'timed out' || result === 'error') {
-        throw new Error('Could not deliver call invite');
-      }
-    } finally {
-      // Don't remove if this is somehow our own inbox.
-      if (ch !== inbox) {
-        try { await sb.removeChannel(ch); } catch { /* ignore */ }
-      }
-    }
-  }
-
-  async function handleSignal(payload) {
-    if (!payload || payload.from === userId) return;
-    if (payload.to && payload.to !== userId) return;
-
-    if (payload.type === 'offer') {
-      // Offers arrive on the personal inbox (ring).
+    if (kind === 'ring') {
       if (state !== 'idle') {
-        try {
-          await inboxSend(payload.from, {
-            type: 'busy',
-            callId: payload.callId,
-            from: userId,
-          });
-        } catch { /* ignore */ }
+        await sb.from('voice_call_signals').insert({
+          call_id: cid,
+          sender_id: userId,
+          recipient_id: from,
+          kind: 'busy',
+          body: {},
+        }).then(() => {}).catch(() => {});
         return;
       }
-      peerId = payload.from;
-      activeCallId = payload.callId;
-      pendingOffer = payload.sdp;
-      pendingIce = [];
-      remoteReady = false;
-      setState('ringing');
-      // Join the room immediately so caller ICE is not dropped while we ring.
+      peerId = from;
+      activeCallId = cid;
+      setState('ringing', 'Incoming call');
+      return;
+    }
+
+    if (kind === 'ready') {
+      if (state !== 'calling' || cid !== activeCallId || from !== peerId) return;
+      // Peer accepted — now create and send a complete offer.
       try {
-        await joinRoom(payload.from);
+        setState('connecting', 'Negotiating…');
+        armConnectTimeout();
+        await getMic();
+        pc = await createPc();
+        for (const track of localStream.getAudioTracks()) {
+          pc.addTrack(track, localStream);
+        }
+        const offer = await pc.createOffer({ offerToReceiveAudio: true });
+        await pc.setLocalDescription(offer);
+        setState('connecting', 'Gathering network…');
+        await waitForIceGathering(pc);
+        await signal(peerId, 'offer', {
+          sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
+        });
+        setState('connecting', 'Waiting for audio…');
       } catch (err) {
-        onError?.(err instanceof Error ? err : new Error('Could not join call room'));
+        await hangup({ notify: true });
+        onError?.(err instanceof Error ? err : new Error('Could not start call media'));
       }
       return;
     }
 
-    if (payload.type === 'answer') {
-      if (!pc || payload.callId !== activeCallId) return;
-      if (makingOffer) return;
+    if (kind === 'offer') {
+      if (state !== 'connecting' && state !== 'ringing') return;
+      if (cid !== activeCallId || from !== peerId) return;
       try {
-        await pc.setRemoteDescription(payload.sdp);
-        remoteReady = true;
-        await flushPendingIce();
-        setState('connecting');
+        if (!pc) {
+          await getMic();
+          pc = await createPc();
+          for (const track of localStream.getAudioTracks()) {
+            pc.addTrack(track, localStream);
+          }
+        }
+        setState('connecting', 'Answering…');
+        await pc.setRemoteDescription(body.sdp);
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        setState('connecting', 'Gathering network…');
+        await waitForIceGathering(pc);
+        await signal(peerId, 'answer', {
+          sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
+        });
+        setState('connecting', 'Connecting audio…');
         armConnectTimeout();
       } catch (err) {
-        onError?.(err);
         await hangup({ notify: true });
+        onError?.(err instanceof Error ? err : new Error('Could not answer call'));
       }
       return;
     }
 
-    if (payload.type === 'ice') {
-      if (payload.callId !== activeCallId) return;
-      if (!pc || !remoteReady) {
-        pendingIce.push(payload.candidate);
-        return;
-      }
+    if (kind === 'answer') {
+      if (!pc || cid !== activeCallId || from !== peerId) return;
       try {
-        await pc.addIceCandidate(
-          payload.candidate ? new RTCIceCandidate(payload.candidate) : null,
-        );
-      } catch {
-        /* ignore */
+        await pc.setRemoteDescription(body.sdp);
+        setState('connecting', 'Connecting audio…');
+        armConnectTimeout();
+      } catch (err) {
+        await hangup({ notify: true });
+        onError?.(err instanceof Error ? err : new Error('Bad call answer'));
       }
       return;
     }
 
-    if (payload.type === 'hangup' || payload.type === 'decline' || payload.type === 'busy') {
-      if (payload.callId && activeCallId && payload.callId !== activeCallId) return;
-      const reason = payload.type;
+    if (kind === 'hangup' || kind === 'decline' || kind === 'busy') {
+      if (cid && activeCallId && cid !== activeCallId) return;
       await hangup({ notify: false });
-      if (reason === 'busy') onError?.(new Error('Friend is busy on another call'));
-      else if (reason === 'decline') onError?.(new Error('Call declined'));
-      return;
+      if (kind === 'busy') onError?.(new Error('Friend is busy on another call'));
+      else if (kind === 'decline') onError?.(new Error('Call declined'));
     }
   }
 
@@ -356,83 +329,32 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
     peerId = targetId;
     activeCallId = callId();
-    pendingIce = [];
-    remoteReady = false;
-    pendingOffer = null;
-    setState('calling');
+    setState('calling', 'Ringing…');
 
     try {
-      await getMic();
-      await joinRoom(targetId);
-
-      pc = createPc();
-      // Explicit sendrecv audio so the answer side always gets a track.
-      for (const track of localStream.getAudioTracks()) {
-        pc.addTrack(track, localStream);
-      }
-      if (!pc.getTransceivers().some((t) => t.receiver?.track?.kind === 'audio' || t.sender?.track?.kind === 'audio')) {
-        pc.addTransceiver('audio', { direction: 'sendrecv' });
-      }
-
-      makingOffer = true;
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      makingOffer = false;
-
-      // Ring on peer inbox (they may not be in the room yet).
-      await inboxSend(targetId, {
-        type: 'offer',
-        callId: activeCallId,
-        from: userId,
-        to: targetId,
-        sdp: { type: offer.type, sdp: offer.sdp },
-      });
-
+      await ensureIceServers();
+      await signal(targetId, 'ring', {});
       clearTimers();
       ringTimer = setTimeout(() => {
         hangup({ notify: true }).catch(() => {});
         onError?.(new Error('No answer'));
       }, RING_TIMEOUT_MS);
     } catch (err) {
-      makingOffer = false;
       await hangup({ notify: false });
       throw err;
     }
   }
 
   async function accept() {
-    if (state !== 'ringing' || !peerId) return;
-    const offer = pendingOffer;
-    pendingOffer = null;
-    if (!offer) throw new Error('Missing call offer');
-
-    setState('connecting');
+    if (state !== 'ringing' || !peerId || !activeCallId) return;
+    setState('connecting', 'Joining…');
     armConnectTimeout();
     try {
+      await ensureIceServers();
       await getMic();
-      if (!room || room.state !== 'joined') {
-        await joinRoom(peerId);
-      }
-
-      pc = createPc();
-      for (const track of localStream.getAudioTracks()) {
-        pc.addTrack(track, localStream);
-      }
-
-      await pc.setRemoteDescription(offer);
-      remoteReady = true;
-      await flushPendingIce();
-
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      await roomSend({
-        type: 'answer',
-        callId: activeCallId,
-        from: userId,
-        to: peerId,
-        sdp: { type: answer.type, sdp: answer.sdp },
-      });
+      // Tell caller we are ready — they will send the offer.
+      await signal(peerId, 'ready', {});
+      setState('connecting', 'Waiting for offer…');
     } catch (err) {
       await hangup({ notify: true });
       throw err;
@@ -447,7 +369,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const target = peerId;
     const id = activeCallId;
     await hangup({ notify: false });
-    await inboxSend(target, { type: 'decline', callId: id, from: userId }).catch(() => {});
+    await sb.from('voice_call_signals').insert({
+      call_id: id,
+      sender_id: userId,
+      recipient_id: target,
+      kind: 'decline',
+      body: {},
+    }).then(() => {}).catch(() => {});
   }
 
   function setMuted(next) {
@@ -466,12 +394,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const id = activeCallId;
 
     if (notify && target && id) {
-      const payload = { type: 'hangup', callId: id, from: userId };
-      if (room && room.state === 'joined') {
-        await roomSend(payload).catch(() => {});
-      } else {
-        await inboxSend(target, payload).catch(() => {});
-      }
+      await sb.from('voice_call_signals').insert({
+        call_id: id,
+        sender_id: userId,
+        recipient_id: target,
+        kind: 'hangup',
+        body: {},
+      }).then(() => {}).catch(() => {});
     }
 
     if (pc) {
@@ -485,36 +414,68 @@ export function createVoiceCallController({ userId, onState, onError }) {
     remoteStream = null;
     if (audioEl) audioEl.srcObject = null;
 
-    if (room) {
-      try { await sb.removeChannel(room); } catch { /* ignore */ }
-      room = null;
+    // Best-effort cleanup of this call's rows for both sides.
+    if (id) {
+      await sb.from('voice_call_signals').delete().eq('call_id', id).then(() => {}).catch(() => {});
     }
 
     peerId = null;
     activeCallId = null;
-    pendingOffer = null;
-    pendingIce = [];
-    remoteReady = false;
-    makingOffer = false;
     muted = false;
-    setState('idle');
+    detail = '';
+    setState('idle', '');
   }
 
   async function startInbox() {
-    if (!userId || inbox) return;
-    const topic = inboxTopic(userId);
-    inbox = await subscribeChannel(topic, {
-      onSignal: (payload) => {
-        handleSignal(payload).catch((err) => onError?.(err));
-      },
+    if (!userId || signalChannel) return;
+
+    // Catch anything queued while we were offline (last minute).
+    try {
+      const since = new Date(Date.now() - 60_000).toISOString();
+      const { data } = await sb
+        .from('voice_call_signals')
+        .select('id,call_id,sender_id,recipient_id,kind,body,created_at')
+        .eq('recipient_id', userId)
+        .eq('kind', 'ring')
+        .gte('created_at', since)
+        .order('created_at', { ascending: true });
+      for (const row of data || []) {
+        await handleSignal(row);
+      }
+    } catch {
+      /* table may not exist yet on old clients */
+    }
+
+    const ch = sb
+      .channel(`voice-signals-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'voice_call_signals',
+          filter: `recipient_id=eq.${userId}`,
+        },
+        (payload) => {
+          handleSignal(payload.new).catch((err) => onError?.(err));
+        },
+      );
+
+    await new Promise((resolve) => {
+      ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          resolve(status);
+        }
+      });
     });
+    signalChannel = ch;
   }
 
   async function stopInbox() {
     await hangup({ notify: true });
-    if (inbox) {
-      try { await sb.removeChannel(inbox); } catch { /* ignore */ }
-      inbox = null;
+    if (signalChannel) {
+      try { await sb.removeChannel(signalChannel); } catch { /* ignore */ }
+      signalChannel = null;
     }
     if (audioEl?.parentNode) {
       audioEl.parentNode.removeChild(audioEl);
@@ -530,6 +491,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
     setMuted,
     startInbox,
     stopInbox,
-    getState: () => ({ state, peerId, callId: activeCallId, muted }),
+    getState: () => ({ state, peerId, callId: activeCallId, muted, detail }),
   };
 }
