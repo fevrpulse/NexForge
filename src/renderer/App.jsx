@@ -3,6 +3,7 @@ import { NexForgeProvider, useNexForge } from './context/NexForgeContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import ToastStack from './components/ToastStack.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import { NavIcon } from './components/icons.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
 import LockModal from './components/LockModal.jsx';
 import OnboardingModal from './components/OnboardingModal.jsx';
