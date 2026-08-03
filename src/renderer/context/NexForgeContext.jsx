@@ -639,20 +639,26 @@ export function NexForgeProvider({ children }) {
     };
   }, [showToast, reportCloudError]);
 
-  // Update toasts only for user-initiated checks; background checks stay silent
-  // (the main process shows its own dialog once an update is downloaded).
+  // Manual checks toast progress; background updates toast only when restarting.
   const manualUpdateCheckRef = useRef(false);
 
   useEffect(() => {
     const off = window.nexforge?.onUpdateStatus?.((status) => {
-      if (!status || !manualUpdateCheckRef.current) return;
+      if (!status) return;
+      if (status.state === 'downloaded') {
+        manualUpdateCheckRef.current = false;
+        showToast(
+          `Update v${status.version || ''} ready — restarting to install…`,
+          'success',
+        );
+        return;
+      }
+      if (!manualUpdateCheckRef.current) return;
       if (status.state === 'available') {
         showToast(`Update v${status.version || ''} found — downloading…`, 'success');
       } else if (status.state === 'not-available') {
         manualUpdateCheckRef.current = false;
         showToast('You are on the latest version.', 'success');
-      } else if (status.state === 'downloaded') {
-        manualUpdateCheckRef.current = false;
       } else if (status.state === 'error') {
         manualUpdateCheckRef.current = false;
         showToast(status.message || 'Update check failed.', 'error');

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, dialog, screen, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, shell, ipcMain, screen, globalShortcut } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -22,7 +22,8 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   'github.com',
   'www.github.com',
 ]);
-const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const UPDATE_INSTALL_DELAY_MS = 2500;
 
 let mainWindow = null;
 let overlayWindow = null;
@@ -85,6 +86,8 @@ function setupAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.logger = console;
 
+  let installingUpdate = false;
+
   autoUpdater.on('checking-for-update', () => {
     console.log('Checking for updates...');
     sendToRenderer('update-status', { state: 'checking' });
@@ -100,22 +103,29 @@ function setupAutoUpdater() {
     sendToRenderer('update-status', { state: 'not-available', version: app.getVersion() });
   });
 
-  autoUpdater.on('update-downloaded', async (info) => {
-    sendToRenderer('update-status', { state: 'downloaded', version: info && info.version });
-    if (!mainWindow || mainWindow.isDestroyed()) return; // installs on quit
-    const result = await dialog.showMessageBox(mainWindow, {
-      type: 'info',
-      title: 'Update ready',
-      message: 'A new version of NexForge has been downloaded.',
-      detail: 'Restart now to install the update?',
-      buttons: ['Restart', 'Later'],
-      defaultId: 0,
-      cancelId: 1,
+  autoUpdater.on('download-progress', (progress) => {
+    sendToRenderer('update-status', {
+      state: 'downloading',
+      percent: Math.round(progress && progress.percent != null ? progress.percent : 0),
     });
+  });
 
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall();
-    }
+  autoUpdater.on('update-downloaded', (info) => {
+    const version = info && info.version;
+    console.log('Update downloaded:', version);
+    sendToRenderer('update-status', { state: 'downloaded', version });
+    if (installingUpdate) return;
+    installingUpdate = true;
+
+    // Always install the latest build — brief delay so the UI can show a toast.
+    setTimeout(() => {
+      try {
+        autoUpdater.quitAndInstall(false, true);
+      } catch (err) {
+        console.error('quitAndInstall failed; will retry on quit:', err);
+        installingUpdate = false;
+      }
+    }, UPDATE_INSTALL_DELAY_MS);
   });
 
   autoUpdater.on('error', (err) => {
@@ -129,6 +139,7 @@ function setupAutoUpdater() {
 
   // Long-running sessions still pick up new releases without a restart.
   const timer = setInterval(() => {
+    if (installingUpdate) return;
     autoUpdater.checkForUpdates().catch((err) => {
       console.error('Periodic update check failed:', err);
     });

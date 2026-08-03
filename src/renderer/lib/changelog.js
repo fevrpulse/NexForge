@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.3.1',
+    highlights: [
+      'Download NexForge.exe — one-click install, no admin needed',
+      'Updates download and install automatically (no prompt)',
+      'Always-latest link: github.com/fevrpulse/NexForge/releases/latest',
+    ],
+  },
+  {
     version: '3.3.0',
     highlights: [
       'Open clan join with min MMR gates and clan settings',

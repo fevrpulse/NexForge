@@ -6,9 +6,9 @@ Electron + **React** desktop client for NexForge — public duel queues, tournam
 
 ## Install
 
-1. Download the latest **NexForge-Setup-*.exe** from [GitHub Releases](https://github.com/fevrpulse/NexForge/releases) (prefer `1.2.0` or newer — not a Beta tag).
-2. Install and sign in via the browser login window.
-3. Packaged builds auto-update from GitHub Releases when a newer non-draft release is published.
+1. Download **[NexForge.exe](https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe)** (always the latest release).
+2. Run it once — it installs per-user (no admin) and launches NexForge.
+3. After that, the installed app **checks hourly and auto-installs updates** (restarts when a new version is ready). No need to re-download.
 
 ## Develop locally
 
