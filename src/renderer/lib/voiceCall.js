@@ -1,24 +1,53 @@
 import { sb } from './supabase.js';
 
+/** STUN + public TURN so calls work across NATs/firewalls (not just LAN). */
 const ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:openrelay.metered.ca:80' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turns:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
 ];
 
 const RING_TIMEOUT_MS = 45_000;
+const CONNECT_TIMEOUT_MS = 25_000;
 
 function callId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return `call_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function channelName(userId) {
+function inboxTopic(userId) {
   return `nf-call-${userId}`;
 }
 
+function roomTopic(a, b) {
+  const ids = [String(a), String(b)].sort();
+  return `nf-call-room-${ids[0]}_${ids[1]}`;
+}
+
 /**
- * 1:1 voice calls via WebRTC + Supabase Realtime broadcast inboxes.
- * Each user listens on `nf-call-{userId}`; signals are sent to the peer's inbox.
+ * 1:1 voice calls via WebRTC.
+ * Ring on personal inbox; SDP/ICE on a shared room channel so both peers
+ * stay subscribed for the whole negotiation.
  */
 export function createVoiceCallController({ userId, onState, onError }) {
   let state = 'idle'; // idle | calling | ringing | connecting | connected
@@ -28,14 +57,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let localStream = null;
   let remoteStream = null;
   let inbox = null;
-  let peerChannel = null;
+  let room = null;
   let ringTimer = null;
+  let connectTimer = null;
   let muted = false;
   let audioEl = null;
   let pendingOffer = null;
-  /** ICE that arrived before remote description / before PC existed. */
   let pendingIce = [];
   let remoteReady = false;
+  let makingOffer = false;
 
   function emit(patch = {}) {
     onState?.({
@@ -54,11 +84,25 @@ export function createVoiceCallController({ userId, onState, onError }) {
     emit();
   }
 
-  function clearRingTimer() {
+  function clearTimers() {
     if (ringTimer) {
       clearTimeout(ringTimer);
       ringTimer = null;
     }
+    if (connectTimer) {
+      clearTimeout(connectTimer);
+      connectTimer = null;
+    }
+  }
+
+  function armConnectTimeout() {
+    if (connectTimer) clearTimeout(connectTimer);
+    connectTimer = setTimeout(() => {
+      if (state === 'connecting' || state === 'calling') {
+        hangup({ notify: true }).catch(() => {});
+        onError?.(new Error('Could not connect — try again (firewall/network).'));
+      }
+    }, CONNECT_TIMEOUT_MS);
   }
 
   function ensureAudioEl() {
@@ -66,6 +110,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     audioEl = document.createElement('audio');
     audioEl.autoplay = true;
     audioEl.setAttribute('playsinline', 'true');
+    audioEl.volume = 1;
     audioEl.style.display = 'none';
     document.body.appendChild(audioEl);
     return audioEl;
@@ -89,39 +134,55 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const queued = pendingIce.splice(0, pendingIce.length);
     for (const candidate of queued) {
       try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        await pc.addIceCandidate(candidate ? new RTCIceCandidate(candidate) : null);
       } catch {
-        /* stale candidates are fine */
+        /* stale ok */
       }
     }
   }
 
+  function markConnected() {
+    clearTimers();
+    setState('connected');
+    const el = ensureAudioEl();
+    if (remoteStream) {
+      el.srcObject = remoteStream;
+      el.play().catch(() => {});
+    }
+  }
+
   function createPc() {
-    const conn = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const conn = new RTCPeerConnection({
+      iceServers: ICE_SERVERS,
+      iceCandidatePoolSize: 4,
+    });
     remoteReady = false;
+
     conn.onicecandidate = (ev) => {
-      if (!ev.candidate || !peerId || !activeCallId) return;
-      send(peerId, {
+      // null candidate = end-of-candidates; still useful to forward
+      if (!peerId || !activeCallId || !room) return;
+      roomSend({
         type: 'ice',
         callId: activeCallId,
         from: userId,
-        candidate: ev.candidate.toJSON(),
+        candidate: ev.candidate ? ev.candidate.toJSON() : null,
       }).catch(() => {});
     };
+
     conn.ontrack = (ev) => {
       remoteStream = ev.streams?.[0] || new MediaStream([ev.track]);
       const el = ensureAudioEl();
       el.srcObject = remoteStream;
       el.play().catch(() => {});
       emit();
+      if (conn.connectionState === 'connected' || conn.iceConnectionState === 'connected') {
+        markConnected();
+      }
     };
+
     conn.onconnectionstatechange = () => {
       const cs = conn.connectionState;
-      if (cs === 'connected') {
-        clearRingTimer();
-        setState('connected');
-      }
-      // Do not hang up on transient "disconnected" — ICE restarts often recover.
+      if (cs === 'connected') markConnected();
       if (cs === 'failed') {
         if (state !== 'idle') {
           hangup({ notify: true }).catch(() => {});
@@ -129,20 +190,38 @@ export function createVoiceCallController({ userId, onState, onError }) {
         }
       }
     };
+
+    conn.oniceconnectionstatechange = () => {
+      const ice = conn.iceConnectionState;
+      if (ice === 'connected' || ice === 'completed') markConnected();
+      if (ice === 'failed') {
+        if (state !== 'idle') {
+          hangup({ notify: true }).catch(() => {});
+          onError?.(new Error('Call connection failed'));
+        }
+      }
+    };
+
     return conn;
   }
 
-  async function openChannel(targetId) {
-    const topic = channelName(targetId);
-    // Reuse an existing client channel for this topic when possible.
+  async function subscribeChannel(topic, { onSignal } = {}) {
+    // Drop a previous non-inbox channel with the same topic if any.
     const existing = sb.getChannels?.().find((c) => String(c.topic || '').endsWith(topic));
-    if (existing && existing.state === 'joined') return existing;
+    if (existing) {
+      try { await sb.removeChannel(existing); } catch { /* ignore */ }
+    }
 
     const ch = sb.channel(topic, {
       config: { broadcast: { self: false, ack: false } },
     });
+    if (onSignal) {
+      ch.on('broadcast', { event: 'signal' }, ({ payload }) => {
+        onSignal(payload);
+      });
+    }
     await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('Call channel timeout')), 10000);
+      const t = setTimeout(() => reject(new Error('Call channel timeout')), 12000);
       ch.subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           clearTimeout(t);
@@ -150,38 +229,50 @@ export function createVoiceCallController({ userId, onState, onError }) {
         }
         if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           clearTimeout(t);
-          reject(new Error('Could not reach call channel'));
+          reject(new Error('Could not join call channel'));
         }
       });
     });
     return ch;
   }
 
-  async function subscribePeer(targetId) {
-    if (peerChannel) {
-      const same = String(peerChannel.topic || '').includes(targetId);
-      if (same && peerChannel.state === 'joined') return peerChannel;
-      try { await sb.removeChannel(peerChannel); } catch { /* ignore */ }
-      peerChannel = null;
+  async function joinRoom(otherId) {
+    if (room) {
+      try { await sb.removeChannel(room); } catch { /* ignore */ }
+      room = null;
     }
-    peerChannel = await openChannel(targetId);
-    return peerChannel;
+    const topic = roomTopic(userId, otherId);
+    room = await subscribeChannel(topic, {
+      onSignal: (payload) => {
+        handleSignal(payload).catch((err) => onError?.(err));
+      },
+    });
+    return room;
   }
 
-  async function send(targetId, payload) {
-    let ch = peerChannel;
-    let ephemeral = false;
-    if (!ch || !String(ch.topic || '').includes(targetId) || ch.state !== 'joined') {
-      ch = await openChannel(targetId);
-      ephemeral = ch !== peerChannel;
-      if (!peerChannel) peerChannel = ch;
+  async function roomSend(payload) {
+    if (!room || room.state !== 'joined') {
+      throw new Error('Call room not ready');
     }
-    const result = await ch.send({ type: 'broadcast', event: 'signal', payload });
+    const result = await room.send({ type: 'broadcast', event: 'signal', payload });
     if (result === 'timed out' || result === 'error') {
       throw new Error('Could not deliver call signal');
     }
-    if (ephemeral && ch !== peerChannel) {
-      try { await sb.removeChannel(ch); } catch { /* ignore */ }
+  }
+
+  async function inboxSend(targetId, payload) {
+    const topic = inboxTopic(targetId);
+    const ch = await subscribeChannel(topic);
+    try {
+      const result = await ch.send({ type: 'broadcast', event: 'signal', payload });
+      if (result === 'timed out' || result === 'error') {
+        throw new Error('Could not deliver call invite');
+      }
+    } finally {
+      // Don't remove if this is somehow our own inbox.
+      if (ch !== inbox) {
+        try { await sb.removeChannel(ch); } catch { /* ignore */ }
+      }
     }
   }
 
@@ -190,12 +281,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
     if (payload.to && payload.to !== userId) return;
 
     if (payload.type === 'offer') {
+      // Offers arrive on the personal inbox (ring).
       if (state !== 'idle') {
-        await send(payload.from, {
-          type: 'busy',
-          callId: payload.callId,
-          from: userId,
-        }).catch(() => {});
+        try {
+          await inboxSend(payload.from, {
+            type: 'busy',
+            callId: payload.callId,
+            from: userId,
+          });
+        } catch { /* ignore */ }
         return;
       }
       peerId = payload.from;
@@ -204,28 +298,41 @@ export function createVoiceCallController({ userId, onState, onError }) {
       pendingIce = [];
       remoteReady = false;
       setState('ringing');
+      // Join the room immediately so caller ICE is not dropped while we ring.
+      try {
+        await joinRoom(payload.from);
+      } catch (err) {
+        onError?.(err instanceof Error ? err : new Error('Could not join call room'));
+      }
       return;
     }
 
     if (payload.type === 'answer') {
       if (!pc || payload.callId !== activeCallId) return;
-      clearRingTimer();
-      await pc.setRemoteDescription(payload.sdp);
-      remoteReady = true;
-      await flushPendingIce();
-      setState('connecting');
+      if (makingOffer) return;
+      try {
+        await pc.setRemoteDescription(payload.sdp);
+        remoteReady = true;
+        await flushPendingIce();
+        setState('connecting');
+        armConnectTimeout();
+      } catch (err) {
+        onError?.(err);
+        await hangup({ notify: true });
+      }
       return;
     }
 
     if (payload.type === 'ice') {
-      if (payload.callId !== activeCallId || !payload.candidate) return;
-      // Queue until we have a PC + remote description (common while still ringing).
+      if (payload.callId !== activeCallId) return;
       if (!pc || !remoteReady) {
         pendingIce.push(payload.candidate);
         return;
       }
       try {
-        await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        await pc.addIceCandidate(
+          payload.candidate ? new RTCIceCandidate(payload.candidate) : null,
+        );
       } catch {
         /* ignore */
       }
@@ -235,7 +342,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     if (payload.type === 'hangup' || payload.type === 'decline' || payload.type === 'busy') {
       if (payload.callId && activeCallId && payload.callId !== activeCallId) return;
       const reason = payload.type;
-      await hangup({ notify: false, reason });
+      await hangup({ notify: false });
       if (reason === 'busy') onError?.(new Error('Friend is busy on another call'));
       else if (reason === 'decline') onError?.(new Error('Call declined'));
       return;
@@ -256,14 +363,24 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
     try {
       await getMic();
-      await subscribePeer(targetId);
+      await joinRoom(targetId);
+
       pc = createPc();
-      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+      // Explicit sendrecv audio so the answer side always gets a track.
+      for (const track of localStream.getAudioTracks()) {
+        pc.addTrack(track, localStream);
+      }
+      if (!pc.getTransceivers().some((t) => t.receiver?.track?.kind === 'audio' || t.sender?.track?.kind === 'audio')) {
+        pc.addTransceiver('audio', { direction: 'sendrecv' });
+      }
 
-      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      makingOffer = true;
+      const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
+      makingOffer = false;
 
-      await send(targetId, {
+      // Ring on peer inbox (they may not be in the room yet).
+      await inboxSend(targetId, {
         type: 'offer',
         callId: activeCallId,
         from: userId,
@@ -271,12 +388,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
         sdp: { type: offer.type, sdp: offer.sdp },
       });
 
-      clearRingTimer();
+      clearTimers();
       ringTimer = setTimeout(() => {
-        hangup({ notify: true, reason: 'timeout' }).catch(() => {});
+        hangup({ notify: true }).catch(() => {});
         onError?.(new Error('No answer'));
       }, RING_TIMEOUT_MS);
     } catch (err) {
+      makingOffer = false;
       await hangup({ notify: false });
       throw err;
     }
@@ -289,17 +407,26 @@ export function createVoiceCallController({ userId, onState, onError }) {
     if (!offer) throw new Error('Missing call offer');
 
     setState('connecting');
+    armConnectTimeout();
     try {
       await getMic();
-      await subscribePeer(peerId);
+      if (!room || room.state !== 'joined') {
+        await joinRoom(peerId);
+      }
+
       pc = createPc();
-      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+      for (const track of localStream.getAudioTracks()) {
+        pc.addTrack(track, localStream);
+      }
+
       await pc.setRemoteDescription(offer);
       remoteReady = true;
       await flushPendingIce();
+
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-      await send(peerId, {
+
+      await roomSend({
         type: 'answer',
         callId: activeCallId,
         from: userId,
@@ -320,7 +447,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const target = peerId;
     const id = activeCallId;
     await hangup({ notify: false });
-    await send(target, { type: 'decline', callId: id, from: userId }).catch(() => {});
+    await inboxSend(target, { type: 'decline', callId: id, from: userId }).catch(() => {});
   }
 
   function setMuted(next) {
@@ -334,12 +461,17 @@ export function createVoiceCallController({ userId, onState, onError }) {
   }
 
   async function hangup({ notify = true } = {}) {
-    clearRingTimer();
+    clearTimers();
     const target = peerId;
     const id = activeCallId;
 
     if (notify && target && id) {
-      await send(target, { type: 'hangup', callId: id, from: userId }).catch(() => {});
+      const payload = { type: 'hangup', callId: id, from: userId };
+      if (room && room.state === 'joined') {
+        await roomSend(payload).catch(() => {});
+      } else {
+        await inboxSend(target, payload).catch(() => {});
+      }
     }
 
     if (pc) {
@@ -351,49 +483,31 @@ export function createVoiceCallController({ userId, onState, onError }) {
       localStream = null;
     }
     remoteStream = null;
-    if (audioEl) {
-      audioEl.srcObject = null;
+    if (audioEl) audioEl.srcObject = null;
+
+    if (room) {
+      try { await sb.removeChannel(room); } catch { /* ignore */ }
+      room = null;
     }
-    if (peerChannel) {
-      // Never remove the inbox channel if it happens to be the same reference.
-      if (peerChannel !== inbox) {
-        try { await sb.removeChannel(peerChannel); } catch { /* ignore */ }
-      }
-      peerChannel = null;
-    }
+
     peerId = null;
     activeCallId = null;
     pendingOffer = null;
     pendingIce = [];
     remoteReady = false;
+    makingOffer = false;
     muted = false;
     setState('idle');
   }
 
   async function startInbox() {
     if (!userId || inbox) return;
-    const topic = channelName(userId);
-    const ch = sb.channel(topic, {
-      config: { broadcast: { self: false, ack: false } },
+    const topic = inboxTopic(userId);
+    inbox = await subscribeChannel(topic, {
+      onSignal: (payload) => {
+        handleSignal(payload).catch((err) => onError?.(err));
+      },
     });
-    // Handlers must be registered before subscribe or early signals are missed.
-    ch.on('broadcast', { event: 'signal' }, ({ payload }) => {
-      handleSignal(payload).catch((err) => onError?.(err));
-    });
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error('Call inbox timeout')), 10000);
-      ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          clearTimeout(t);
-          resolve();
-        }
-        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          clearTimeout(t);
-          reject(new Error('Could not join call inbox'));
-        }
-      });
-    });
-    inbox = ch;
   }
 
   async function stopInbox() {
@@ -402,7 +516,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
       try { await sb.removeChannel(inbox); } catch { /* ignore */ }
       inbox = null;
     }
-    if (audioEl && audioEl.parentNode) {
+    if (audioEl?.parentNode) {
       audioEl.parentNode.removeChild(audioEl);
       audioEl = null;
     }

@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.3.8',
+    highlights: [
+      'Voice calls no longer stick on Connecting — TURN relay + shared call room',
+      'Incoming calls join the room immediately so ICE is not dropped',
+    ],
+  },
+  {
     version: '3.3.6',
     highlights: [
       'More reliable voice calls — ICE candidates no longer dropped while ringing',
