@@ -22,7 +22,13 @@ export function VoiceCallProvider({ children }) {
     state: 'idle',
     peerId: null,
     muted: false,
+    deafened: false,
+    screenSharing: false,
+    remoteVideoTrack: null,
     detail: '',
+    inputDeviceId: '',
+    outputDeviceId: '',
+    audioDevices: { inputs: [], outputs: [] },
   });
   const [peerProfile, setPeerProfile] = useState(null);
   const ctrlRef = useRef(null);
@@ -77,7 +83,18 @@ export function VoiceCallProvider({ children }) {
     if (!user?.id) {
       ctrlRef.current?.stopInbox?.();
       ctrlRef.current = null;
-      setCall({ state: 'idle', peerId: null, muted: false, detail: '' });
+      setCall({
+        state: 'idle',
+        peerId: null,
+        muted: false,
+        deafened: false,
+        screenSharing: false,
+        remoteVideoTrack: null,
+        detail: '',
+        inputDeviceId: '',
+        outputDeviceId: '',
+        audioDevices: { inputs: [], outputs: [] },
+      });
       setPeerProfile(null);
       stopRingtone();
       return undefined;
@@ -90,7 +107,13 @@ export function VoiceCallProvider({ children }) {
           state: next.state,
           peerId: next.peerId,
           muted: next.muted,
+          deafened: next.deafened,
+          screenSharing: next.screenSharing,
+          remoteVideoTrack: next.remoteVideoTrack || null,
           detail: next.detail || '',
+          inputDeviceId: next.inputDeviceId || '',
+          outputDeviceId: next.outputDeviceId || '',
+          audioDevices: next.audioDevices || { inputs: [], outputs: [] },
         });
         if (next.state === 'idle') {
           setPeerProfile(null);
@@ -134,7 +157,7 @@ export function VoiceCallProvider({ children }) {
     }
     let active = true;
     sb.from('profiles')
-      .select('id,gamer_tag,avatar_path,equipped_frame,clan_tag,mmr')
+      .select('id,gamer_tag,display_name,avatar_path,equipped_frame,clan_tag,mmr')
       .eq('id', peerId)
       .maybeSingle()
       .then(({ data }) => {
@@ -185,20 +208,72 @@ export function VoiceCallProvider({ children }) {
   }, [stopRingtone]);
 
   const toggleMute = useCallback(() => {
-    const next = !call.muted;
-    ctrlRef.current?.setMuted(next);
+    ctrlRef.current?.setMuted(!call.muted);
   }, [call.muted]);
+
+  const toggleDeafen = useCallback(() => {
+    ctrlRef.current?.setDeafened(!call.deafened);
+  }, [call.deafened]);
+
+  const toggleScreenShare = useCallback(async () => {
+    try {
+      if (call.screenSharing) await ctrlRef.current?.stopScreenShare();
+      else await ctrlRef.current?.startScreenShare();
+    } catch (err) {
+      showToast(err?.message || 'Screen share failed.', 'error');
+    }
+  }, [call.screenSharing, showToast]);
+
+  const setInputDevice = useCallback(async (id) => {
+    try {
+      await ctrlRef.current?.setInputDevice(id);
+    } catch (err) {
+      showToast(err?.message || 'Could not switch mic.', 'error');
+    }
+  }, [showToast]);
+
+  const setOutputDevice = useCallback(async (id) => {
+    try {
+      await ctrlRef.current?.setOutputDevice(id);
+    } catch (err) {
+      showToast(err?.message || 'Could not switch speakers.', 'error');
+    }
+  }, [showToast]);
+
+  const startChannelVoice = useCallback(async (channelId, peerIds) => {
+    await ctrlRef.current?.startChannelVoice(channelId, peerIds);
+  }, []);
+
+  const leaveChannelVoice = useCallback(async () => {
+    await ctrlRef.current?.leaveChannelVoice();
+  }, []);
+
+  useEffect(() => {
+    if (call.state === 'connected' || call.state === 'connecting') {
+      ctrlRef.current?.refreshDevices?.();
+    }
+  }, [call.state]);
 
   const value = useMemo(() => ({
     call,
     peerProfile,
     startCall,
+    startChannelVoice,
+    leaveChannelVoice,
     acceptCall,
     declineCall,
     hangup,
     toggleMute,
+    toggleDeafen,
+    toggleScreenShare,
+    setInputDevice,
+    setOutputDevice,
     inCall: call.state !== 'idle',
-  }), [call, peerProfile, startCall, acceptCall, declineCall, hangup, toggleMute]);
+  }), [
+    call, peerProfile, startCall, startChannelVoice, leaveChannelVoice,
+    acceptCall, declineCall, hangup, toggleMute, toggleDeafen, toggleScreenShare,
+    setInputDevice, setOutputDevice,
+  ]);
 
   return (
     <VoiceCallContext.Provider value={value}>
@@ -220,19 +295,75 @@ function statusLabel(call) {
 function VoiceCallOverlay() {
   const ctx = useVoiceCall();
   if (!ctx || ctx.call.state === 'idle') return null;
+  return <VoiceCallOverlayActive ctx={ctx} />;
+}
+
+function VoiceCallOverlayActive({ ctx }) {
+  const videoRef = useRef(null);
   const {
-    call, peerProfile, acceptCall, declineCall, hangup, toggleMute,
+    call, peerProfile, acceptCall, declineCall, hangup,
+    toggleMute, toggleDeafen, toggleScreenShare, setInputDevice, setOutputDevice,
   } = ctx;
+  const inputs = call.audioDevices?.inputs || [];
+  const outputs = call.audioDevices?.outputs || [];
+  const inLive = call.state === 'connected' || call.state === 'connecting';
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return undefined;
+    if (call.remoteVideoTrack) {
+      el.srcObject = new MediaStream([call.remoteVideoTrack]);
+      el.play().catch(() => {});
+    } else {
+      el.srcObject = null;
+    }
+    return undefined;
+  }, [call.remoteVideoTrack]);
 
   return (
     <div className={`voice-call-overlay ${call.state === 'ringing' ? 'incoming' : ''}`}>
       <div className="voice-call-card">
-        <PlayerAvatar profile={peerProfile} size={64} className="friend-av" />
+        {call.remoteVideoTrack && (
+          <video ref={videoRef} className="voice-share-preview" autoPlay playsInline muted />
+        )}
+        <PlayerAvatar profile={peerProfile} size={56} className="friend-av" />
         <div className="voice-call-meta">
           <div className="voice-call-name">
-            <GamerTag profile={peerProfile || { gamer_tag: 'Friend' }} />
+            <GamerTag profile={peerProfile || { gamer_tag: call.peerId ? 'Friend' : 'Voice channel' }} />
           </div>
           <div className="voice-call-status">{statusLabel(call)}</div>
+          {inLive && (
+            <div className="voice-device-row">
+              <label>
+                Mic
+                <select
+                  value={call.inputDeviceId || ''}
+                  onChange={(e) => setInputDevice(e.target.value)}
+                >
+                  <option value="">Default</option>
+                  {inputs.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || 'Microphone'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                Speakers
+                <select
+                  value={call.outputDeviceId || ''}
+                  onChange={(e) => setOutputDevice(e.target.value)}
+                >
+                  <option value="">Default</option>
+                  {outputs.map((d) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || 'Speakers'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          )}
         </div>
         <div className="voice-call-actions">
           {call.state === 'ringing' ? (
@@ -246,14 +377,31 @@ function VoiceCallOverlay() {
             </>
           ) : (
             <>
-              {(call.state === 'connected' || call.state === 'connecting') && (
-                <button
-                  type="button"
-                  className={`action-btn ghost ${call.muted ? 'voice-muted' : ''}`}
-                  onClick={toggleMute}
-                >
-                  {call.muted ? 'Unmute' : 'Mute'}
-                </button>
+              {inLive && (
+                <>
+                  <button
+                    type="button"
+                    className={`action-btn ghost ${call.muted ? 'voice-muted' : ''}`}
+                    onClick={toggleMute}
+                  >
+                    {call.muted ? 'Unmute' : 'Mute'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`action-btn ghost ${call.deafened ? 'voice-muted' : ''}`}
+                    onClick={toggleDeafen}
+                    title="Deafen — you won't hear others"
+                  >
+                    {call.deafened ? 'Undeafen' : 'Deafen'}
+                  </button>
+                  <button
+                    type="button"
+                    className={`action-btn ghost ${call.screenSharing ? 'voice-sharing' : ''}`}
+                    onClick={toggleScreenShare}
+                  >
+                    {call.screenSharing ? 'Stop share' : 'Share screen'}
+                  </button>
+                </>
               )}
               <button type="button" className="action-btn voice-hangup" onClick={hangup}>
                 {call.state === 'calling' ? 'Cancel' : 'End'}

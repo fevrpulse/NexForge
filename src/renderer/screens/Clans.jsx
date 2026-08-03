@@ -71,12 +71,13 @@ export default function Clans() {
       }
       const { data: profs, error: pErr } = await sb
         .from('profiles')
-        .select('id,gamer_tag,mmr,clan_tag')
+        .select('id,gamer_tag,display_name,mmr,clan_tag')
         .in('id', otherIds);
       if (pErr) throw pErr;
       setFriends((profs || []).map((p) => ({
         id: p.id,
         gamer_tag: p.gamer_tag || 'Player',
+        display_name: p.display_name || null,
         mmr: p.mmr ?? 1200,
         clan_tag: p.clan_tag,
       })));

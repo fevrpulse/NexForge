@@ -87,9 +87,16 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let ringTimer = null;
   let connectTimer = null;
   let muted = false;
+  let deafened = false;
   let audioEl = null;
   let iceServers = null;
   let detail = '';
+  let inputDeviceId = '';
+  let outputDeviceId = '';
+  let screenTrack = null;
+  let screenStream = null;
+  let remoteVideoTrack = null;
+  let audioDevices = { inputs: [], outputs: [] };
 
   function emit(patch = {}) {
     onState?.({
@@ -97,9 +104,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
       peerId,
       callId: activeCallId,
       muted,
+      deafened,
       remoteStream,
       localStream,
+      screenSharing: !!screenTrack,
+      remoteVideoTrack,
       detail,
+      inputDeviceId,
+      outputDeviceId,
+      audioDevices,
       ...patch,
     });
   }
@@ -142,17 +155,43 @@ export function createVoiceCallController({ userId, onState, onError }) {
     return audioEl;
   }
 
+  async function refreshDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices();
+      audioDevices = {
+        inputs: all.filter((d) => d.kind === 'audioinput'),
+        outputs: all.filter((d) => d.kind === 'audiooutput'),
+      };
+      emit();
+      return audioDevices;
+    } catch {
+      return audioDevices;
+    }
+  }
+
   async function getMic() {
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const constraints = {
       audio: {
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
+        ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
       },
       video: false,
-    });
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
     localStream = stream;
+    if (muted) {
+      stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+    }
+    await refreshDevices();
     return stream;
+  }
+
+  function applyDeafened() {
+    const el = ensureAudioEl();
+    el.muted = !!deafened;
+    el.volume = deafened ? 0 : 1;
   }
 
   async function ensureIceServers() {
@@ -166,7 +205,11 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const el = ensureAudioEl();
     if (remoteStream) {
       el.srcObject = remoteStream;
+      applyDeafened();
       el.play().catch(() => {});
+    }
+    if (outputDeviceId && typeof el.setSinkId === 'function') {
+      el.setSinkId(outputDeviceId).catch(() => {});
     }
   }
 
@@ -178,10 +221,24 @@ export function createVoiceCallController({ userId, onState, onError }) {
     });
 
     conn.ontrack = (ev) => {
-      remoteStream = ev.streams?.[0] || new MediaStream([ev.track]);
-      const el = ensureAudioEl();
-      el.srcObject = remoteStream;
-      el.play().catch(() => {});
+      if (ev.track.kind === 'audio') {
+        remoteStream = ev.streams?.[0] || new MediaStream([ev.track]);
+        const el = ensureAudioEl();
+        el.srcObject = remoteStream;
+        applyDeafened();
+        el.play().catch(() => {});
+      }
+      if (ev.track.kind === 'video') {
+        remoteVideoTrack = ev.track;
+        ev.track.onended = () => {
+          if (remoteVideoTrack === ev.track) {
+            remoteVideoTrack = null;
+            emit();
+          }
+        };
+        emit();
+        return;
+      }
       emit();
     };
 
@@ -257,7 +314,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
         for (const track of localStream.getAudioTracks()) {
           pc.addTrack(track, localStream);
         }
-        const offer = await pc.createOffer({ offerToReceiveAudio: true });
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
         setState('connecting', 'Gathering network…');
         await waitForIceGathering(pc);
@@ -273,7 +330,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     }
 
     if (kind === 'offer') {
-      if (state !== 'connecting' && state !== 'ringing') return;
+      if (state !== 'connecting' && state !== 'ringing' && state !== 'connected') return;
       if (cid !== activeCallId || from !== peerId) return;
       try {
         if (!pc) {
@@ -283,20 +340,24 @@ export function createVoiceCallController({ userId, onState, onError }) {
             pc.addTrack(track, localStream);
           }
         }
-        setState('connecting', 'Answering…');
+        setState(state === 'connected' ? 'connected' : 'connecting', body?.renegotiate ? 'Updating media…' : 'Answering…');
         await pc.setRemoteDescription(body.sdp);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        setState('connecting', 'Gathering network…');
+        if (state !== 'connected') setState('connecting', 'Gathering network…');
         await waitForIceGathering(pc);
         await signal(peerId, 'answer', {
           sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
         });
-        setState('connecting', 'Connecting audio…');
-        armConnectTimeout();
+        if (state !== 'connected') {
+          setState('connecting', 'Connecting audio…');
+          armConnectTimeout();
+        }
       } catch (err) {
-        await hangup({ notify: true });
-        onError?.(err instanceof Error ? err : new Error('Could not answer call'));
+        if (state !== 'connected') {
+          await hangup({ notify: true });
+          onError?.(err instanceof Error ? err : new Error('Could not answer call'));
+        }
       }
       return;
     }
@@ -305,11 +366,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
       if (!pc || cid !== activeCallId || from !== peerId) return;
       try {
         await pc.setRemoteDescription(body.sdp);
-        setState('connecting', 'Connecting audio…');
-        armConnectTimeout();
+        if (state !== 'connected') {
+          setState('connecting', 'Connecting audio…');
+          armConnectTimeout();
+        }
       } catch (err) {
-        await hangup({ notify: true });
-        onError?.(err instanceof Error ? err : new Error('Bad call answer'));
+        if (state !== 'connected') {
+          await hangup({ notify: true });
+          onError?.(err instanceof Error ? err : new Error('Bad call answer'));
+        }
       }
       return;
     }
@@ -388,6 +453,131 @@ export function createVoiceCallController({ userId, onState, onError }) {
     emit();
   }
 
+  function setDeafened(next) {
+    const wasDeafened = deafened;
+    deafened = !!next;
+    // Discord-style: deafen forces mute; undeafen restores hearing + unmute.
+    if (deafened) setMuted(true);
+    else if (wasDeafened) setMuted(false);
+    applyDeafened();
+    emit();
+  }
+
+  async function setInputDevice(deviceId) {
+    inputDeviceId = deviceId || '';
+    if (!localStream) {
+      emit();
+      return;
+    }
+    const oldTrack = localStream.getAudioTracks()[0];
+    const fresh = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
+      },
+    });
+    const newTrack = fresh.getAudioTracks()[0];
+    if (muted) newTrack.enabled = false;
+    if (pc) {
+      const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'audio');
+      if (sender) await sender.replaceTrack(newTrack);
+    }
+    if (oldTrack) {
+      oldTrack.stop();
+      localStream.removeTrack(oldTrack);
+    }
+    localStream.addTrack(newTrack);
+    fresh.getTracks().forEach((t) => {
+      if (t !== newTrack) t.stop();
+    });
+    emit();
+  }
+
+  async function setOutputDevice(deviceId) {
+    outputDeviceId = deviceId || '';
+    const el = ensureAudioEl();
+    if (typeof el.setSinkId === 'function') {
+      await el.setSinkId(outputDeviceId || '');
+    }
+    emit();
+  }
+
+  async function startScreenShare() {
+    if (state !== 'connected' && state !== 'connecting') {
+      throw new Error('Join a call or voice channel first');
+    }
+    if (screenTrack) return;
+    const stream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 15 },
+      audio: false,
+    });
+    screenStream = stream;
+    screenTrack = stream.getVideoTracks()[0];
+    screenTrack.onended = () => {
+      stopScreenShare().catch(() => {});
+    };
+    if (pc && peerId) {
+      pc.addTrack(screenTrack, stream);
+      try {
+        const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
+        await pc.setLocalDescription(offer);
+        await waitForIceGathering(pc);
+        await signal(peerId, 'offer', {
+          sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
+          renegotiate: true,
+        });
+      } catch {
+        /* peer may still get track via addTrack in some stacks */
+      }
+    }
+    emit();
+  }
+
+  async function stopScreenShare() {
+    if (screenTrack && pc) {
+      const sender = pc.getSenders().find((s) => s.track === screenTrack);
+      if (sender) {
+        try { pc.removeTrack(sender); } catch { /* ignore */ }
+      }
+    }
+    if (screenTrack) {
+      try { screenTrack.stop(); } catch { /* ignore */ }
+    }
+    if (screenStream) {
+      screenStream.getTracks().forEach((t) => t.stop());
+    }
+    screenTrack = null;
+    screenStream = null;
+    emit();
+  }
+
+  async function startChannelVoice(_channelId, peerIds = []) {
+    const first = (peerIds || []).find(Boolean);
+    if (first) {
+      await start(first);
+      return;
+    }
+    // Alone in the channel — still open mic so mute/deafen/devices/share work.
+    if (state !== 'idle') return;
+    peerId = null;
+    activeCallId = callId();
+    setState('connecting', 'Joining voice…');
+    try {
+      await ensureIceServers();
+      await getMic();
+      setState('connected', 'In voice channel');
+    } catch (err) {
+      await hangup({ notify: false });
+      throw err;
+    }
+  }
+
+  async function leaveChannelVoice() {
+    await hangup({ notify: true });
+  }
+
   async function hangup({ notify = true } = {}) {
     clearTimers();
     const target = peerId;
@@ -403,6 +593,8 @@ export function createVoiceCallController({ userId, onState, onError }) {
       }).then(() => {}).catch(() => {});
     }
 
+    await stopScreenShare().catch(() => {});
+
     if (pc) {
       try { pc.close(); } catch { /* ignore */ }
       pc = null;
@@ -412,9 +604,9 @@ export function createVoiceCallController({ userId, onState, onError }) {
       localStream = null;
     }
     remoteStream = null;
+    remoteVideoTrack = null;
     if (audioEl) audioEl.srcObject = null;
 
-    // Best-effort cleanup of this call's rows for both sides.
     if (id) {
       await sb.from('voice_call_signals').delete().eq('call_id', id).then(() => {}).catch(() => {});
     }
@@ -422,6 +614,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     peerId = null;
     activeCallId = null;
     muted = false;
+    deafened = false;
     detail = '';
     setState('idle', '');
   }
@@ -489,8 +682,28 @@ export function createVoiceCallController({ userId, onState, onError }) {
     decline,
     hangup: () => hangup({ notify: true }),
     setMuted,
+    setDeafened,
+    setInputDevice,
+    setOutputDevice,
+    refreshDevices,
+    startScreenShare,
+    stopScreenShare,
+    startChannelVoice,
+    leaveChannelVoice,
     startInbox,
     stopInbox,
-    getState: () => ({ state, peerId, callId: activeCallId, muted, detail }),
+    getState: () => ({
+      state,
+      peerId,
+      callId: activeCallId,
+      muted,
+      deafened,
+      screenSharing: !!screenTrack,
+      remoteVideoTrack,
+      detail,
+      inputDeviceId,
+      outputDeviceId,
+      audioDevices,
+    }),
   };
 }

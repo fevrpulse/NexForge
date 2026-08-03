@@ -18,6 +18,7 @@ import Squad from './screens/Squad.jsx';
 import Friends from './screens/Friends.jsx';
 import Shop from './screens/Shop.jsx';
 import Clans from './screens/Clans.jsx';
+import Communities from './screens/Communities.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 
 const SCREEN_META = {
@@ -26,6 +27,7 @@ const SCREEN_META = {
   tournaments: { title: 'Tournaments', badge: 'OPEN' },
   leaderboard: { title: 'Leaderboard', badge: 'SEASON' },
   friends: { title: 'Friends', badge: 'SOCIAL' },
+  communities: { title: 'Communities', badge: 'SERVERS' },
   clans: { title: 'Clans', badge: 'CREW' },
   shop: { title: 'Cosmetics Shop', badge: 'FORGE' },
   profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
@@ -39,6 +41,7 @@ const SCREEN_COMPONENTS = {
   tournaments: Tournaments,
   leaderboard: Leaderboard,
   friends: Friends,
+  communities: Communities,
   clans: Clans,
   shop: Shop,
   profile: Profile,

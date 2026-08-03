@@ -566,17 +566,34 @@ ipcMain.on('overlay-empty', () => {
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
 
-  // Allow microphone for 1:1 voice calls (getUserMedia).
+  // Allow microphone + display capture for calls / screen share.
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    if (permission === 'media' || permission === 'microphone' || permission === 'audioCapture') {
+    if (
+      permission === 'media'
+      || permission === 'microphone'
+      || permission === 'audioCapture'
+      || permission === 'display-capture'
+    ) {
       callback(true);
       return;
     }
     callback(false);
   });
-  session.defaultSession.setPermissionCheckHandler((_wc, permission) => {
-    return permission === 'media' || permission === 'microphone' || permission === 'audioCapture';
-  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => (
+    permission === 'media'
+    || permission === 'microphone'
+    || permission === 'audioCapture'
+    || permission === 'display-capture'
+  ));
+  try {
+    const { desktopCapturer } = require('electron');
+    session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+      callback({ video: sources[0], audio: 'loopback' });
+    });
+  } catch (err) {
+    console.warn('Display media handler unavailable:', err);
+  }
 
   await startAuthServer();
   createWindow();

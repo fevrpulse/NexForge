@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.3.10',
+    highlights: [
+      'Communities tab — Discord-style servers with text & voice channels',
+      'Call controls: mic/speaker pickers, screen share, and deafen',
+      'Change your username and display name from My Profile',
+    ],
+  },
+  {
     version: '3.3.9',
     highlights: [
       'Voice calls reworked — database signaling, proper TURN auth, ready-before-offer handshake',

@@ -2,7 +2,7 @@ import React from 'react';
 import { useNexForge, GUEST_LOCKED_SCREENS } from '../context/NexForgeContext.jsx';
 import { mmrToRank, mmrToSkillTag } from '../lib/ranks.js';
 import { NavIcon } from './icons.jsx';
-import PlayerAvatar, { GamerTag } from './PlayerAvatar.jsx';
+import PlayerAvatar, { GamerTag, displayTag } from './PlayerAvatar.jsx';
 import { COMPANION_URL } from '../lib/companion.js';
 
 const PRIMARY_NAV = [
@@ -14,6 +14,7 @@ const PRIMARY_NAV = [
 
 const SECONDARY_NAV = [
   { id: 'friends', label: 'Friends' },
+  { id: 'communities', label: 'Communities' },
   { id: 'clans', label: 'Clans' },
   { id: 'shop', label: 'Shop' },
   { id: 'profile', label: 'My Profile' },
@@ -26,7 +27,7 @@ export default function Sidebar() {
     screen, setScreen, profile, guestMode, signOut, appVersion,
     checkForUpdates, unreadTotal, dndEnabled, setDndEnabled,
   } = useNexForge();
-  const tag = profile?.gamer_tag || 'Player';
+  const tag = displayTag(profile) || profile?.gamer_tag || 'Player';
   const skill = guestMode ? 'Guest' : mmrToSkillTag(profile?.mmr ?? 1200);
   const rank = guestMode ? 'No account' : `${skill} · ${mmrToRank(profile?.mmr ?? 1200)}`;
 

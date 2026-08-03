@@ -12,7 +12,7 @@ import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.j
 const NexForgeContext = createContext(null);
 
 /** Screens that guests cannot access — matches legacy GUEST_LOCKED behavior. */
-export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans'];
+export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans', 'communities'];
 
 const GUEST_LOCKED_LABELS = {
   matchmaking: 'Matchmaking is locked in Guest Mode',
@@ -22,10 +22,12 @@ const GUEST_LOCKED_LABELS = {
   friends: 'Friends & messages require an account',
   shop: 'The cosmetics shop requires an account',
   clans: 'Clans require an account',
+  communities: 'Communities require an account',
 };
 
 const GUEST_PROFILE = {
   gamer_tag: 'Guest',
+  display_name: null,
   platform: '—',
   mmr: 1200,
   wins: 0,

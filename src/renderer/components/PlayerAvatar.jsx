@@ -5,6 +5,13 @@ function initialsFrom(tag) {
   return String(tag || '?').slice(0, 2).toUpperCase();
 }
 
+/** Visible label: display name if set, else username (gamer_tag). */
+export function displayTag(profile) {
+  const shown = String(profile?.display_name || '').trim();
+  if (shown) return shown;
+  return profile?.gamer_tag || 'Player';
+}
+
 /**
  * Avatar with optional cosmetic frame.
  * Priority: uploaded photo → preset icon → initials.
@@ -18,7 +25,7 @@ export default function PlayerAvatar({
   showPresence = false,
   online = false,
 }) {
-  const tag = profile?.gamer_tag || 'Player';
+  const tag = displayTag(profile);
   const url = useMemo(() => avatarPublicUrl(profile?.avatar_path), [profile?.avatar_path]);
   const preset = useMemo(() => avatarPreset(profile?.avatar_preset), [profile?.avatar_preset]);
   const frame = frameStyleKey(profile?.equipped_frame);
@@ -56,14 +63,19 @@ export default function PlayerAvatar({
   );
 }
 
-export function GamerTag({ profile, className = '' }) {
+export function GamerTag({ profile, className = '', showUsername = false }) {
   const plate = nameplateStyleKey(profile?.equipped_nameplate);
   const clanTag = profile?.clan_tag ? String(profile.clan_tag).trim().toUpperCase() : '';
+  const shown = displayTag(profile);
+  const username = profile?.gamer_tag || '';
   return (
     <span className={`gamer-tag-text nameplate-${plate} ${className}`}>
       {clanTag ? <span className="clan-tag-prefix">[{clanTag}]</span> : null}
       {clanTag ? ' ' : ''}
-      {profile?.gamer_tag || 'Player'}
+      {shown}
+      {showUsername && username && String(profile?.display_name || '').trim() ? (
+        <span className="gamer-tag-username"> @{username}</span>
+      ) : null}
     </span>
   );
 }

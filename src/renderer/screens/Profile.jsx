@@ -27,6 +27,10 @@ export default function Profile() {
   const { user, profile, refreshProfile, showToast, gameCatalog, knownGames, syncCommunityGames } = useNexForge();
   const [matches, setMatches] = useState([]);
   const [editing, setEditing] = useState(false);
+  const [editingIdentity, setEditingIdentity] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState('');
+  const [displayDraft, setDisplayDraft] = useState('');
+  const [savingIdentity, setSavingIdentity] = useState(false);
   const [gameChoice, setGameChoice] = useState(profile?.main_game || 'Valorant');
   const [isOther, setIsOther] = useState(false);
   const [customName, setCustomName] = useState('');
@@ -65,6 +69,33 @@ export default function Profile() {
       setCustomDesc(profile.main_game_description || '');
     }
     setEditing(true);
+  }
+
+  function openIdentityEdit() {
+    setUsernameDraft(profile.gamer_tag || '');
+    setDisplayDraft(profile.display_name || '');
+    setEditingIdentity(true);
+  }
+
+  async function saveIdentity() {
+    const tag = String(usernameDraft || '').trim();
+    if (tag.length < 3) {
+      showToast('Username must be at least 3 characters.', 'error');
+      return;
+    }
+    setSavingIdentity(true);
+    const { error } = await sb.rpc('update_profile_identity', {
+      p_gamer_tag: tag,
+      p_display_name: displayDraft.trim() || null,
+    });
+    setSavingIdentity(false);
+    if (error) {
+      showToast(error.message || 'Could not update name.', 'error');
+      return;
+    }
+    await refreshProfile();
+    setEditingIdentity(false);
+    showToast('Profile name updated', 'success');
   }
 
   function onGameSelect(value) {
@@ -281,8 +312,10 @@ export default function Profile() {
           )}
         </div>
         <div>
-          <div className="profile-name"><GamerTag profile={profile} /></div>
-          <div className="profile-sub">Member since {since} · {profile.platform || 'PC'} · {profile.main_game || '—'}</div>
+          <div className="profile-name"><GamerTag profile={profile} showUsername /></div>
+          <div className="profile-sub">
+            @{profile.gamer_tag || 'player'} · Member since {since} · {profile.platform || 'PC'} · {profile.main_game || '—'}
+          </div>
           <div className="profile-tags">
             <span className={`badge ${skillTagClass(mmrToSkillTag(profile.mmr))}`}>{mmrToSkillTag(profile.mmr)}</span>
             <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
@@ -293,6 +326,59 @@ export default function Profile() {
       </div>
 
       <VerifiedStatsPanel />
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title">Username &amp; Display name</div>
+        {!editingIdentity ? (
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 700 }}>
+                {String(profile.display_name || '').trim() || profile.gamer_tag || '—'}
+              </div>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginTop: 6, lineHeight: 1.5 }}>
+                Username @{profile.gamer_tag || '—'}
+                {String(profile.display_name || '').trim()
+                  ? ' · Display name shown to others'
+                  : ' · No display name — username is shown'}
+              </div>
+            </div>
+            <button className="action-btn ghost" style={{ padding: '8px 14px', flexShrink: 0 }} onClick={openIdentityEdit}>
+              Change
+            </button>
+          </div>
+        ) : (
+          <div>
+            <div className="field">
+              <label>Username</label>
+              <input
+                type="text"
+                maxLength={20}
+                value={usernameDraft}
+                onChange={(e) => setUsernameDraft(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 20))}
+                placeholder="Unique handle"
+              />
+              <div className="field-hint">3–20 letters, numbers, underscores. Used for friend search.</div>
+            </div>
+            <div className="field">
+              <label>Display name</label>
+              <input
+                type="text"
+                maxLength={32}
+                value={displayDraft}
+                onChange={(e) => setDisplayDraft(e.target.value.slice(0, 32))}
+                placeholder="Optional name shown everywhere"
+              />
+              <div className="field-hint">Optional. Leave blank to show your username.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="action-btn ghost full" onClick={() => setEditingIdentity(false)}>Cancel</button>
+              <button type="button" className="action-btn primary full" onClick={saveIdentity} disabled={savingIdentity}>
+                {savingIdentity ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title">Main Game</div>

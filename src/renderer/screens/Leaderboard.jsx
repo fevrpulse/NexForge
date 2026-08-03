@@ -34,7 +34,7 @@ export default function Leaderboard() {
         return;
       }
       const { data, error } = await sb.from('profiles')
-        .select('id,gamer_tag,mmr,main_game,platform,avatar_path,avatar_preset,equipped_frame,equipped_banner,equipped_nameplate,clan_tag')
+        .select('id,gamer_tag,display_name,mmr,main_game,platform,avatar_path,avatar_preset,equipped_frame,equipped_banner,equipped_nameplate,clan_tag')
         .order('mmr', { ascending: false })
         .limit(10);
       if (error) throw error;

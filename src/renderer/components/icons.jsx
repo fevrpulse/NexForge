@@ -103,6 +103,14 @@ const NAV_ICONS = {
       <circle cx="12" cy="12" r="9" />
     </>
   ),
+  communities: (
+    <>
+      <rect x="3.5" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="4" width="7" height="7" rx="1.5" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
+    </>
+  ),
 };
 
 const GAME_ICONS = {
