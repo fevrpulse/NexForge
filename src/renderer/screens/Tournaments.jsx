@@ -67,13 +67,33 @@ function BracketView({
 }
 
 const FORMATS = ['1v1', '2v2', '5v5', 'Solo BR', 'Squad BR', 'Custom'];
-const TOURNEY_COLUMNS = 'id,host_id,host_tag,name,game,format,max_slots,starts_at,rules,prize_type,cash_amount,inapp_reward,status,registrations,created_at,bank_account_last4';
+const TOURNEY_COLUMNS = 'id,host_id,host_tag,name,game,format,max_slots,starts_at,rules,prize_type,cash_amount,inapp_reward,status,registrations,created_at,bank_account_last4,prize_funded,payout_status,winner_id';
+
+function abaRoutingValid(routing) {
+  if (!/^\d{9}$/.test(routing)) return false;
+  const d = routing.split('').map(Number);
+  const sum = 3 * (d[0] + d[3] + d[6]) + 7 * (d[1] + d[4] + d[7]) + (d[2] + d[5] + d[8]);
+  return sum % 10 === 0;
+}
 
 function tournamentStatus(t) {
   if (t.status === 'completed') return 'completed';
+  if (t.status === 'pending_funds') return 'pending_funds';
   const start = t.starts_at ? new Date(t.starts_at) : null;
   if (start && start.getTime() < Date.now() - 6 * 60 * 60 * 1000) return 'completed';
   return 'open';
+}
+
+function needsCashPrize(t) {
+  return t?.prize_type === 'cash' || t?.prize_type === 'both';
+}
+
+async function openExternalCheckout(url) {
+  if (window.nexforge?.openExternalUrl) {
+    await window.nexforge.openExternalUrl(url);
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
 }
 
 function isRegistered(t, userId) {
@@ -136,6 +156,9 @@ export default function Tournaments() {
 
   useEffect(() => {
     loadTournaments();
+    const onFocus = () => loadTournaments();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -164,7 +187,7 @@ export default function Tournaments() {
     if (!holder || !bank || !routing || !account || !country || !email || !phone) {
       return { error: 'Cash prizes require complete organizer bank and contact information.' };
     }
-    if (routing.length !== 9) return { error: 'Routing number must be 9 digits.' };
+    if (!abaRoutingValid(routing)) return { error: 'Routing number must be a valid 9-digit ABA number.' };
     if (account.length < 4 || account.length > 17) return { error: 'Enter a valid bank account number.' };
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'Enter a valid payout contact email.' };
 
@@ -173,6 +196,57 @@ export default function Tournaments() {
       bank_account_last4: account.slice(-4), bank_type: form.bankType, bank_country: country,
       payout_email: email, payout_phone: phone,
     };
+  }
+
+  async function fundTournamentPrize(tournamentId) {
+    const { data, error } = await sb.functions.invoke('create-tournament-escrow', {
+      body: { tournamentId },
+    });
+    let payload = data;
+    if (error) {
+      try {
+        if (error.context && typeof error.context.json === 'function') {
+          payload = await error.context.json();
+        }
+      } catch { /* keep */ }
+      throw new Error(payload?.error || error.message || 'Could not start prize escrow checkout.');
+    }
+    if (!payload?.url) throw new Error(payload?.error || 'Escrow checkout did not return a URL');
+    await openExternalCheckout(payload.url);
+    return payload;
+  }
+
+  async function claimWinnerPayout(tournamentId) {
+    const { data, error } = await sb.functions.invoke('payout-tournament-winner', {
+      body: { tournamentId },
+    });
+    let payload = data;
+    if (error) {
+      try {
+        if (error.context && typeof error.context.json === 'function') {
+          payload = await error.context.json();
+        }
+      } catch { /* keep */ }
+      if (payload?.needsOnboarding) return payload;
+      throw new Error(payload?.error || error.message || 'Payout failed.');
+    }
+    return payload;
+  }
+
+  async function startConnectOnboarding() {
+    const { data, error } = await sb.functions.invoke('create-connect-onboarding', { body: {} });
+    let payload = data;
+    if (error) {
+      try {
+        if (error.context && typeof error.context.json === 'function') {
+          payload = await error.context.json();
+        }
+      } catch { /* keep */ }
+      throw new Error(payload?.error || error.message || 'Could not start payout onboarding.');
+    }
+    if (!payload?.url) throw new Error(payload?.error || 'Onboarding did not return a URL');
+    await openExternalCheckout(payload.url);
+    return payload;
   }
 
   async function createTournament() {
@@ -204,46 +278,58 @@ export default function Tournaments() {
       bank = bankResult;
     }
 
-    const tournament = {
-      id: crypto.randomUUID(),
-      host_id: user.id,
-      host_tag: profile?.gamer_tag || user.email?.split('@')[0] || 'Host',
-      name,
-      game: form.game,
-      format: form.format,
-      max_slots: slots,
-      starts_at: new Date(form.startsAt).toISOString(),
-      rules,
-      prize_type: form.prizeType,
-      cash_amount: needsCash ? cashAmount : null,
-      inapp_reward: needsInApp ? inappReward : null,
-      status: 'open',
-      registrations: [],
-      created_at: new Date().toISOString(),
-      ...(bank || {}),
-    };
-
     setPublishing(true);
     try {
-      const { data, error } = await sb.from('tournaments').insert(tournament).select(TOURNEY_COLUMNS).single();
-      setPublishing(false);
+      const { data, error } = await sb.rpc('create_tournament', {
+        p_name: name,
+        p_game: form.game,
+        p_format: form.format,
+        p_max_slots: slots,
+        p_starts_at: new Date(form.startsAt).toISOString(),
+        p_rules: rules || null,
+        p_prize_type: form.prizeType,
+        p_cash_amount: needsCash ? cashAmount : null,
+        p_inapp_reward: needsInApp ? inappReward : null,
+        p_bank_holder: bank?.bank_holder || null,
+        p_bank_name: bank?.bank_name || null,
+        p_bank_routing: bank?.bank_routing || null,
+        p_bank_account: bank?.bank_account || null,
+        p_bank_type: bank?.bank_type || null,
+        p_bank_country: bank?.bank_country || null,
+        p_payout_email: bank?.payout_email || null,
+        p_payout_phone: bank?.payout_phone || null,
+      });
       if (error || !data) {
         await reportCloudError(error || new Error('Tournament publish failed'));
-        setFormMsg({ type: 'error', text: error?.message || 'Could not publish tournament. Fix cloud sync and try again.' });
+        setFormMsg({ type: 'error', text: error?.message || 'Could not publish tournament.' });
         showToast(error?.message || 'Tournament publish failed', 'error');
         return;
       }
-      setTournaments((prev) => [sanitizeTournament(data), ...prev]);
-      setFormMsg({ type: 'success', text: 'Tournament published.' });
+
+      const created = sanitizeTournament(typeof data === 'object' ? data : {});
+      setTournaments((prev) => [created, ...prev.filter((x) => x.id !== created.id)]);
       setForm({ ...emptyForm, bankEmail: user.email || '' });
       setCreateOpen(false);
-      showToast('Tournament created', 'success');
+
+      if (data.needs_escrow || created.status === 'pending_funds') {
+        setFormMsg(null);
+        showToast('Tournament created — fund the prize in Stripe to open registration.', 'success');
+        try {
+          await fundTournamentPrize(created.id);
+          showToast('Stripe escrow opened — return here after paying.', 'success');
+        } catch (fundErr) {
+          showToast(fundErr?.message || 'Tournament saved. Use Fund prize to open Stripe.', 'error');
+        }
+      } else {
+        showToast('Tournament created', 'success');
+      }
       loadTournaments();
     } catch (err) {
-      setPublishing(false);
       await reportCloudError(err);
       setFormMsg({ type: 'error', text: err?.message || 'Could not publish tournament.' });
       showToast(err?.message || 'Tournament publish failed', 'error');
+    } finally {
+      setPublishing(false);
     }
   }
 
@@ -364,10 +450,35 @@ export default function Tournaments() {
       });
       if (error) throw error;
       setBrackets((prev) => ({ ...prev, [tournamentId]: data }));
-      if (data && tournaments.find((x) => x.id === tournamentId)?.status !== 'completed') {
-        loadTournaments();
-      }
+      await loadTournaments();
       showToast('Match result recorded', 'success');
+
+      // After refresh, attempt payout if this completed a funded cash tournament
+      const refreshed = await sb.from('tournaments_public')
+        .select(TOURNEY_COLUMNS)
+        .eq('id', tournamentId)
+        .maybeSingle();
+      const t = refreshed?.data;
+      if (
+        t?.status === 'completed'
+        && needsCashPrize(t)
+        && t.prize_funded
+        && t.payout_status
+        && t.payout_status !== 'paid'
+        && t.payout_status !== 'none'
+      ) {
+        try {
+          const payout = await claimWinnerPayout(tournamentId);
+          if (payout?.needsOnboarding) {
+            showToast('Winner must complete payout onboarding to receive the prize.', 'error');
+          } else if (payout?.ok || payout?.alreadyPaid) {
+            showToast('Prize payout sent to the winner.', 'success');
+            await loadTournaments();
+          }
+        } catch (payoutErr) {
+          showToast(payoutErr?.message || 'Tournament complete — payout pending.', 'error');
+        }
+      }
     } catch (err) {
       showToast(err?.message || 'Could not report winner.', 'error');
       await reportCloudError(err);
@@ -378,7 +489,7 @@ export default function Tournaments() {
 
   const filtered = tournaments.filter((t) => {
     const status = tournamentStatus(t);
-    if (filter === 'open') return status === 'open';
+    if (filter === 'open') return status === 'open' || status === 'pending_funds';
     if (filter === 'completed') return status === 'completed';
     if (filter === 'registered') return isRegistered(t, user?.id);
     return true;
@@ -444,8 +555,8 @@ export default function Tournaments() {
               value={form.rules} onChange={(e) => updateField('rules', e.target.value)} />
           </div>
 
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
-            Prize Type
+          <div style={{ fontFamily: 'var(--font)', fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 8 }}>
+            Prize type
           </div>
           <div className="prize-type-row">
             <button type="button" className={`prize-type-btn ${form.prizeType === 'cash' ? 'active' : ''}`} onClick={() => updateField('prizeType', 'cash')}>Cash</button>
@@ -460,10 +571,10 @@ export default function Tournaments() {
                 <input type="number" min={1} step={1} placeholder="e.g. 100" value={form.cashAmount} onChange={(e) => updateField('cashAmount', e.target.value)} />
               </div>
               <div className="bank-box">
-                <div className="bank-title">Organizer bank info required for cash prizes</div>
+                <div className="bank-title">Organizer bank info + Stripe escrow required</div>
                 <div className="bank-note">
-                  To offer a cash prize, you must provide bank details used to fund the payout so the winner can be paid.
-                  This information is only used for prize fulfillment and is never shown on the public tournament card.
+                  Cash tournaments require valid bank details and a Stripe card payment that escrows the prize.
+                  Registration opens only after the prize is funded. The winner is paid via Stripe Connect when the bracket completes.
                 </div>
                 <div className="field">
                   <label>Account Holder Full Legal Name</label>
@@ -524,7 +635,7 @@ export default function Tournaments() {
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="action-btn primary" onClick={createTournament} disabled={publishing}>
-              {publishing ? 'Publishing...' : 'Publish Tournament'}
+              {publishing ? 'Publishing...' : needsCash ? 'Create & Fund Prize' : 'Publish Tournament'}
             </button>
             <button className="action-btn ghost" onClick={() => setCreateOpen(false)}>Cancel</button>
           </div>
@@ -561,11 +672,16 @@ export default function Tournaments() {
                 <div className="prize">{formatPrizeLabel(t)}</div>
               </div>
               <div className="tourney-meta">
-                <span>📅 {startLabel}</span>
-                <span>👥 {filled}/{slots}</span>
-                <span>{status === 'open' ? '🟢 Open' : '⬛ Completed'}</span>
+                <span>{startLabel}</span>
+                <span>{filled}/{slots} slots</span>
+                <span>
+                  {status === 'pending_funds' ? 'Awaiting prize funding'
+                    : status === 'open' ? 'Open'
+                      : 'Completed'}
+                </span>
                 {registered && <span className="badge badge-neon">REGISTERED</span>}
                 {amCheckedIn && <span className="badge badge-muted">CHECKED IN</span>}
+                {t.payout_status === 'paid' && <span className="badge badge-neon">PRIZE PAID</span>}
               </div>
               {t.rules && (
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginTop: 10, lineHeight: 1.5 }}>
@@ -577,12 +693,37 @@ export default function Tournaments() {
                   Reward · {t.inapp_reward}
                 </div>
               )}
-              {(t.prize_type === 'cash' || t.prize_type === 'both') && (
+              {needsCashPrize(t) && (
                 <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', marginTop: 6 }}>
-                  Cash payout funded by organizer · {maskAccount(t.bank_account_last4)}
+                  {t.prize_funded
+                    ? `Prize escrowed · ${maskAccount(t.bank_account_last4)}`
+                    : `Awaiting Stripe escrow · ${maskAccount(t.bank_account_last4)}`}
+                  {t.payout_status && t.payout_status !== 'none' && t.payout_status !== 'awaiting_funds'
+                    ? ` · payout ${t.payout_status.replace(/_/g, ' ')}`
+                    : ''}
                 </div>
               )}
               <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                {isHost && status === 'pending_funds' && (
+                  <button
+                    className="action-btn primary"
+                    style={{ padding: '8px 14px', fontSize: 12 }}
+                    disabled={bracketBusy}
+                    onClick={async () => {
+                      setBracketBusy(true);
+                      try {
+                        await fundTournamentPrize(t.id);
+                        showToast('Stripe escrow opened — return here after paying.', 'success');
+                      } catch (err) {
+                        showToast(err?.message || 'Could not open escrow checkout.', 'error');
+                      } finally {
+                        setBracketBusy(false);
+                      }
+                    }}
+                  >
+                    Fund prize
+                  </button>
+                )}
                 {status === 'open' && !registered && (
                   <button className="action-btn primary" style={{ padding: '8px 14px', fontSize: 12 }} onClick={() => registerForTournament(t.id)}>
                     Register
@@ -601,6 +742,39 @@ export default function Tournaments() {
                     onClick={() => checkIn(t.id)}
                   >
                     Check in
+                  </button>
+                )}
+                {status === 'completed' && needsCashPrize(t) && t.prize_funded && t.payout_status !== 'paid'
+                  && (isHost || t.winner_id === user?.id) && (
+                  <button
+                    className="action-btn primary"
+                    style={{ padding: '8px 14px', fontSize: 12 }}
+                    disabled={bracketBusy}
+                    onClick={async () => {
+                      setBracketBusy(true);
+                      try {
+                        const payout = await claimWinnerPayout(t.id);
+                        if (payout?.needsOnboarding) {
+                          if (t.winner_id === user?.id) {
+                            await startConnectOnboarding();
+                            showToast('Complete Stripe Connect, then claim payout again.', 'success');
+                          } else {
+                            showToast('Winner must complete payout onboarding first.', 'error');
+                          }
+                        } else if (payout?.ok || payout?.alreadyPaid) {
+                          showToast('Prize payout complete.', 'success');
+                          await loadTournaments();
+                        }
+                      } catch (err) {
+                        showToast(err?.message || 'Payout failed.', 'error');
+                      } finally {
+                        setBracketBusy(false);
+                      }
+                    }}
+                  >
+                    {t.winner_id === user?.id && (t.payout_status === 'awaiting_winner_onboarding' || t.payout_status === 'pending')
+                      ? 'Claim / set up payout'
+                      : 'Pay winner'}
                   </button>
                 )}
                 <button

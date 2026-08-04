@@ -19,10 +19,14 @@ const AUTH_HOST = '127.0.0.1';
 const ALLOWED_EXTERNAL_HOSTS = new Set([
   'nfaxokwpmaxyhnvatrwf.supabase.co',
   'checkout.stripe.com',
+  'billing.stripe.com',
+  'connect.stripe.com',
   'github.com',
   'www.github.com',
+  'fevrpulse.github.io',
 ]);
 const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
+const UPDATE_FIRST_RECHECK_MS = 2 * 60 * 1000;
 const UPDATE_INSTALL_DELAY_MS = 2500;
 
 let mainWindow = null;
@@ -84,47 +88,77 @@ function setupAutoUpdater() {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = false;
   autoUpdater.logger = console;
 
   let installingUpdate = false;
+  let updateReadyVersion = null;
+
+  function forceQuitForUpdate() {
+    isQuitting = true;
+    try {
+      autoUpdater.quitAndInstall(false, true);
+    } catch (err) {
+      console.error('quitAndInstall failed; forcing app quit for install-on-quit:', err);
+      sendToRenderer('update-status', {
+        state: 'error',
+        message: 'Update ready — restarting to finish install…',
+        version: updateReadyVersion,
+      });
+      // Ensure close-to-tray cannot strand a downloaded update.
+      setTimeout(() => {
+        isQuitting = true;
+        app.quit();
+      }, 400);
+    }
+  }
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Checking for updates...');
-    sendToRenderer('update-status', { state: 'checking' });
+    sendToRenderer('update-status', { state: 'checking', localVersion: app.getVersion() });
   });
 
   autoUpdater.on('update-available', (info) => {
     console.log('Update available:', info.version);
-    sendToRenderer('update-status', { state: 'available', version: info && info.version });
+    sendToRenderer('update-status', {
+      state: 'available',
+      version: info && info.version,
+      localVersion: app.getVersion(),
+    });
   });
 
   autoUpdater.on('update-not-available', (info) => {
     console.log('No update available. Current version:', app.getVersion(), 'Remote:', info && info.version);
-    sendToRenderer('update-status', { state: 'not-available', version: app.getVersion() });
+    sendToRenderer('update-status', {
+      state: 'not-available',
+      version: app.getVersion(),
+      remoteVersion: info && info.version,
+    });
   });
 
   autoUpdater.on('download-progress', (progress) => {
     sendToRenderer('update-status', {
       state: 'downloading',
       percent: Math.round(progress && progress.percent != null ? progress.percent : 0),
+      version: updateReadyVersion,
     });
   });
 
   autoUpdater.on('update-downloaded', (info) => {
     const version = info && info.version;
+    updateReadyVersion = version || null;
     console.log('Update downloaded:', version);
-    sendToRenderer('update-status', { state: 'downloaded', version });
+    sendToRenderer('update-status', {
+      state: 'downloaded',
+      version,
+      localVersion: app.getVersion(),
+    });
     if (installingUpdate) return;
     installingUpdate = true;
 
     // Always install the latest build — brief delay so the UI can show a toast.
     setTimeout(() => {
-      try {
-        autoUpdater.quitAndInstall(false, true);
-      } catch (err) {
-        console.error('quitAndInstall failed; will retry on quit:', err);
-        installingUpdate = false;
-      }
+      forceQuitForUpdate();
     }, UPDATE_INSTALL_DELAY_MS);
   });
 
@@ -136,6 +170,15 @@ function setupAutoUpdater() {
   autoUpdater.checkForUpdatesAndNotify().catch((err) => {
     console.error('Update check failed:', err);
   });
+
+  // Catch releases that publish shortly after launch.
+  const firstRecheck = setTimeout(() => {
+    if (installingUpdate) return;
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error('First recheck update failed:', err);
+    });
+  }, UPDATE_FIRST_RECHECK_MS);
+  if (firstRecheck.unref) firstRecheck.unref();
 
   // Long-running sessions still pick up new releases without a restart.
   const timer = setInterval(() => {
@@ -501,12 +544,18 @@ ipcMain.handle('open-external-url', async (_event, url) => {
 });
 
 ipcMain.handle('check-for-updates', async () => {
-  if (!updater) return { ok: false, reason: 'dev' };
+  if (!updater) return { ok: false, reason: 'dev', localVersion: app.getVersion() };
   try {
-    await updater.checkForUpdates();
-    return { ok: true };
+    const result = await updater.checkForUpdates();
+    const remoteVersion = result?.updateInfo?.version || null;
+    return {
+      ok: true,
+      localVersion: app.getVersion(),
+      remoteVersion,
+      updateAvailable: !!(remoteVersion && remoteVersion !== app.getVersion()),
+    };
   } catch (err) {
-    return { ok: false, reason: err?.message || 'Update check failed' };
+    return { ok: false, reason: err?.message || 'Update check failed', localVersion: app.getVersion() };
   }
 });
 

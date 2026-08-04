@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
   const returnUrl = `${supabaseUrl}/functions/v1/stripe-checkout-return`;
   const params = new URLSearchParams({
     mode: "payment",
-    success_url: `${returnUrl}?status=success`,
+    success_url: `${returnUrl}?status=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${returnUrl}?status=cancelled`,
     client_reference_id: user.id,
     "line_items[0][price_data][currency]": "usd",
@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
     "line_items[0][quantity]": "1",
     "metadata[user_id]": user.id,
     "metadata[cosmetic_id]": cosmeticId,
+    "metadata[kind]": "cosmetic",
     "payment_intent_data[metadata][user_id]": user.id,
     "payment_intent_data[metadata][cosmetic_id]": cosmeticId,
   });
@@ -143,5 +144,5 @@ Deno.serve(async (req) => {
     }, 502);
   }
 
-  return json({ url: session.url, cosmeticId, amount });
+  return json({ url: session.url, sessionId: session.id, cosmeticId, amount });
 });

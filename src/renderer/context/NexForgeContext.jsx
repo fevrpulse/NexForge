@@ -685,6 +685,13 @@ export function NexForgeProvider({ children }) {
           : res.reason || 'Update check failed.',
         'error',
       );
+      return;
+    }
+    if (res?.remoteVersion && res?.localVersion && res.remoteVersion === res.localVersion) {
+      // Status event may also fire; keep toast honest if feed matches.
+      showToast(`You are on v${res.localVersion}.`, 'success');
+    } else if (res?.remoteVersion && res?.localVersion) {
+      showToast(`Local v${res.localVersion} → remote v${res.remoteVersion}`, 'success');
     }
   }, [showToast]);
 

@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.6.0',
+    highlights: [
+      'Shop cash buys open Stripe and unlock cosmetics automatically after payment',
+      'Cash tournaments require bank details + Stripe prize escrow; winners are paid via Connect',
+      'Auto-update install path hardened; Shop and Tournaments UI cleaned up',
+    ],
+  },
+  {
     version: '3.5.5',
     highlights: [
       'Fixed broken desktop shortcuts — installer is now NexForge-Setup.exe (no longer clashes with the app)',

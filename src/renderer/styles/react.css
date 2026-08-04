@@ -387,17 +387,17 @@
 .skill-tag-top{background:#E8C54722;color:#E8C547}
 .badge.skill-tag-low,.badge.skill-tag-mid,.badge.skill-tag-high,.badge.skill-tag-top{border:none}
 /* shop + banners — compact but complete for Shop.jsx classes */
-.shop-hero{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:16px}
-.shop-tabs{display:flex;gap:8px;margin-bottom:14px}
-.shop-tab{padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--panel);color:var(--muted2);cursor:pointer;font-family:var(--font);font-weight:700}
-.shop-tab.active{border-color:var(--neon);color:var(--neon)}
-.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
-.shop-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px}
+.shop-hero{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:14px;padding:14px 16px}
+.shop-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.shop-tab{padding:7px 12px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--muted2);cursor:pointer;font-family:var(--font);font-weight:700;font-size:13px}
+.shop-tab.active{border-color:var(--neon);color:var(--neon);background:var(--neon2)}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.shop-card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px}
 .shop-card.equipped{border-color:var(--neon)}
-.shop-card-name{font-weight:700;margin:8px 0 4px}
-.shop-card-desc{font-family:var(--mono);font-size:11px;color:var(--muted2);min-height:32px}
+.shop-card-name{font-weight:800;letter-spacing:-.15px;margin:8px 0 4px}
+.shop-card-desc{font-family:var(--mono);font-size:11px;color:var(--muted2);min-height:28px;line-height:1.45}
 .shop-card-meta{display:flex;flex-wrap:wrap;gap:6px;font-family:var(--mono);font-size:10px;color:var(--muted2);margin:8px 0 10px}
-.rarity-pill{padding:2px 6px;border-radius:4px;text-transform:uppercase}
+.rarity-pill{padding:2px 6px;border-radius:4px;letter-spacing:.2px}
 .rarity-common{color:var(--muted2)}.rarity-rare{color:#3B7EFF}.rarity-epic{color:#9B5CFF}.rarity-legendary{color:#E8C547}
 .cash-price{color:#4ade80;font-weight:700}
 .profile-banner,.banner-swatch{border-radius:10px}

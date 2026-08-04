@@ -80,16 +80,69 @@ Deno.serve(async (req) => {
   }
 
   const session = event.data?.object;
+  const kind = String(session?.metadata?.kind || "cosmetic");
   const userId = String(session?.metadata?.user_id || "");
-  const cosmeticId = String(session?.metadata?.cosmetic_id || "");
-  const amount = Number(session?.amount_total);
-  const currency = String(session?.currency || "").toLowerCase();
   const validUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
     .test(userId);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+
+  // Tournament prize escrow funding
+  if (kind === "tournament_escrow") {
+    const tournamentId = String(session?.metadata?.tournament_id || "");
+    if (
+      session?.mode !== "payment" ||
+      session?.payment_status !== "paid" ||
+      !validUserId ||
+      !tournamentId
+    ) {
+      console.error("Rejected tournament escrow session", session?.id);
+      return new Response("Checkout data did not match tournament escrow", { status: 400 });
+    }
+
+    const { data: tourney } = await admin
+      .from("tournaments")
+      .select("id,host_id,cash_amount,prize_funded")
+      .eq("id", tournamentId)
+      .maybeSingle();
+    const expected = Math.round(Number(tourney?.cash_amount || 0) * 100);
+    const amount = Number(session?.amount_total);
+    if (!tourney || tourney.host_id !== userId || amount !== expected) {
+      console.error("Tournament escrow amount/host mismatch", session?.id);
+      return new Response("Tournament escrow mismatch", { status: 400 });
+    }
+    if (!tourney.prize_funded) {
+      const { error } = await admin.rpc("mark_tournament_prize_funded", {
+        p_tournament_id: tournamentId,
+        p_session_id: session.id,
+        p_payment_intent_id: String(session?.payment_intent || ""),
+      });
+      if (error) {
+        // Fallback direct update if RPC grant path fails
+        const { error: upErr } = await admin.from("tournaments").update({
+          prize_funded: true,
+          status: "open",
+          stripe_checkout_session_id: session.id,
+          prize_payment_intent_id: String(session?.payment_intent || ""),
+          payout_status: "escrowed",
+        }).eq("id", tournamentId).eq("status", "pending_funds");
+        if (upErr) {
+          console.error("Could not mark tournament funded", upErr.code);
+          return new Response("Could not fund tournament", { status: 500 });
+        }
+      }
+    }
+    return new Response(JSON.stringify({ received: true, kind: "tournament_escrow" }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const cosmeticId = String(session?.metadata?.cosmetic_id || "");
+  const amount = Number(session?.amount_total);
+  const currency = String(session?.currency || "").toLowerCase();
 
   const { data: cosmetic } = await admin
     .from("cosmetics")

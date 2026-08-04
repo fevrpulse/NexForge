@@ -11,6 +11,28 @@ const SLOTS = [
   { id: 'pass', label: 'Season Pass' },
 ];
 
+function pendingCashKey(userId) {
+  return `nf_pending_cash_${userId}`;
+}
+
+function loadPendingCash(userId) {
+  if (!userId || typeof localStorage === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(pendingCashKey(userId));
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePendingCash(userId, map) {
+  if (!userId || typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(pendingCashKey(userId), JSON.stringify(map));
+  } catch { /* ignore quota */ }
+}
+
 export default function Shop() {
   const { user, profile, refreshProfile, showToast, reportCloudError, guestMode, refreshBattlePassXp } = useNexForge();
   const [catalog, setCatalog] = useState([]);
@@ -22,8 +44,28 @@ export default function Shop() {
   const [giftTarget, setGiftTarget] = useState(null);
   const [cashBusyId, setCashBusyId] = useState(null);
   const [pendingCash, setPendingCash] = useState(() => new Set());
+  const [pendingSessions, setPendingSessions] = useState(() => ({}));
   const [battlePass, setBattlePass] = useState(null);
   const [passBusy, setPassBusy] = useState(false);
+
+  // Restore pending cash checkouts across Shop remounts.
+  useEffect(() => {
+    if (!user?.id) {
+      setPendingCash(new Set());
+      setPendingSessions({});
+      return;
+    }
+    const map = loadPendingCash(user.id);
+    setPendingSessions(map);
+    setPendingCash(new Set(Object.keys(map)));
+  }, [user?.id]);
+
+  const persistPending = useCallback((map) => {
+    if (!user?.id) return;
+    setPendingSessions(map);
+    setPendingCash(new Set(Object.keys(map)));
+    savePendingCash(user.id, map);
+  }, [user?.id]);
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -65,6 +107,22 @@ export default function Shop() {
 
     const checkPurchases = async () => {
       const pendingIds = [...pendingCash];
+      // Prefer Stripe session confirm when we have a session id (webhook backup).
+      for (const cosmeticId of pendingIds) {
+        const sessionId = pendingSessions[cosmeticId]?.sessionId;
+        if (!sessionId) continue;
+        try {
+          const { data } = await sb.functions.invoke('confirm-ring-checkout', {
+            body: { sessionId },
+          });
+          if (data?.paid && data?.cosmeticId) {
+            /* ownership poll below will clear pending */
+          }
+        } catch {
+          /* webhook may still land */
+        }
+      }
+
       const { data, error } = await sb
         .from('user_cosmetics')
         .select('cosmetic_id')
@@ -74,25 +132,28 @@ export default function Shop() {
 
       const purchased = new Set(data.map((row) => row.cosmetic_id));
       setOwned((current) => new Set([...current, ...purchased]));
-      setPendingCash((current) => {
-        const next = new Set(current);
-        purchased.forEach((id) => next.delete(id));
-        return next;
-      });
+      const nextMap = { ...pendingSessions };
+      purchased.forEach((id) => { delete nextMap[id]; });
+      if (Object.keys(nextMap).length !== Object.keys(pendingSessions).length) {
+        persistPending(nextMap);
+      }
       purchased.forEach((id) => {
         const item = catalog.find((entry) => entry.id === id);
-        showToast(`${item?.name || 'Ring'} unlocked — ready to equip`, 'success');
+        showToast(`${item?.name || 'Item'} unlocked — ready to equip`, 'success');
       });
       await refreshProfile();
     };
 
     checkPurchases();
     const timer = setInterval(checkPurchases, 3000);
+    const onFocus = () => { checkPurchases(); };
+    window.addEventListener('focus', onFocus);
     return () => {
       active = false;
       clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
     };
-  }, [catalog, pendingCash, refreshProfile, showToast, user]);
+  }, [catalog, pendingCash, pendingSessions, persistPending, refreshProfile, showToast, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -224,8 +285,15 @@ export default function Shop() {
       } else {
         window.open(payload.url, '_blank', 'noopener,noreferrer');
       }
-      setPendingCash((current) => new Set(current).add(item.id));
-      showToast('Secure checkout opened in your browser. NexForge will unlock the item after payment.', 'success');
+      const nextMap = {
+        ...pendingSessions,
+        [item.id]: {
+          sessionId: payload.sessionId || null,
+          at: Date.now(),
+        },
+      };
+      persistPending(nextMap);
+      showToast('Stripe checkout opened — return here after paying; unlock is automatic.', 'success');
     } catch (err) {
       showToast(err?.message || 'Could not start secure checkout.', 'error');
       await reportCloudError(err);

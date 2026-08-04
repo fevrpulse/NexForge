@@ -11,12 +11,12 @@ function escapeHtml(value: string) {
 }
 
 Deno.serve((req) => {
-  const status = new URL(req.url).searchParams.get("status") === "success"
-    ? "success"
-    : "cancelled";
+  const url = new URL(req.url);
+  const status = url.searchParams.get("status") === "success" ? "success" : "cancelled";
+  const sessionId = String(url.searchParams.get("session_id") || "");
   const title = status === "success" ? "Payment complete" : "Checkout cancelled";
   const message = status === "success"
-    ? "Your ring is being added to NexForge. Return to the app; it will refresh automatically."
+    ? "Return to NexForge — your item unlocks automatically within a few seconds."
     : "Nothing was charged. You can return to NexForge whenever you are ready.";
 
   return new Response(`<!doctype html>
@@ -27,16 +27,23 @@ Deno.serve((req) => {
   <title>${escapeHtml(title)} · NexForge</title>
   <style>
     *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;
-    background:#090b0f;color:#f4f6f8;font:16px system-ui,sans-serif}.card{width:min(520px,calc(100% - 32px));
-    padding:36px;border:1px solid #27303a;border-radius:18px;background:#11151b;text-align:center;
-    box-shadow:0 24px 80px #0008}.mark{color:#c9ff00;font-weight:900;letter-spacing:.16em;
-    font-size:13px}.icon{font-size:44px;margin:20px}h1{font-size:28px;margin:0 0 12px}
-    p{color:#aab3be;line-height:1.6;margin:0}.success{color:#c9ff00}.cancelled{color:#aab3be}
+    background:#070807;color:#F2F5EC;font:16px "Segoe UI",system-ui,sans-serif}
+    .card{width:min(480px,calc(100% - 32px));padding:32px 28px;border:1px solid #262b24;
+    border-radius:14px;background:#101210;text-align:center}
+    .mark{color:#c9ff00;font-weight:800;letter-spacing:.12em;font-size:12px;text-transform:uppercase}
+    h1{font-size:24px;margin:18px 0 10px;font-weight:700;letter-spacing:-.02em}
+    p{color:#A7AE9C;line-height:1.55;margin:0}
+    .hint{margin-top:18px;font-size:13px;color:#6F7568}
   </style>
 </head>
-<body><main class="card"><div class="mark">NEXFORGE</div>
-<div class="icon ${status}">${status === "success" ? "✓" : "×"}</div>
-<h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p></main></body>
+<body>
+<main class="card">
+  <div class="mark">NexForge</div>
+  <h1>${escapeHtml(title)}</h1>
+  <p>${escapeHtml(message)}</p>
+  ${sessionId ? `<p class="hint">Session ready for the app to confirm.</p>` : ""}
+</main>
+</body>
 </html>`, {
     status: 200,
     headers: {
