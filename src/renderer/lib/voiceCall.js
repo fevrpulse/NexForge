@@ -186,22 +186,52 @@ export function createVoiceCallController({ userId, onState, onError }) {
   }
 
   async function getMic() {
-    const constraints = {
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
-      },
-      video: false,
+    const baseAudio = {
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
     };
-    const stream = await navigator.mediaDevices.getUserMedia(constraints);
-    localStream = stream;
-    if (muted) {
-      stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+    const tryConstraints = async (audio) => {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
+      localStream = stream;
+      if (muted) {
+        stream.getAudioTracks().forEach((t) => { t.enabled = false; });
+      }
+      await refreshDevices();
+      return stream;
+    };
+
+    try {
+      return await tryConstraints({
+        ...baseAudio,
+        ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
+      });
+    } catch (firstErr) {
+      // Stale deviceId / overconstrained — retry with default mic.
+      if (inputDeviceId) {
+        try {
+          inputDeviceId = '';
+          return await tryConstraints(baseAudio);
+        } catch {
+          /* fall through to friendly error */
+        }
+      }
+      const name = firstErr?.name || '';
+      if (name === 'NotAllowedError' || /permission/i.test(String(firstErr?.message || ''))) {
+        throw new Error('Microphone permission is required to join voice. Allow mic access and try again.');
+      }
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        throw new Error('No microphone found. Plug one in and try again.');
+      }
+      if (name === 'NotReadableError') {
+        throw new Error('Microphone is in use by another app. Close it and try again.');
+      }
+      // Chromium sometimes reports getUserMedia failure as TypeError: Failed to fetch.
+      if (/failed to fetch/i.test(String(firstErr?.message || ''))) {
+        throw new Error('Could not access the microphone. Check Windows privacy settings for NexForge and try again.');
+      }
+      throw firstErr;
     }
-    await refreshDevices();
-    return stream;
   }
 
   async function ensureIceServers() {
@@ -210,8 +240,9 @@ export function createVoiceCallController({ userId, onState, onError }) {
   }
 
   async function ensureLocalMedia() {
-    await ensureIceServers();
+    // Mic first — clearer errors; ICE servers are only needed once peers connect.
     if (!localStream) await getMic();
+    await ensureIceServers();
     return localStream;
   }
 
@@ -830,6 +861,12 @@ export function createVoiceCallController({ userId, onState, onError }) {
     if (!userId) throw new Error('Not signed in');
     if (!chId) throw new Error('Missing voice channel');
     if (mode === 'dm' && state !== 'idle') throw new Error('Leave your call before joining voice');
+
+    // Already in this channel — just sync peers.
+    if (mode === 'channel' && channelId === chId && state !== 'idle') {
+      await syncChannelPeers(peerIds);
+      return;
+    }
 
     mode = 'channel';
     channelId = chId;

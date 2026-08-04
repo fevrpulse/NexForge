@@ -317,8 +317,22 @@ export default function Communities() {
     if (!activeChannel || activeChannel.kind !== 'voice') return;
     await run(async () => {
       const chid = activeChannel.id;
+      if (!voice?.startChannelVoice) {
+        throw new Error('Voice is still starting up — wait a second and try again.');
+      }
+
+      // Acquire mic before writing presence so a denied mic does not look like a cloud outage.
+      try {
+        await voice.startChannelVoice(chid, []);
+      } catch (mediaErr) {
+        throw mediaErr;
+      }
+
       const { error } = await sb.rpc('join_community_voice', { p_channel_id: chid });
-      if (error) throw error;
+      if (error) {
+        await voice.leaveChannelVoice?.().catch(() => {});
+        throw error;
+      }
       try {
         await loadVoiceHere(chid);
         const { data: others } = await sb
@@ -327,15 +341,14 @@ export default function Communities() {
           .eq('channel_id', chid)
           .neq('user_id', myId);
         const peerIds = (others || []).map((o) => o.user_id);
-        if (voice?.startChannelVoice) {
-          await voice.startChannelVoice(chid, peerIds);
-        } else if (peerIds[0] && voice?.startCall) {
-          await voice.startCall(peerIds[0]);
+        if (peerIds.length && voice.syncChannelPeers) {
+          await voice.syncChannelPeers(peerIds);
         }
         voiceChannelRef.current = chid;
         showToast(`Joined ${activeChannel.name}`, 'success');
       } catch (err) {
         await sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+        await voice.leaveChannelVoice?.().catch(() => {});
         voiceChannelRef.current = null;
         throw err;
       }

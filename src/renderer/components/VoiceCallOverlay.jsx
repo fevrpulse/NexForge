@@ -282,15 +282,19 @@ export function VoiceCallProvider({ children }) {
   }, [showToast]);
 
   const startChannelVoice = useCallback(async (channelId, peerIds) => {
-    await ctrlRef.current?.startChannelVoice(channelId, peerIds);
+    if (!ctrlRef.current) {
+      throw new Error('Voice is still starting up — wait a second and try again.');
+    }
+    await ctrlRef.current.startChannelVoice(channelId, peerIds);
   }, []);
 
   const syncChannelPeers = useCallback(async (peerIds) => {
-    await ctrlRef.current?.syncChannelPeers?.(peerIds);
+    if (!ctrlRef.current?.syncChannelPeers) return;
+    await ctrlRef.current.syncChannelPeers(peerIds);
   }, []);
 
   const leaveChannelVoice = useCallback(async () => {
-    await ctrlRef.current?.leaveChannelVoice();
+    await ctrlRef.current?.leaveChannelVoice?.();
   }, []);
 
   useEffect(() => {

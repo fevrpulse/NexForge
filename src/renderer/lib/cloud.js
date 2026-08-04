@@ -24,6 +24,23 @@ export function isCloudUnreachableError(err) {
   if (!err) return false;
   if (isAuthSessionError(err)) return false;
   const msg = String(err?.message || err || '').toLowerCase();
+  const name = String(err?.name || '');
+  // Media / WebRTC failures often surface as TypeError: Failed to fetch in Chromium —
+  // those are not cloud outages.
+  if (
+    name === 'NotAllowedError'
+    || name === 'NotFoundError'
+    || name === 'NotReadableError'
+    || name === 'OverconstrainedError'
+    || name === 'AbortError'
+    || msg.includes('permission denied')
+    || msg.includes('getusermedia')
+    || msg.includes('requested device not found')
+    || msg.includes('could not start audio')
+    || msg.includes('microphone')
+  ) {
+    return false;
+  }
   const status = Number(err?.status || err?.statusCode || 0);
   if (status >= 500 && status <= 599) return true;
   return (

@@ -139,7 +139,14 @@ export function NexForgeProvider({ children }) {
       return true;
     }
     if (isCloudUnreachableError(err)) {
-      setCloudOffline(true, err?.message || 'Cloud sync unavailable');
+      // Confirm with a probe — Chromium media/WebRTC often throws "Failed to fetch"
+      // which must not put the whole app into local-only mode.
+      const result = await probeSupabaseCloud();
+      if (result.ok) {
+        setCloudOffline(false);
+        return false;
+      }
+      setCloudOffline(true, result.error?.message || err?.message || 'Cloud sync unavailable');
       return true;
     }
     return false;

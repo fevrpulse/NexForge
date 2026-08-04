@@ -4,6 +4,12 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.6.1',
+    highlights: [
+      'Fixed Communities voice join falsely showing Local-only mode (mic access + cloud probe)',
+    ],
+  },
+  {
     version: '3.6.0',
     highlights: [
       'Shop cash buys open Stripe and unlock cosmetics automatically after payment',
