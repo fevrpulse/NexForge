@@ -216,8 +216,9 @@ export default function Communities() {
         p_icon_color: color,
       });
       if (error) throw error;
+      if (!data?.id) throw new Error(data?.error || 'Could not create community.');
       setCreateName('');
-      showToast(`Created ${data.name}`, 'success');
+      showToast(`Created ${data.name || 'community'}`, 'success');
       await loadCommunities();
       setSelectedId(data.id);
     });

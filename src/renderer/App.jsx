@@ -3,7 +3,7 @@ import { NexForgeProvider, useNexForge } from './context/NexForgeContext.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import ToastStack from './components/ToastStack.jsx';
 import Sidebar from './components/Sidebar.jsx';
-import { NavIcon } from './components/icons.jsx';
+import SafeNavIcon from './components/SafeNavIcon.jsx';
 import AuthScreen from './components/AuthScreen.jsx';
 import LockModal from './components/LockModal.jsx';
 import OnboardingModal from './components/OnboardingModal.jsx';
@@ -97,7 +97,7 @@ function AppShell() {
         <div className="main">
           <div className="topbar">
             <div className="topbar-title">
-              <span className="topbar-icon"><NavIcon id={screen} size={20} /></span>
+              <span className="topbar-icon"><SafeNavIcon id={screen} size={20} /></span>
               {meta.title}
             </div>
             <div className="topbar-right">
@@ -108,7 +108,9 @@ function AppShell() {
             </div>
           </div>
           <div className="content">
-            <ScreenComponent />
+            <ErrorBoundary key={screen}>
+              <ScreenComponent />
+            </ErrorBoundary>
           </div>
         </div>
       </div>

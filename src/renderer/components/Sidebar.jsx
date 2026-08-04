@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNexForge, GUEST_LOCKED_SCREENS } from '../context/NexForgeContext.jsx';
 import { mmrToRank, mmrToSkillTag } from '../lib/ranks.js';
-import { NavIcon } from './icons.jsx';
+import SafeNavIcon from './SafeNavIcon.jsx';
 import PlayerAvatar, { GamerTag, displayTag } from './PlayerAvatar.jsx';
 import { COMPANION_URL } from '../lib/companion.js';
 
@@ -39,7 +39,7 @@ export default function Sidebar() {
         className={`nav-item ${screen === item.id ? 'active' : ''} ${locked ? 'locked-nav' : ''}`}
         onClick={() => setScreen(item.id)}
       >
-        <span className="nav-icon"><NavIcon id={item.id} /></span>
+        <span className="nav-icon"><SafeNavIcon id={item.id} /></span>
         <span className="nav-label">{item.label}</span>
         {item.id === 'friends' && unreadTotal > 0 && (
           <span className="nav-unread">{unreadTotal > 99 ? '99+' : unreadTotal}</span>

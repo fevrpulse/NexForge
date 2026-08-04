@@ -4,6 +4,12 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.5.2',
+    highlights: [
+      'Fixed Communities crash (NavIcon is not defined) when opening or creating a server',
+    ],
+  },
+  {
     version: '3.5.1',
     highlights: [
       'Fixed creating Communities (permission denied on membership check)',
