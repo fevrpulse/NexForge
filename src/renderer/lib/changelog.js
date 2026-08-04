@@ -4,6 +4,28 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.5.5',
+    highlights: [
+      'Fixed broken desktop shortcuts — installer is now NexForge-Setup.exe (no longer clashes with the app)',
+      'Desktop shortcut is recreated on every update',
+    ],
+  },
+  {
+    version: '3.5.4',
+    highlights: [
+      'Community voice channels are multi-person now — same mute/deafen/share controls as calls',
+      'Fixed joining voice channels (ambiguous kind SQL error)',
+    ],
+  },
+  {
+    version: '3.5.3',
+    highlights: [
+      'Much faster voice call connect (Realtime ICE + trickle)',
+      'Communities Discover home — create/join without getting stuck in a server',
+      'UI polish across the app',
+    ],
+  },
+  {
     version: '3.5.2',
     highlights: [
       'Fixed Communities crash (NavIcon is not defined) when opening or creating a server',

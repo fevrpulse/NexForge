@@ -1,6 +1,6 @@
 {
   "name": "nexforge-desktop",
-  "version": "3.5.4",
+  "version": "3.5.5",
   "description": "NexForge Desktop",
   "main": "main.js",
   "author": "fevrpulse",
@@ -59,7 +59,7 @@
         "releaseType": "release"
       }
     ],
-    "artifactName": "${productName}.${ext}",
+    "artifactName": "${productName}-Setup.${ext}",
     "win": {
       "target": "nsis",
       "icon": "build/icon.ico",
@@ -76,11 +76,13 @@
       "perMachine": false,
       "allowToChangeInstallationDirectory": false,
       "runAfterFinish": true,
-      "createDesktopShortcut": true,
+      "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
       "shortcutName": "NexForge",
       "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
+      "uninstallerIcon": "build/icon.ico",
+      "uninstallDisplayName": "NexForge",
+      "deleteAppDataOnUninstall": false
     }
   },
   "dependencies": {
