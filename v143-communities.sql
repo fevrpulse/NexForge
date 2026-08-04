@@ -300,12 +300,14 @@ as $$
 declare
   uid uuid := auth.uid();
   comm uuid;
-  kind text;
+  ch_kind text;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
-  select community_id, kind into comm, kind from public.community_channels where id = p_channel_id;
+  select c.community_id, c.kind into comm, ch_kind
+  from public.community_channels c
+  where c.id = p_channel_id;
   if not found then raise exception 'Channel not found'; end if;
-  if kind <> 'voice' then raise exception 'Not a voice channel'; end if;
+  if ch_kind <> 'voice' then raise exception 'Not a voice channel'; end if;
   if not public._is_community_member(comm) then raise exception 'Not a community member'; end if;
 
   -- Leave other voice channels in this community first.

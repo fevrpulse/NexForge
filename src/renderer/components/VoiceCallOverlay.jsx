@@ -20,7 +20,10 @@ export function VoiceCallProvider({ children }) {
   } = useNexForge();
   const [call, setCall] = useState({
     state: 'idle',
+    mode: 'idle',
+    channelId: null,
     peerId: null,
+    peers: [],
     muted: false,
     deafened: false,
     screenSharing: false,
@@ -32,6 +35,7 @@ export function VoiceCallProvider({ children }) {
     audioDevices: { inputs: [], outputs: [] },
   });
   const [peerProfile, setPeerProfile] = useState(null);
+  const [peerProfiles, setPeerProfiles] = useState({});
   const ctrlRef = useRef(null);
   const ringAudioRef = useRef(null);
 
@@ -86,7 +90,10 @@ export function VoiceCallProvider({ children }) {
       ctrlRef.current = null;
       setCall({
         state: 'idle',
+        mode: 'idle',
+        channelId: null,
         peerId: null,
+        peers: [],
         muted: false,
         deafened: false,
         screenSharing: false,
@@ -98,6 +105,7 @@ export function VoiceCallProvider({ children }) {
         audioDevices: { inputs: [], outputs: [] },
       });
       setPeerProfile(null);
+      setPeerProfiles({});
       stopRingtone();
       return undefined;
     }
@@ -107,7 +115,10 @@ export function VoiceCallProvider({ children }) {
       onState: (next) => {
         setCall({
           state: next.state,
+          mode: next.mode || 'idle',
+          channelId: next.channelId || null,
           peerId: next.peerId,
+          peers: next.peers || [],
           muted: next.muted,
           deafened: next.deafened,
           screenSharing: next.screenSharing,
@@ -120,9 +131,10 @@ export function VoiceCallProvider({ children }) {
         });
         if (next.state === 'idle') {
           setPeerProfile(null);
+          setPeerProfiles({});
           stopRingtone();
         }
-        if (next.state === 'ringing') {
+        if (next.state === 'ringing' && next.mode !== 'channel') {
           playRingtone();
           try {
             window.nexforge?.showMainWindow?.();
@@ -154,8 +166,8 @@ export function VoiceCallProvider({ children }) {
 
   useEffect(() => {
     const peerId = call.peerId;
-    if (!peerId) {
-      setPeerProfile(null);
+    if (!peerId || call.mode === 'channel') {
+      if (call.mode !== 'channel') setPeerProfile(null);
       return undefined;
     }
     let active = true;
@@ -167,7 +179,29 @@ export function VoiceCallProvider({ children }) {
         if (active) setPeerProfile(data || { id: peerId, gamer_tag: 'Friend' });
       });
     return () => { active = false; };
-  }, [call.peerId]);
+  }, [call.peerId, call.mode]);
+
+  useEffect(() => {
+    const ids = (call.peers || []).map((p) => p.peerId).filter(Boolean);
+    if (call.mode !== 'channel' || !ids.length) {
+      if (call.mode !== 'channel') setPeerProfiles({});
+      return undefined;
+    }
+    let active = true;
+    sb.from('profiles')
+      .select('id,gamer_tag,display_name,avatar_path,equipped_frame,clan_tag,mmr')
+      .in('id', ids)
+      .then(({ data }) => {
+        if (!active) return;
+        const map = {};
+        for (const p of data || []) map[p.id] = p;
+        for (const id of ids) {
+          if (!map[id]) map[id] = { id, gamer_tag: 'Player' };
+        }
+        setPeerProfiles(map);
+      });
+    return () => { active = false; };
+  }, [call.mode, call.peers]);
 
   const startCall = useCallback(async (friendId) => {
     if (!ctrlRef.current) {
@@ -207,8 +241,12 @@ export function VoiceCallProvider({ children }) {
 
   const hangup = useCallback(async () => {
     stopRingtone();
-    await ctrlRef.current?.hangup();
-  }, [stopRingtone]);
+    if (ctrlRef.current?.getState?.()?.mode === 'channel' || call.mode === 'channel') {
+      await ctrlRef.current?.leaveChannelVoice?.();
+    } else {
+      await ctrlRef.current?.hangup();
+    }
+  }, [stopRingtone, call.mode]);
 
   const toggleMute = useCallback(() => {
     ctrlRef.current?.setMuted(!call.muted);
@@ -247,6 +285,10 @@ export function VoiceCallProvider({ children }) {
     await ctrlRef.current?.startChannelVoice(channelId, peerIds);
   }, []);
 
+  const syncChannelPeers = useCallback(async (peerIds) => {
+    await ctrlRef.current?.syncChannelPeers?.(peerIds);
+  }, []);
+
   const leaveChannelVoice = useCallback(async () => {
     await ctrlRef.current?.leaveChannelVoice();
   }, []);
@@ -260,8 +302,10 @@ export function VoiceCallProvider({ children }) {
   const value = useMemo(() => ({
     call,
     peerProfile,
+    peerProfiles,
     startCall,
     startChannelVoice,
+    syncChannelPeers,
     leaveChannelVoice,
     acceptCall,
     declineCall,
@@ -273,7 +317,7 @@ export function VoiceCallProvider({ children }) {
     setOutputDevice,
     inCall: call.state !== 'idle',
   }), [
-    call, peerProfile, startCall, startChannelVoice, leaveChannelVoice,
+    call, peerProfile, peerProfiles, startCall, startChannelVoice, syncChannelPeers, leaveChannelVoice,
     acceptCall, declineCall, hangup, toggleMute, toggleDeafen, toggleScreenShare,
     setInputDevice, setOutputDevice,
   ]);
@@ -288,6 +332,10 @@ export function VoiceCallProvider({ children }) {
 
 function statusLabel(call) {
   if (call?.detail) return call.detail;
+  if (call?.mode === 'channel') {
+    if (call?.state === 'connecting') return 'Joining voice…';
+    if (call?.state === 'connected') return 'In voice channel';
+  }
   if (call?.state === 'calling') return 'Calling…';
   if (call?.state === 'ringing') return 'Incoming call';
   if (call?.state === 'connecting') return 'Connecting…';
@@ -307,15 +355,17 @@ function VoiceCallOverlayActive({ ctx }) {
   const [shareExpanded, setShareExpanded] = useState(false);
   const [shareFullscreen, setShareFullscreen] = useState(false);
   const {
-    call, peerProfile, acceptCall, declineCall, hangup,
+    call, peerProfile, peerProfiles, acceptCall, declineCall, hangup,
     toggleMute, toggleDeafen, toggleScreenShare, setInputDevice, setOutputDevice,
   } = ctx;
   const inputs = call.audioDevices?.inputs || [];
   const outputs = call.audioDevices?.outputs || [];
   const inLive = call.state === 'connected' || call.state === 'connecting';
+  const isChannel = call.mode === 'channel';
+  const channelPeers = call.peers || [];
   const shareTrack = call.remoteVideoTrack || call.localScreenTrack || null;
   const shareLabel = call.remoteVideoTrack
-    ? 'Friend is sharing'
+    ? (isChannel ? 'Someone is sharing' : 'Friend is sharing')
     : (call.localScreenTrack ? 'You are sharing' : '');
 
   useEffect(() => {
@@ -356,8 +406,8 @@ function VoiceCallOverlayActive({ ctx }) {
   }
 
   return (
-    <div className={`voice-call-overlay ${call.state === 'ringing' ? 'incoming' : ''} ${shareExpanded ? 'share-open' : ''}`}>
-      <div className={`voice-call-card ${shareTrack ? 'has-share' : ''}`}>
+    <div className={`voice-call-overlay ${call.state === 'ringing' ? 'incoming' : ''} ${shareExpanded ? 'share-open' : ''} ${isChannel ? 'channel' : ''}`}>
+      <div className={`voice-call-card ${shareTrack ? 'has-share' : ''} ${isChannel ? 'channel-card' : ''}`}>
         {shareTrack && (
           <div
             ref={stageRef}
@@ -384,10 +434,35 @@ function VoiceCallOverlayActive({ ctx }) {
           </div>
         )}
         <div className="voice-call-main">
-        <PlayerAvatar profile={peerProfile} size={56} className="friend-av" />
+        {isChannel ? (
+          <div className="voice-channel-avatars" aria-label="Voice channel members">
+            {channelPeers.length === 0 ? (
+              <div className="voice-channel-empty-av">You</div>
+            ) : (
+              channelPeers.slice(0, 6).map((p) => (
+                <div
+                  key={p.peerId}
+                  className={`voice-channel-av ${p.connected ? 'linked' : 'linking'}`}
+                  title={peerProfiles[p.peerId]?.gamer_tag || 'Player'}
+                >
+                  <PlayerAvatar profile={peerProfiles[p.peerId]} size={40} className="friend-av" />
+                </div>
+              ))
+            )}
+            {channelPeers.length > 6 && (
+              <div className="voice-channel-more">+{channelPeers.length - 6}</div>
+            )}
+          </div>
+        ) : (
+          <PlayerAvatar profile={peerProfile} size={56} className="friend-av" />
+        )}
         <div className="voice-call-meta">
           <div className="voice-call-name">
-            <GamerTag profile={peerProfile || { gamer_tag: call.peerId ? 'Friend' : 'Voice channel' }} />
+            {isChannel ? (
+              `Voice channel${channelPeers.length ? ` · ${channelPeers.length + 1}` : ''}`
+            ) : (
+              <GamerTag profile={peerProfile || { gamer_tag: call.peerId ? 'Friend' : 'Voice' }} />
+            )}
           </div>
           <div className="voice-call-status">{statusLabel(call)}</div>
           {inLive && (
@@ -424,7 +499,7 @@ function VoiceCallOverlayActive({ ctx }) {
           )}
         </div>
         <div className="voice-call-actions">
-          {call.state === 'ringing' ? (
+          {call.state === 'ringing' && !isChannel ? (
             <>
               <button type="button" className="action-btn primary" onClick={acceptCall}>
                 Accept
@@ -462,7 +537,7 @@ function VoiceCallOverlayActive({ ctx }) {
                 </>
               )}
               <button type="button" className="action-btn voice-hangup" onClick={hangup}>
-                {call.state === 'calling' ? 'Cancel' : 'End'}
+                {isChannel ? 'Leave' : (call.state === 'calling' ? 'Cancel' : 'End')}
               </button>
             </>
           )}

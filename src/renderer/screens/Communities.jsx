@@ -195,6 +195,33 @@ export default function Communities() {
     return () => { sb.removeChannel(ch); };
   }, [channelId, myId, loadVoiceHere]);
 
+  // Keep mesh peers in sync with who is actually in the voice channel.
+  useEffect(() => {
+    if (!voiceChannelRef.current || !voice?.syncChannelPeers || !myId) return;
+    if (voice?.call?.mode !== 'channel') return;
+    if (voice?.call?.channelId && voice.call.channelId !== voiceChannelRef.current) return;
+    const others = voiceHere
+      .map((v) => v.user_id)
+      .filter((id) => id && id !== myId);
+    voice.syncChannelPeers(others).catch(() => {});
+  }, [voiceHere, myId, voice]);
+
+  // If the call bar Leave ends the session, clear DB presence too.
+  const wasInChannelVoiceRef = useRef(false);
+  useEffect(() => {
+    if (voice?.call?.mode === 'channel' && voice?.call?.state !== 'idle') {
+      wasInChannelVoiceRef.current = true;
+      return;
+    }
+    if (voice?.call?.state !== 'idle' || !wasInChannelVoiceRef.current) return;
+    wasInChannelVoiceRef.current = false;
+    const chid = voiceChannelRef.current;
+    if (!chid) return;
+    voiceChannelRef.current = null;
+    sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+    loadVoiceHere(chid);
+  }, [voice?.call?.state, voice?.call?.mode, loadVoiceHere]);
+
   async function run(fn) {
     if (busy) return;
     setBusy(true);
@@ -289,22 +316,29 @@ export default function Communities() {
   async function joinVoice() {
     if (!activeChannel || activeChannel.kind !== 'voice') return;
     await run(async () => {
-      const { error } = await sb.rpc('join_community_voice', { p_channel_id: activeChannel.id });
+      const chid = activeChannel.id;
+      const { error } = await sb.rpc('join_community_voice', { p_channel_id: chid });
       if (error) throw error;
-      voiceChannelRef.current = activeChannel.id;
-      await loadVoiceHere(activeChannel.id);
-      const { data: others } = await sb
-        .from('community_voice_members')
-        .select('user_id')
-        .eq('channel_id', activeChannel.id)
-        .neq('user_id', myId);
-      const peerIds = (others || []).map((o) => o.user_id);
-      if (voice?.startChannelVoice) {
-        await voice.startChannelVoice(activeChannel.id, peerIds);
-      } else if (peerIds[0] && voice?.startCall) {
-        await voice.startCall(peerIds[0]);
+      try {
+        await loadVoiceHere(chid);
+        const { data: others } = await sb
+          .from('community_voice_members')
+          .select('user_id')
+          .eq('channel_id', chid)
+          .neq('user_id', myId);
+        const peerIds = (others || []).map((o) => o.user_id);
+        if (voice?.startChannelVoice) {
+          await voice.startChannelVoice(chid, peerIds);
+        } else if (peerIds[0] && voice?.startCall) {
+          await voice.startCall(peerIds[0]);
+        }
+        voiceChannelRef.current = chid;
+        showToast(`Joined ${activeChannel.name}`, 'success');
+      } catch (err) {
+        await sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+        voiceChannelRef.current = null;
+        throw err;
       }
-      showToast(`Joined ${activeChannel.name}`, 'success');
     });
   }
 
@@ -510,7 +544,7 @@ export default function Communities() {
         ) : activeChannel?.kind === 'voice' ? (
           <div className="comm-voice-panel">
             <div className="card-title">{activeChannel.name}</div>
-            <p className="muted">Voice channel — join to talk with members here.</p>
+            <p className="muted">Same as a call — mute, deafen, share — with everyone in the channel.</p>
             <div className="comm-voice-people">
               {voiceHere.length === 0 ? (
                 <div className="friends-empty">No one is here yet.</div>
