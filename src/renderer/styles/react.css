@@ -627,30 +627,32 @@
 
 /* Voice calls */
 .voice-call-overlay{
-  position:fixed;left:0;right:0;bottom:24px;z-index:80;
+  position:fixed;left:0;right:0;bottom:22px;z-index:80;
   display:flex;justify-content:center;pointer-events:none;padding:0 16px;
 }
 .voice-call-card{
   pointer-events:auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
-  min-width:280px;max-width:520px;padding:14px 16px;
-  background:rgba(12,14,18,.94);border:1px solid rgba(201,255,0,.35);
-  border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.45);
-  backdrop-filter:blur(10px);
+  min-width:280px;max-width:540px;padding:14px 16px;
+  background:
+    linear-gradient(180deg, rgba(22,26,20,.97), rgba(10,12,10,.96));
+  border:1px solid rgba(201,255,0,.28);
+  border-radius:16px;box-shadow:0 16px 48px rgba(0,0,0,.5), 0 0 0 1px rgba(201,255,0,.06);
+  backdrop-filter:blur(12px);
 }
 .voice-call-card.has-share{
   flex-direction:column;align-items:stretch;max-width:min(920px,96vw);min-width:min(420px,96vw);
 }
 .voice-call-main{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .voice-call-overlay.incoming .voice-call-card{
-  border-color:rgba(59,126,255,.55);
+  border-color:rgba(59,126,255,.5);
   animation:voice-pulse 1.4s ease-in-out infinite;
 }
 @keyframes voice-pulse{
-  0%,100%{box-shadow:0 12px 40px rgba(0,0,0,.45)}
-  50%{box-shadow:0 12px 40px rgba(59,126,255,.28)}
+  0%,100%{box-shadow:0 16px 48px rgba(0,0,0,.5)}
+  50%{box-shadow:0 16px 48px rgba(59,126,255,.22)}
 }
 .voice-call-meta{flex:1;min-width:120px}
-.voice-call-name{font-size:15px;font-weight:800}
+.voice-call-name{font-size:15px;font-weight:800;letter-spacing:-.2px}
 .voice-call-status{
   font-family:var(--mono);font-size:11px;color:var(--muted2);margin-top:3px;letter-spacing:.4px;
 }
@@ -700,31 +702,50 @@
 
 /* Communities (Discord-style servers) */
 .communities-layout{
-  display:grid;grid-template-columns:72px 220px minmax(0,1fr) 200px;gap:0;
-  height:calc(100vh - 150px);min-height:420px;
-  border:1px solid var(--border);border-radius:14px;overflow:hidden;background:rgba(0,0,0,.18);
+  display:grid;grid-template-columns:72px 230px minmax(0,1fr) 200px;gap:0;
+  height:100%;min-height:0;flex:1;
+  border:1px solid var(--border);border-radius:16px;overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.22), rgba(0,0,0,.35)),
+    linear-gradient(90deg, rgba(201,255,0,.02), transparent 40%);
+  box-shadow:var(--shadow-soft);
 }
 .comm-rail{
   display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 8px;
-  background:rgba(0,0,0,.35);border-right:1px solid var(--border);overflow-y:auto;
+  background:
+    linear-gradient(rgba(201,255,0,.025) 1px, transparent 1px),
+    rgba(0,0,0,.42);
+  background-size:100% 28px, auto;
+  border-right:1px solid var(--border);overflow-y:auto;
 }
 .comm-pill{
   width:48px;height:48px;border-radius:16px;border:2px solid transparent;
   background:color-mix(in srgb, var(--comm-color,#3B7EFF) 28%, #12141a);
   color:var(--text);font-weight:800;font-size:13px;cursor:pointer;
-  transition:border-radius .15s,border-color .15s;
+  transition:border-radius .15s,border-color .15s,transform .12s;
 }
-.comm-pill:hover,.comm-pill.active{border-radius:14px;border-color:var(--comm-color,#3B7EFF)}
+.comm-pill:hover{border-radius:14px;border-color:rgba(201,255,0,.4);transform:translateY(-1px)}
+.comm-pill.active{border-radius:14px;border-color:var(--neon);box-shadow:0 0 0 1px rgba(201,255,0,.2)}
+.comm-pill.home{
+  background:rgba(201,255,0,.08);color:var(--neon);font-size:18px;line-height:1;
+}
 .comm-pill.add{
   background:transparent;border:1px dashed var(--border2);color:var(--muted2);font-size:22px;line-height:1;
 }
+.comm-pill.add:hover{border-color:var(--neon);color:var(--neon)}
 .comm-rail-div{width:28px;height:1px;background:var(--border);margin:2px 0}
 .comm-channels{
   display:flex;flex-direction:column;gap:2px;padding:12px 10px;overflow-y:auto;
-  border-right:1px solid var(--border);background:rgba(0,0,0,.22);
+  border-right:1px solid var(--border);background:rgba(0,0,0,.28);
 }
 .comm-header{margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)}
-.comm-title{font-size:15px;font-weight:800}
+.comm-back{
+  display:inline-flex;align-items:center;gap:4px;margin-bottom:8px;
+  background:transparent;border:none;color:var(--muted2);font-family:var(--mono);
+  font-size:11px;cursor:pointer;padding:0;
+}
+.comm-back:hover{color:var(--neon)}
+.comm-title{font-size:15px;font-weight:800;letter-spacing:-.2px}
 .comm-invite{
   display:flex;align-items:center;gap:6px;margin-top:6px;
   font-family:var(--mono);font-size:10px;color:var(--muted2);
@@ -735,7 +756,7 @@
 }
 .comm-chan{
   text-align:left;background:transparent;border:none;color:var(--muted);
-  padding:7px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font);
+  padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-family:var(--font);
 }
 .comm-chan:hover{background:var(--panel);color:var(--text)}
 .comm-chan.active{background:var(--neon2);color:var(--neon)}
@@ -745,15 +766,31 @@
   width:100%;background:var(--panel);border:1px solid var(--border2);border-radius:8px;
   padding:8px 10px;font-size:13px;font-family:var(--font);color:var(--text);outline:none;
 }
-.comm-leave{margin-top:auto;margin-top:16px}
+.comm-new-chan input:focus,.comm-forms input:focus,.comm-input-row input:focus{border-color:var(--neon)}
+.comm-leave{margin-top:16px}
 .comm-empty-side{
   font-family:var(--mono);font-size:11px;color:var(--muted2);padding:20px 8px;line-height:1.5;
 }
-.comm-main{display:flex;flex-direction:column;min-width:0;padding:14px 16px;overflow:hidden}
-.comm-home{max-width:520px}
+.comm-main{display:flex;flex-direction:column;min-width:0;padding:16px 18px;overflow:hidden}
+.comm-home{max-width:640px}
+.comm-home-hero{margin-bottom:4px}
+.comm-home-hero .card-title{margin-bottom:8px}
 .comm-forms{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
-.comm-form{display:flex;flex-direction:column;gap:8px}
-.comm-form label{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.comm-form{display:flex;flex-direction:column;gap:8px;margin:0}
+.comm-form label{font-family:var(--mono);font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.4px}
+.comm-home-list{margin-top:22px}
+.comm-home-row{
+  width:100%;display:flex;align-items:center;gap:12px;text-align:left;
+  background:transparent;border:1px solid transparent;border-radius:10px;
+  padding:10px 8px;cursor:pointer;color:var(--text);font-family:var(--font);
+}
+.comm-home-row:hover{background:var(--panel);border-color:var(--border)}
+.comm-home-av{
+  width:36px;height:36px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:800;flex-shrink:0;
+}
+.comm-home-name{flex:1;font-weight:700;font-size:14px}
+.comm-home-code{font-family:var(--mono);font-size:11px;color:var(--muted2)}
 .comm-chat-title{font-size:15px;font-weight:800;padding-bottom:10px;border-bottom:1px solid var(--border)}
 .comm-messages{flex:1;overflow-y:auto;padding:12px 0;display:flex;flex-direction:column;gap:12px}
 .comm-msg{display:flex;gap:10px;align-items:flex-start}
@@ -764,12 +801,13 @@
 .comm-input-row{display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border)}
 .comm-voice-panel{display:flex;flex-direction:column;gap:12px;padding-top:8px}
 .comm-voice-people{display:flex;flex-wrap:wrap;gap:12px;min-height:80px}
-.comm-voice-person{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--panel)}
+.comm-voice-person{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--border)}
 .comm-voice-actions{display:flex;gap:8px}
 .comm-members{
-  border-left:1px solid var(--border);padding:12px 10px;overflow-y:auto;background:rgba(0,0,0,.18);
+  border-left:1px solid var(--border);padding:12px 10px;overflow-y:auto;background:rgba(0,0,0,.22);
 }
-.comm-member-row{display:flex;align-items:center;gap:8px;padding:6px 4px}
+.comm-member-row{display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px}
+.comm-member-row:hover{background:rgba(255,255,255,.02)}
 .comm-member-meta{display:flex;flex-direction:column;min-width:0}
 .comm-role{font-family:var(--mono);font-size:9px;color:var(--muted2);text-transform:uppercase}
 @media (max-width:1100px){

@@ -70,12 +70,12 @@ export default function Communities() {
         .order('created_at', { ascending: true });
       if (cErr) throw cErr;
       setCommunities(data || []);
-      if (!selectedId && data?.[0]) setSelectedId(data[0].id);
+      // Keep home visible until the user picks a community (or create/join).
     } catch (err) {
       await reportCloudError(err);
       showToast(err?.message || 'Could not load communities.', 'error');
     }
-  }, [myId, guestMode, reportCloudError, showToast, selectedId]);
+  }, [myId, guestMode, reportCloudError, showToast]);
 
   const loadCommunityDetail = useCallback(async (cid) => {
     if (!cid || !myId) return;
@@ -343,6 +343,15 @@ export default function Communities() {
   return (
     <div className="communities-layout">
       <aside className="comm-rail">
+        <button
+          type="button"
+          className={`comm-pill home ${!selectedId ? 'active' : ''}`}
+          title="Discover — create or join"
+          onClick={() => setSelectedId(null)}
+        >
+          ⌂
+        </button>
+        <div className="comm-rail-div" />
         {communities.map((c) => (
           <button
             key={c.id}
@@ -356,7 +365,15 @@ export default function Communities() {
           </button>
         ))}
         <div className="comm-rail-div" />
-        <button type="button" className="comm-pill add" title="Create community" onClick={() => document.getElementById('comm-create-name')?.focus()}>
+        <button
+          type="button"
+          className="comm-pill add"
+          title="Create or join a community"
+          onClick={() => {
+            setSelectedId(null);
+            setTimeout(() => document.getElementById('comm-create-name')?.focus(), 50);
+          }}
+        >
           +
         </button>
       </aside>
@@ -365,6 +382,14 @@ export default function Communities() {
         {selected ? (
           <>
             <div className="comm-header">
+              <button
+                type="button"
+                className="comm-back"
+                onClick={() => setSelectedId(null)}
+                title="Back to discover"
+              >
+                ← Discover
+              </button>
               <div className="comm-title">{selected.name}</div>
               <div className="comm-invite" title="Invite code">
                 #{selected.invite_code}
@@ -430,34 +455,57 @@ export default function Communities() {
       <section className="comm-main">
         {!selected ? (
           <div className="comm-home">
-            <div className="card-title">Communities</div>
-            <p className="muted">Discord-style servers with text &amp; voice channels.</p>
+            <div className="comm-home-hero">
+              <div className="card-title">Communities</div>
+              <p className="muted">Servers with text &amp; voice — create one or join with an invite.</p>
+            </div>
             <div className="comm-forms">
-              <div className="comm-form">
+              <div className="comm-form card">
                 <label htmlFor="comm-create-name">Create</label>
                 <input
                   id="comm-create-name"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
                   placeholder="Community name"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
                 />
                 <button type="button" className="action-btn primary" disabled={busy || createName.trim().length < 2} onClick={handleCreate}>
                   Create community
                 </button>
               </div>
-              <div className="comm-form">
+              <div className="comm-form card">
                 <label htmlFor="comm-join-code">Join with invite</label>
                 <input
                   id="comm-join-code"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
                   placeholder="Invite code"
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleJoin(); }}
                 />
                 <button type="button" className="action-btn ghost" disabled={busy || !joinCode.trim()} onClick={handleJoin}>
                   Join community
                 </button>
               </div>
             </div>
+            {communities.length > 0 && (
+              <div className="comm-home-list">
+                <div className="comm-section-label">Your communities</div>
+                {communities.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="comm-home-row"
+                    onClick={() => setSelectedId(c.id)}
+                  >
+                    <span className="comm-home-av" style={{ background: `${c.icon_color || '#3B7EFF'}33`, color: c.icon_color || '#3B7EFF' }}>
+                      {initials(c.name)}
+                    </span>
+                    <span className="comm-home-name">{c.name}</span>
+                    <span className="comm-home-code">#{c.invite_code}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : activeChannel?.kind === 'voice' ? (
           <div className="comm-voice-panel">

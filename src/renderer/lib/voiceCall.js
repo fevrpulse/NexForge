@@ -1,8 +1,10 @@
 import { sb } from './supabase.js';
 
-const RING_TIMEOUT_MS = 45_000;
-const CONNECT_TIMEOUT_MS = 30_000;
-const ICE_GATHER_TIMEOUT_MS = 6_000;
+const RING_TIMEOUT_MS = 30_000;
+const CONNECT_TIMEOUT_MS = 12_000;
+/** Brief wait so SDP embeds host/srflx candidates — still trickle the rest. */
+const ICE_GATHER_ASSIST_MS = 350;
+const ICE_BATCH_MS = 70;
 
 function callId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -55,7 +57,7 @@ async function buildIceServers() {
   }
 }
 
-function waitForIceGathering(pc, timeoutMs = ICE_GATHER_TIMEOUT_MS) {
+function waitForIceGathering(pc, timeoutMs = ICE_GATHER_ASSIST_MS) {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
   return new Promise((resolve) => {
     const done = () => {
@@ -74,7 +76,8 @@ function waitForIceGathering(pc, timeoutMs = ICE_GATHER_TIMEOUT_MS) {
 /**
  * 1:1 voice calls.
  * Signaling uses voice_call_signals rows + Realtime postgres_changes.
- * Handshake: ring → ready → offer (after ICE gather) → answer (after ICE gather).
+ * Handshake: ring → ready → offer (trickle ICE) → answer (trickle ICE).
+ * ICE candidates stream as `ice` signals — do not wait for gather-complete.
  */
 export function createVoiceCallController({ userId, onState, onError }) {
   let state = 'idle';
@@ -97,6 +100,12 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let screenStream = null;
   let remoteVideoTrack = null;
   let audioDevices = { inputs: [], outputs: [] };
+  let pendingRemoteCandidates = [];
+  let makingOffer = false;
+  let iceChannel = null;
+  let iceChannelCallId = null;
+  let iceBatch = [];
+  let iceBatchTimer = null;
 
   function emit(patch = {}) {
     onState?.({
@@ -218,8 +227,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const servers = await ensureIceServers();
     const conn = new RTCPeerConnection({
       iceServers: servers,
-      iceCandidatePoolSize: 8,
+      iceCandidatePoolSize: 4,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
     });
+
+    conn.onicecandidate = (ev) => {
+      if (!ev.candidate || !peerId || !activeCallId) return;
+      queueIceCandidate(ev.candidate.toJSON());
+    };
 
     conn.ontrack = (ev) => {
       if (ev.track.kind === 'audio') {
@@ -272,6 +288,108 @@ export function createVoiceCallController({ userId, onState, onError }) {
     return conn;
   }
 
+  async function flushPendingCandidates() {
+    if (!pc) return;
+    const queued = pendingRemoteCandidates.splice(0, pendingRemoteCandidates.length);
+    for (const c of queued) {
+      try {
+        await pc.addIceCandidate(c);
+      } catch {
+        /* stale candidate */
+      }
+    }
+  }
+
+  async function applyRemoteCandidate(candidate) {
+    if (!candidate) return;
+    if (!pc || !pc.remoteDescription) {
+      pendingRemoteCandidates.push(candidate);
+      return;
+    }
+    try {
+      await pc.addIceCandidate(candidate);
+    } catch {
+      /* ignore stale */
+    }
+  }
+
+  async function leaveIceChannel() {
+    if (iceBatchTimer) {
+      clearTimeout(iceBatchTimer);
+      iceBatchTimer = null;
+    }
+    iceBatch = [];
+    if (iceChannel) {
+      try { await sb.removeChannel(iceChannel); } catch { /* ignore */ }
+      iceChannel = null;
+    }
+    iceChannelCallId = null;
+  }
+
+  async function ensureIceChannel(cid) {
+    if (!cid) return null;
+    if (iceChannel && iceChannelCallId === cid) return iceChannel;
+    await leaveIceChannel();
+    iceChannelCallId = cid;
+    const ch = sb.channel(`voice-ice-${cid}`, {
+      config: { broadcast: { ack: false, self: false } },
+    });
+    ch.on('broadcast', { event: 'candidates' }, ({ payload }) => {
+      if (!payload || payload.from === userId) return;
+      const list = payload.candidates || (payload.candidate ? [payload.candidate] : []);
+      for (const c of list) applyRemoteCandidate(c);
+    });
+    await new Promise((resolve) => {
+      ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          resolve(status);
+        }
+      });
+    });
+    iceChannel = ch;
+    return ch;
+  }
+
+  function queueIceCandidate(candidate) {
+    if (!candidate) return;
+    iceBatch.push(candidate);
+    if (iceBatchTimer) return;
+    iceBatchTimer = setTimeout(() => {
+      iceBatchTimer = null;
+      flushIceBatch().catch(() => {});
+    }, ICE_BATCH_MS);
+  }
+
+  async function flushIceBatch() {
+    const batch = iceBatch.splice(0, iceBatch.length);
+    if (!batch.length || !peerId || !activeCallId) return;
+    if (iceChannel) {
+      try {
+        await iceChannel.send({
+          type: 'broadcast',
+          event: 'candidates',
+          payload: { from: userId, candidates: batch },
+        });
+        return;
+      } catch {
+        /* fall through to postgres */
+      }
+    }
+    await signal(peerId, 'ice', { candidates: batch }).catch(() => {});
+  }
+
+  async function ensureCallMedia() {
+    await ensureIceServers();
+    if (!localStream) await getMic();
+    if (!pc) {
+      pc = await createPc();
+      for (const track of localStream.getAudioTracks()) {
+        pc.addTrack(track, localStream);
+      }
+    }
+    return pc;
+  }
+
   async function signal(recipientId, kind, body = {}) {
     const { error } = await sb.from('voice_call_signals').insert({
       call_id: activeCallId,
@@ -300,32 +418,35 @@ export function createVoiceCallController({ userId, onState, onError }) {
       }
       peerId = from;
       activeCallId = cid;
+      pendingRemoteCandidates = [];
+      ensureIceChannel(cid).catch(() => {});
       setState('ringing', 'Incoming call');
       return;
     }
 
     if (kind === 'ready') {
       if (state !== 'calling' || cid !== activeCallId || from !== peerId) return;
-      // Peer accepted — now create and send a complete offer.
       try {
         setState('connecting', 'Negotiating…');
         armConnectTimeout();
-        await getMic();
-        pc = await createPc();
-        for (const track of localStream.getAudioTracks()) {
-          pc.addTrack(track, localStream);
-        }
+        makingOffer = true;
+        await ensureIceChannel(activeCallId);
+        await ensureCallMedia();
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
-        setState('connecting', 'Gathering network…');
-        await waitForIceGathering(pc);
+        // Embed early candidates in SDP, then keep trickling via Realtime.
+        await waitForIceGathering(pc, ICE_GATHER_ASSIST_MS);
         await signal(peerId, 'offer', {
           sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
         });
-        setState('connecting', 'Waiting for audio…');
+        await flushIceBatch().catch(() => {});
+        setState('connecting', 'Connecting…');
       } catch (err) {
+        makingOffer = false;
         await hangup({ notify: true });
         onError?.(err instanceof Error ? err : new Error('Could not start call media'));
+      } finally {
+        makingOffer = false;
       }
       return;
     }
@@ -334,24 +455,20 @@ export function createVoiceCallController({ userId, onState, onError }) {
       if (state !== 'connecting' && state !== 'ringing' && state !== 'connected') return;
       if (cid !== activeCallId || from !== peerId) return;
       try {
-        if (!pc) {
-          await getMic();
-          pc = await createPc();
-          for (const track of localStream.getAudioTracks()) {
-            pc.addTrack(track, localStream);
-          }
-        }
+        await ensureIceChannel(activeCallId);
+        await ensureCallMedia();
         setState(state === 'connected' ? 'connected' : 'connecting', body?.renegotiate ? 'Updating media…' : 'Answering…');
         await pc.setRemoteDescription(body.sdp);
+        await flushPendingCandidates();
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
-        if (state !== 'connected') setState('connecting', 'Gathering network…');
-        await waitForIceGathering(pc);
+        await waitForIceGathering(pc, ICE_GATHER_ASSIST_MS);
         await signal(peerId, 'answer', {
           sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
         });
+        await flushIceBatch().catch(() => {});
         if (state !== 'connected') {
-          setState('connecting', 'Connecting audio…');
+          setState('connecting', 'Connecting…');
           armConnectTimeout();
         }
       } catch (err) {
@@ -367,8 +484,9 @@ export function createVoiceCallController({ userId, onState, onError }) {
       if (!pc || cid !== activeCallId || from !== peerId) return;
       try {
         await pc.setRemoteDescription(body.sdp);
+        await flushPendingCandidates();
         if (state !== 'connected') {
-          setState('connecting', 'Connecting audio…');
+          setState('connecting', 'Connecting…');
           armConnectTimeout();
         }
       } catch (err) {
@@ -377,6 +495,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
           onError?.(err instanceof Error ? err : new Error('Bad call answer'));
         }
       }
+      return;
+    }
+
+    if (kind === 'ice') {
+      if (cid !== activeCallId || from !== peerId) return;
+      const list = body?.candidates || (body?.candidate ? [body.candidate] : []);
+      for (const c of list) await applyRemoteCandidate(c);
       return;
     }
 
@@ -395,11 +520,17 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
     peerId = targetId;
     activeCallId = callId();
+    pendingRemoteCandidates = [];
     setState('calling', 'Ringing…');
 
     try {
-      await ensureIceServers();
-      await signal(targetId, 'ring', {});
+      // Ring immediately; warm mic/ICE + Realtime ICE channel in parallel.
+      const ringPromise = signal(targetId, 'ring', {});
+      Promise.all([
+        ensureIceChannel(activeCallId),
+        ensureCallMedia(),
+      ]).catch(() => {});
+      await ringPromise;
       clearTimers();
       ringTimer = setTimeout(() => {
         hangup({ notify: true }).catch(() => {});
@@ -416,8 +547,10 @@ export function createVoiceCallController({ userId, onState, onError }) {
     setState('connecting', 'Joining…');
     armConnectTimeout();
     try {
-      await ensureIceServers();
-      await getMic();
+      await Promise.all([
+        ensureIceChannel(activeCallId),
+        ensureCallMedia(),
+      ]);
       // Tell caller we are ready — they will send the offer.
       await signal(peerId, 'ready', {});
       setState('connecting', 'Waiting for offer…');
@@ -522,13 +655,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
     if (pc && peerId) {
       pc.addTrack(screenTrack, stream);
       try {
+        await ensureIceChannel(activeCallId);
         const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(offer);
-        await waitForIceGathering(pc);
+        await waitForIceGathering(pc, ICE_GATHER_ASSIST_MS);
         await signal(peerId, 'offer', {
           sdp: { type: pc.localDescription.type, sdp: pc.localDescription.sdp },
           renegotiate: true,
         });
+        await flushIceBatch().catch(() => {});
       } catch {
         /* peer may still get track via addTrack in some stacks */
       }
@@ -617,11 +752,17 @@ export function createVoiceCallController({ userId, onState, onError }) {
     muted = false;
     deafened = false;
     detail = '';
+    pendingRemoteCandidates = [];
+    makingOffer = false;
+    await leaveIceChannel();
     setState('idle', '');
   }
 
   async function startInbox() {
     if (!userId || signalChannel) return;
+
+    // Pre-warm TURN credentials so the first call is not blocked on HMAC.
+    ensureIceServers().catch(() => {});
 
     // Catch anything queued while we were offline (last minute).
     try {
@@ -667,6 +808,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
   async function stopInbox() {
     await hangup({ notify: true });
+    await leaveIceChannel();
     if (signalChannel) {
       try { await sb.removeChannel(signalChannel); } catch { /* ignore */ }
       signalChannel = null;
