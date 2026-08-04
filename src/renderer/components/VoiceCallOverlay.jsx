@@ -25,6 +25,7 @@ export function VoiceCallProvider({ children }) {
     deafened: false,
     screenSharing: false,
     remoteVideoTrack: null,
+    localScreenTrack: null,
     detail: '',
     inputDeviceId: '',
     outputDeviceId: '',
@@ -90,6 +91,7 @@ export function VoiceCallProvider({ children }) {
         deafened: false,
         screenSharing: false,
         remoteVideoTrack: null,
+        localScreenTrack: null,
         detail: '',
         inputDeviceId: '',
         outputDeviceId: '',
@@ -110,6 +112,7 @@ export function VoiceCallProvider({ children }) {
           deafened: next.deafened,
           screenSharing: next.screenSharing,
           remoteVideoTrack: next.remoteVideoTrack || null,
+          localScreenTrack: next.localScreenTrack || null,
           detail: next.detail || '',
           inputDeviceId: next.inputDeviceId || '',
           outputDeviceId: next.outputDeviceId || '',
@@ -300,6 +303,9 @@ function VoiceCallOverlay() {
 
 function VoiceCallOverlayActive({ ctx }) {
   const videoRef = useRef(null);
+  const stageRef = useRef(null);
+  const [shareExpanded, setShareExpanded] = useState(false);
+  const [shareFullscreen, setShareFullscreen] = useState(false);
   const {
     call, peerProfile, acceptCall, declineCall, hangup,
     toggleMute, toggleDeafen, toggleScreenShare, setInputDevice, setOutputDevice,
@@ -307,25 +313,77 @@ function VoiceCallOverlayActive({ ctx }) {
   const inputs = call.audioDevices?.inputs || [];
   const outputs = call.audioDevices?.outputs || [];
   const inLive = call.state === 'connected' || call.state === 'connecting';
+  const shareTrack = call.remoteVideoTrack || call.localScreenTrack || null;
+  const shareLabel = call.remoteVideoTrack
+    ? 'Friend is sharing'
+    : (call.localScreenTrack ? 'You are sharing' : '');
 
   useEffect(() => {
     const el = videoRef.current;
     if (!el) return undefined;
-    if (call.remoteVideoTrack) {
-      el.srcObject = new MediaStream([call.remoteVideoTrack]);
+    if (shareTrack) {
+      el.srcObject = new MediaStream([shareTrack]);
       el.play().catch(() => {});
     } else {
       el.srcObject = null;
+      setShareExpanded(false);
+      if (document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
     }
     return undefined;
-  }, [call.remoteVideoTrack]);
+  }, [shareTrack]);
+
+  useEffect(() => {
+    const onFs = () => setShareFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  async function toggleShareFullscreen() {
+    const stage = stageRef.current;
+    if (!stage) return;
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        setShareExpanded(true);
+        await stage.requestFullscreen();
+      }
+    } catch {
+      setShareExpanded(true);
+    }
+  }
 
   return (
-    <div className={`voice-call-overlay ${call.state === 'ringing' ? 'incoming' : ''}`}>
-      <div className="voice-call-card">
-        {call.remoteVideoTrack && (
-          <video ref={videoRef} className="voice-share-preview" autoPlay playsInline muted />
+    <div className={`voice-call-overlay ${call.state === 'ringing' ? 'incoming' : ''} ${shareExpanded ? 'share-open' : ''}`}>
+      <div className={`voice-call-card ${shareTrack ? 'has-share' : ''}`}>
+        {shareTrack && (
+          <div
+            ref={stageRef}
+            className={`voice-share-stage ${shareExpanded || shareFullscreen ? 'expanded' : ''}`}
+          >
+            <video ref={videoRef} className="voice-share-preview" autoPlay playsInline muted />
+            <div className="voice-share-toolbar">
+              <span className="voice-share-label">{shareLabel}</span>
+              <button
+                type="button"
+                className="action-btn ghost friend-mini-btn"
+                onClick={() => setShareExpanded((v) => !v)}
+              >
+                {shareExpanded || shareFullscreen ? 'Shrink' : 'Enlarge'}
+              </button>
+              <button
+                type="button"
+                className="action-btn ghost friend-mini-btn"
+                onClick={toggleShareFullscreen}
+              >
+                {shareFullscreen ? 'Exit full screen' : 'Full screen'}
+              </button>
+            </div>
+          </div>
         )}
+        <div className="voice-call-main">
         <PlayerAvatar profile={peerProfile} size={56} className="friend-av" />
         <div className="voice-call-meta">
           <div className="voice-call-name">
@@ -408,6 +466,7 @@ function VoiceCallOverlayActive({ ctx }) {
               </button>
             </>
           )}
+        </div>
         </div>
       </div>
     </div>

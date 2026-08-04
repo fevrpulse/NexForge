@@ -77,8 +77,10 @@ as $$
   select community_id from public.community_channels where id = p_channel;
 $$;
 
-revoke all on function public._is_community_member(uuid) from public, anon, authenticated;
-revoke all on function public._community_channel_community(uuid) from public, anon, authenticated;
+revoke all on function public._is_community_member(uuid) from public, anon;
+revoke all on function public._community_channel_community(uuid) from public, anon;
+grant execute on function public._is_community_member(uuid) to authenticated;
+grant execute on function public._community_channel_community(uuid) to authenticated;
 
 drop policy if exists "communities_select_member" on public.communities;
 create policy "communities_select_member"

@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.5.1',
+    highlights: [
+      'Fixed creating Communities (permission denied on membership check)',
+      'Screen share preview is larger, with Enlarge and Full screen controls',
+    ],
+  },
+  {
     version: '3.5.0',
     highlights: [
       'NexPanion AI — always available in Friends chat, powered by Groq',

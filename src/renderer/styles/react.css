@@ -637,6 +637,10 @@
   border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.45);
   backdrop-filter:blur(10px);
 }
+.voice-call-card.has-share{
+  flex-direction:column;align-items:stretch;max-width:min(920px,96vw);min-width:min(420px,96vw);
+}
+.voice-call-main{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
 .voice-call-overlay.incoming .voice-call-card{
   border-color:rgba(59,126,255,.55);
   animation:voice-pulse 1.4s ease-in-out infinite;
@@ -667,9 +671,31 @@
   min-width:120px;max-width:180px;background:var(--panel);border:1px solid var(--border2);
   border-radius:8px;padding:5px 8px;font-size:11px;font-family:var(--font);color:var(--text);
 }
+.voice-share-stage{
+  position:relative;width:100%;border-radius:12px;overflow:hidden;
+  border:1px solid rgba(201,255,0,.35);background:#000;
+}
 .voice-share-preview{
-  width:160px;height:90px;object-fit:cover;border-radius:10px;
-  border:1px solid rgba(201,255,0,.35);background:#000;flex-shrink:0;
+  display:block;width:100%;height:220px;object-fit:contain;background:#000;
+}
+.voice-share-stage.expanded .voice-share-preview{
+  height:min(70vh,640px);
+}
+.voice-share-stage:fullscreen,
+.voice-share-stage:-webkit-full-screen{
+  border:none;border-radius:0;width:100%;height:100%;
+  display:flex;flex-direction:column;background:#000;
+}
+.voice-share-stage:fullscreen .voice-share-preview,
+.voice-share-stage:-webkit-full-screen .voice-share-preview{
+  flex:1;height:auto;width:100%;
+}
+.voice-share-toolbar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 10px;background:rgba(8,10,14,.88);border-top:1px solid var(--border);
+}
+.voice-share-label{
+  flex:1;min-width:100px;font-family:var(--mono);font-size:11px;color:var(--muted2);
 }
 
 /* Communities (Discord-style servers) */
