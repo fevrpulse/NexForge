@@ -107,11 +107,15 @@ Deno.serve(async (req) => {
     success_url: `${returnUrl}?status=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${returnUrl}?status=cancelled`,
     client_reference_id: user.id,
+    // Stripe Managed Payments requires tax codes; cosmetics use normal Checkout.
+    "managed_payments[enabled]": "false",
     "line_items[0][price_data][currency]": "usd",
     "line_items[0][price_data][unit_amount]": String(amount),
     "line_items[0][price_data][product_data][name]": `NexForge ${cosmetic.name}`,
     "line_items[0][price_data][product_data][description]":
       "Permanent NexForge cosmetic entitlement",
+    // Digital goods / electronically supplied services
+    "line_items[0][price_data][product_data][tax_code]": "txcd_10000000",
     "line_items[0][quantity]": "1",
     "metadata[user_id]": user.id,
     "metadata[cosmetic_id]": cosmeticId,

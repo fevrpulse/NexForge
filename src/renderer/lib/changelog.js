@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.6.4',
+    highlights: [
+      'Fixed tournaments list failing after escrow columns (missing SELECT grants)',
+      'Fixed friend typing indicators blocked by RLS on upsert',
+      'Hardened money/gameplay RPC access and Stripe Checkout tax codes',
+    ],
+  },
+  {
     version: '3.6.3',
     highlights: [
       'Reverted the experimental voice signaling speed changes from 3.6.2',
