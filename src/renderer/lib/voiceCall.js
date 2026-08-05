@@ -2,10 +2,9 @@ import { sb } from './supabase.js';
 
 const RING_TIMEOUT_MS = 30_000;
 const CONNECT_TIMEOUT_MS = 12_000;
-/** Trickle ICE — do not delay SDP for host candidates. */
-const ICE_GATHER_ASSIST_MS = 0;
-/** Batch follow-up ICE; first candidate flushes immediately. */
-const ICE_BATCH_MS = 25;
+/** Brief wait so SDP embeds host/srflx candidates — still trickle the rest. */
+const ICE_GATHER_ASSIST_MS = 350;
+const ICE_BATCH_MS = 70;
 
 function randomCallId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -93,10 +92,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let channelId = null;
   let localStream = null;
   let signalChannel = null;
-  let inboxChannel = null;
-  /** @type {Map<string, any>} peerId -> subscribed outbound inbox channel */
-  const outboundInboxes = new Map();
-  const seenSignalKeys = new Set();
   let ringTimer = null;
   let muted = false;
   let deafened = false;
@@ -275,103 +270,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
     return el;
   }
 
-  function rememberSignal(key) {
-    if (!key || seenSignalKeys.has(key)) return false;
-    seenSignalKeys.add(key);
-    if (seenSignalKeys.size > 240) {
-      const oldest = seenSignalKeys.values().next().value;
-      seenSignalKeys.delete(oldest);
-    }
-    return true;
-  }
-
-  async function subscribeChannel(ch, timeoutMs = 2500) {
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => resolve('TIMED_OUT'), timeoutMs);
-      ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          clearTimeout(timer);
-          resolve(status);
-        }
-      });
-    });
-  }
-
-  async function ensureOutboundInbox(peerId) {
-    if (!peerId) return null;
-    if (outboundInboxes.has(peerId)) return outboundInboxes.get(peerId);
-    const ch = sb.channel(`voice-inbox-${peerId}`, {
-      config: { broadcast: { ack: false, self: false } },
-    });
-    const status = await subscribeChannel(ch);
-    if (status !== 'SUBSCRIBED') {
-      try { await sb.removeChannel(ch); } catch { /* ignore */ }
-      return null;
-    }
-    outboundInboxes.set(peerId, ch);
-    return ch;
-  }
-
-  async function broadcastSignal(channel, payload) {
-    if (!channel) return false;
-    try {
-      await channel.send({ type: 'broadcast', event: 'signal', payload });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   async function signalTo(recipientId, callId, kind, body = {}) {
-    const row = {
+    const { error } = await sb.from('voice_call_signals').insert({
       call_id: callId,
       sender_id: userId,
       recipient_id: recipientId,
       kind,
       body,
-    };
-    const payload = {
-      from: userId,
-      call_id: callId,
-      kind,
-      body,
-      t: Date.now(),
-      id: `${callId}:${kind}:${userId}:${Date.now()}`,
-    };
-
-    const session = peers.get(recipientId);
-    const fastPromises = [];
-
-    // Shared call room — fastest once both peers have joined it.
-    if (session?.iceChannel && kind !== 'ring') {
-      fastPromises.push(broadcastSignal(session.iceChannel, payload));
-    }
-
-    // Personal inbox broadcast (parallel; does not block the DB ring insert).
-    fastPromises.push((async () => {
-      const inbox = await ensureOutboundInbox(recipientId);
-      return broadcastSignal(inbox, payload);
-    })());
-
-    if (kind === 'ring') {
-      const [dbResult, ...fastResults] = await Promise.all([
-        sb.from('voice_call_signals').insert(row),
-        ...fastPromises,
-      ]);
-      const sentFast = fastResults.some(Boolean);
-      if (dbResult.error && !sentFast) throw dbResult.error;
-      return;
-    }
-
-    const fastResults = await Promise.all(fastPromises);
-    const sentFast = fastResults.some(Boolean);
-
-    if (!sentFast) {
-      const { error } = await sb.from('voice_call_signals').insert(row);
-      if (error) throw error;
-    } else if (kind !== 'ice') {
-      sb.from('voice_call_signals').insert(row).then(() => {}).catch(() => {});
-    }
+    });
+    if (error) throw error;
   }
 
   async function leavePeerIce(session) {
@@ -380,7 +287,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
       session.iceBatchTimer = null;
     }
     session.iceBatch = [];
-    session.icePrimed = false;
     if (session.iceChannel) {
       try { await sb.removeChannel(session.iceChannel); } catch { /* ignore */ }
       session.iceChannel = null;
@@ -398,18 +304,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
       const list = payload.candidates || (payload.candidate ? [payload.candidate] : []);
       for (const c of list) applyRemoteCandidate(session, c);
     });
-    ch.on('broadcast', { event: 'signal' }, ({ payload }) => {
-      if (!payload || payload.from === userId) return;
-      handleSignal({
-        id: payload.id,
-        call_id: payload.call_id,
-        sender_id: payload.from,
-        recipient_id: userId,
-        kind: payload.kind,
-        body: payload.body || {},
-      }).catch((err) => onError?.(err));
+    await new Promise((resolve) => {
+      ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          resolve(status);
+        }
+      });
     });
-    await subscribeChannel(ch);
     session.iceChannel = ch;
     return ch;
   }
@@ -417,12 +318,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
   function queueIceCandidate(session, candidate) {
     if (!candidate) return;
     session.iceBatch.push(candidate);
-    // First candidate: flush immediately for faster connectivity checks.
-    if (!session.icePrimed) {
-      session.icePrimed = true;
-      flushIceBatch(session).catch(() => {});
-      return;
-    }
     if (session.iceBatchTimer) return;
     session.iceBatchTimer = setTimeout(() => {
       session.iceBatchTimer = null;
@@ -490,7 +385,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const servers = await ensureIceServers();
     const conn = new RTCPeerConnection({
       iceServers: servers,
-      iceCandidatePoolSize: 8,
+      iceCandidatePoolSize: 4,
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
     });
@@ -575,7 +470,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
       pendingRemoteCandidates: [],
       iceBatch: [],
       iceBatchTimer: null,
-      icePrimed: false,
       iceChannel: null,
       remoteStream: null,
       remoteVideoTrack: null,
@@ -589,38 +483,34 @@ export function createVoiceCallController({ userId, onState, onError }) {
   }
 
   async function sendOffer(session, { renegotiate = false } = {}) {
-    await Promise.all([ensurePeerIce(session), ensurePeerMedia(session)]);
+    await ensurePeerIce(session);
+    await ensurePeerMedia(session);
     const offer = await session.pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
     await session.pc.setLocalDescription(offer);
-    if (ICE_GATHER_ASSIST_MS > 0) {
-      await waitForIceGathering(session.pc, ICE_GATHER_ASSIST_MS);
-    }
-    const signalPromise = signalTo(session.peerId, session.callId, 'offer', {
+    await waitForIceGathering(session.pc, ICE_GATHER_ASSIST_MS);
+    await signalTo(session.peerId, session.callId, 'offer', {
       sdp: { type: session.pc.localDescription.type, sdp: session.pc.localDescription.sdp },
       renegotiate: !!renegotiate,
       channel: mode === 'channel',
       channel_id: channelId,
     });
-    flushIceBatch(session).catch(() => {});
-    await signalPromise;
+    await flushIceBatch(session).catch(() => {});
   }
 
   async function sendAnswer(session, sdp) {
-    await Promise.all([ensurePeerIce(session), ensurePeerMedia(session)]);
+    await ensurePeerIce(session);
+    await ensurePeerMedia(session);
     await session.pc.setRemoteDescription(sdp);
     await flushPendingCandidates(session);
     const answer = await session.pc.createAnswer();
     await session.pc.setLocalDescription(answer);
-    if (ICE_GATHER_ASSIST_MS > 0) {
-      await waitForIceGathering(session.pc, ICE_GATHER_ASSIST_MS);
-    }
-    const signalPromise = signalTo(session.peerId, session.callId, 'answer', {
+    await waitForIceGathering(session.pc, ICE_GATHER_ASSIST_MS);
+    await signalTo(session.peerId, session.callId, 'answer', {
       sdp: { type: session.pc.localDescription.type, sdp: session.pc.localDescription.sdp },
       channel: mode === 'channel',
       channel_id: channelId,
     });
-    flushIceBatch(session).catch(() => {});
-    await signalPromise;
+    await flushIceBatch(session).catch(() => {});
   }
 
   async function dropPeer(peerId, { notify = true } = {}) {
@@ -666,9 +556,8 @@ export function createVoiceCallController({ userId, onState, onError }) {
     }
 
     try {
-      // Warm mic + ICE room before ringing so accept/offer can start immediately.
-      await Promise.all([ensureLocalMedia(), ensurePeerIce(session)]);
-      ensurePeerMedia(session).catch(() => {});
+      await ensureLocalMedia();
+      Promise.all([ensurePeerIce(session), ensurePeerMedia(session)]).catch(() => {});
       await signalTo(peerId, cid, 'ring', {
         channel: !!channel,
         channel_id: channelId,
@@ -711,10 +600,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
   async function handleSignal(row) {
     if (!row || row.sender_id === userId) return;
-    const dedupeKey = row.id
-      || `${row.call_id}:${row.kind}:${row.sender_id}:${row.body?.sdp?.type || ''}:${row.body?.renegotiate ? 1 : 0}`;
-    if (!rememberSignal(dedupeKey)) return;
-
     const { kind, body, call_id: cid, sender_id: from } = row;
     const isChannelSignal = !!(body?.channel || body?.channel_id);
 
@@ -731,8 +616,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
       pendingDm = { peerId: from, callId: cid };
       const session = getOrCreateSession(from, cid);
       session.callId = cid;
-      // Prewarm while the user decides — accept becomes nearly instant.
-      Promise.all([ensurePeerIce(session), ensureLocalMedia()]).catch(() => {});
+      ensurePeerIce(session).catch(() => {});
       setState('ringing', 'Incoming call');
       return;
     }
@@ -1045,9 +929,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
   async function startInbox() {
     if (!userId || signalChannel) return;
 
-    // Warm TURN credentials so the first call skips crypto/setup latency.
     ensureIceServers().catch(() => {});
-    // Do not grab the mic here — that would prompt on every launch.
 
     try {
       const since = new Date(Date.now() - 60_000).toISOString();
@@ -1065,25 +947,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
       /* table may not exist yet */
     }
 
-    const onInboxPayload = ({ payload }) => {
-      if (!payload || payload.from === userId) return;
-      handleSignal({
-        id: payload.id,
-        call_id: payload.call_id,
-        sender_id: payload.from,
-        recipient_id: userId,
-        kind: payload.kind,
-        body: payload.body || {},
-      }).catch((err) => onError?.(err));
-    };
-
-    const inbox = sb.channel(`voice-inbox-${userId}`, {
-      config: { broadcast: { ack: false, self: false } },
-    });
-    inbox.on('broadcast', { event: 'signal' }, onInboxPayload);
-    await subscribeChannel(inbox);
-    inboxChannel = inbox;
-
     const ch = sb
       .channel(`voice-signals-${userId}`)
       .on(
@@ -1099,7 +962,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
         },
       );
 
-    await subscribeChannel(ch);
+    await new Promise((resolve) => {
+      ch.subscribe((status) => {
+        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          resolve(status);
+        }
+      });
+    });
     signalChannel = ch;
   }
 
@@ -1109,14 +978,6 @@ export function createVoiceCallController({ userId, onState, onError }) {
       try { await sb.removeChannel(signalChannel); } catch { /* ignore */ }
       signalChannel = null;
     }
-    if (inboxChannel) {
-      try { await sb.removeChannel(inboxChannel); } catch { /* ignore */ }
-      inboxChannel = null;
-    }
-    for (const ch of outboundInboxes.values()) {
-      try { await sb.removeChannel(ch); } catch { /* ignore */ }
-    }
-    outboundInboxes.clear();
   }
 
   return {
