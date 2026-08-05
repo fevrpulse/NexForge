@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.0.1',
+    highlights: [
+      'Restored Communities (servers, text & voice channels) — missing from the incomplete 4.0.0 build',
+      'Brings forward all 3.6.x fixes: shop Stripe unlock, tournament escrow, typing/tournaments DB fixes',
+    ],
+  },
+  {
     version: '3.6.4',
     highlights: [
       'Fixed tournaments list failing after escrow columns (missing SELECT grants)',
