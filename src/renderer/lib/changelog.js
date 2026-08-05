@@ -4,6 +4,18 @@
  */
 export const CHANGELOG = [
   {
+    version: '3.6.3',
+    highlights: [
+      'Reverted the experimental voice signaling speed changes from 3.6.2',
+    ],
+  },
+  {
+    version: '3.6.2',
+    highlights: [
+      'Faster voice calls — Realtime signaling, instant ICE trickle, less wait before audio connects',
+    ],
+  },
+  {
     version: '3.6.1',
     highlights: [
       'Fixed Communities voice join falsely showing Local-only mode (mic access + cloud probe)',
