@@ -11,6 +11,10 @@ function initials(name) {
   return parts.map((p) => p[0]?.toUpperCase() || '').join('') || 'C';
 }
 
+function roomKindLabel(kind) {
+  return kind === 'voice' ? 'Voice deck' : 'Chat room';
+}
+
 export default function Communities() {
   const { user, showToast, reportCloudError, guestMode, setLockMessage } = useNexForge();
   const voice = useVoiceCall();
@@ -30,6 +34,7 @@ export default function Communities() {
   const [joinCode, setJoinCode] = useState('');
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelKind, setNewChannelKind] = useState('text');
+  const [showAddRoom, setShowAddRoom] = useState(false);
   const scrollRef = useRef(null);
   const voiceChannelRef = useRef(null);
 
@@ -70,7 +75,6 @@ export default function Communities() {
         .order('created_at', { ascending: true });
       if (cErr) throw cErr;
       setCommunities(data || []);
-      // Keep home visible until the user picks a community (or create/join).
     } catch (err) {
       await reportCloudError(err);
       showToast(err?.message || 'Could not load communities.', 'error');
@@ -171,7 +175,6 @@ export default function Communities() {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // Realtime messages + voice presence
   useEffect(() => {
     if (!channelId || !myId) return undefined;
     const ch = sb
@@ -195,7 +198,6 @@ export default function Communities() {
     return () => { sb.removeChannel(ch); };
   }, [channelId, myId, loadVoiceHere]);
 
-  // Keep mesh peers in sync with who is actually in the voice channel.
   useEffect(() => {
     if (!voiceChannelRef.current || !voice?.syncChannelPeers || !myId) return;
     if (voice?.call?.mode !== 'channel') return;
@@ -206,7 +208,6 @@ export default function Communities() {
     voice.syncChannelPeers(others).catch(() => {});
   }, [voiceHere, myId, voice]);
 
-  // If the call bar Leave ends the session, clear DB presence too.
   const wasInChannelVoiceRef = useRef(false);
   useEffect(() => {
     if (voice?.call?.mode === 'channel' && voice?.call?.state !== 'idle') {
@@ -278,6 +279,7 @@ export default function Communities() {
         await leaveVoice();
       }
       setSelectedId(null);
+      setShowAddRoom(false);
       await loadCommunities();
     });
   }
@@ -292,7 +294,8 @@ export default function Communities() {
       });
       if (error) throw error;
       setNewChannelName('');
-      showToast(`#${data.name} created`, 'success');
+      setShowAddRoom(false);
+      showToast(`${data.name} ready`, 'success');
       await loadCommunityDetail(selectedId);
       setChannelId(data.id);
     });
@@ -321,7 +324,6 @@ export default function Communities() {
         throw new Error('Voice is still starting up — wait a second and try again.');
       }
 
-      // Acquire mic before writing presence so a denied mic does not look like a cloud outage.
       try {
         await voice.startChannelVoice(chid, []);
       } catch (mediaErr) {
@@ -364,7 +366,7 @@ export default function Communities() {
       if (voice?.hangup) await voice.hangup();
       if (voice?.leaveChannelVoice) await voice.leaveChannelVoice();
       await loadVoiceHere(chid);
-      showToast('Left voice channel', 'success');
+      showToast('Left voice deck', 'success');
     });
   }
 
@@ -376,260 +378,338 @@ export default function Communities() {
 
   if (guestMode) {
     return (
-      <div className="card">
-        <div className="card-title">Communities</div>
-        <p className="muted">Sign in to create or join Communities (Discord-style servers).</p>
+      <div className="comm-guest">
+        <div className="comm-guest-mark">NexForge</div>
+        <h2 className="comm-guest-title">Communities</h2>
+        <p className="muted">Sign in to open crew lounges — chat rooms and voice decks with your people.</p>
       </div>
     );
   }
 
-  const textChannels = channels.filter((c) => c.kind === 'text');
-  const voiceChannels = channels.filter((c) => c.kind === 'voice');
   const inThisVoice = voiceHere.some((v) => v.user_id === myId) || voiceChannelRef.current === activeChannel?.id;
+  const accent = selected?.icon_color || '#C9FF00';
 
   return (
-    <div className="communities-layout">
-      <aside className="comm-rail">
-        <button
-          type="button"
-          className={`comm-pill home ${!selectedId ? 'active' : ''}`}
-          title="Discover — create or join"
-          onClick={() => setSelectedId(null)}
-        >
-          ⌂
-        </button>
-        <div className="comm-rail-div" />
-        {communities.map((c) => (
+    <div
+      className={`communities-layout ${selected ? 'is-inside' : 'is-home'}`}
+      style={selected ? { '--comm-color': accent } : undefined}
+    >
+      <div className="comm-atmosphere" aria-hidden />
+
+      <header className="comm-topbar">
+        <div className="comm-topbar-brand">
+          <span className="comm-kicker">Crew lounges</span>
+          <h2 className="comm-page-title">{selected ? selected.name : 'Communities'}</h2>
+        </div>
+        <div className="comm-switcher" role="tablist" aria-label="Your communities">
           <button
-            key={c.id}
             type="button"
-            className={`comm-pill ${selectedId === c.id ? 'active' : ''}`}
-            style={{ '--comm-color': c.icon_color || '#3B7EFF' }}
-            title={c.name}
-            onClick={() => setSelectedId(c.id)}
+            className={`comm-switch lobby ${!selectedId ? 'active' : ''}`}
+            onClick={() => { setSelectedId(null); setShowAddRoom(false); }}
           >
-            {initials(c.name)}
+            Lobby
           </button>
-        ))}
-        <div className="comm-rail-div" />
-        <button
-          type="button"
-          className="comm-pill add"
-          title="Create or join a community"
-          onClick={() => {
-            setSelectedId(null);
-            setTimeout(() => document.getElementById('comm-create-name')?.focus(), 50);
-          }}
-        >
-          +
-        </button>
-      </aside>
-
-      <aside className="comm-channels">
-        {selected ? (
-          <>
-            <div className="comm-header">
-              <button
-                type="button"
-                className="comm-back"
-                onClick={() => setSelectedId(null)}
-                title="Back to discover"
-              >
-                ← Discover
-              </button>
-              <div className="comm-title">{selected.name}</div>
-              <div className="comm-invite" title="Invite code">
-                #{selected.invite_code}
-                <button
-                  type="button"
-                  className="action-btn ghost friend-mini-btn"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(selected.invite_code);
-                    showToast('Invite code copied', 'success');
-                  }}
-                >
-                  Copy
-                </button>
-              </div>
-            </div>
-            <div className="comm-section-label">Text channels</div>
-            {textChannels.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={`comm-chan ${channelId === c.id ? 'active' : ''}`}
-                onClick={() => setChannelId(c.id)}
-              >
-                # {c.name}
-              </button>
-            ))}
-            <div className="comm-section-label">Voice channels</div>
-            {voiceChannels.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                className={`comm-chan voice ${channelId === c.id ? 'active' : ''}`}
-                onClick={() => setChannelId(c.id)}
-              >
-                Voice · {c.name}
-              </button>
-            ))}
-            {canManage && (
-              <div className="comm-new-chan">
-                <input
-                  value={newChannelName}
-                  onChange={(e) => setNewChannelName(e.target.value)}
-                  placeholder="new-channel"
-                />
-                <select value={newChannelKind} onChange={(e) => setNewChannelKind(e.target.value)}>
-                  <option value="text">Text</option>
-                  <option value="voice">Voice</option>
-                </select>
-                <button type="button" className="action-btn ghost friend-mini-btn" disabled={busy} onClick={handleAddChannel}>
-                  Add
-                </button>
-              </div>
-            )}
-            <button type="button" className="action-btn ghost comm-leave" disabled={busy} onClick={handleLeave}>
-              {selected.owner_id === myId ? 'Delete community' : 'Leave community'}
+          {communities.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              className={`comm-switch ${selectedId === c.id ? 'active' : ''}`}
+              style={{ '--comm-color': c.icon_color || '#3B7EFF' }}
+              onClick={() => { setSelectedId(c.id); setShowAddRoom(false); }}
+              title={c.name}
+            >
+              <span className="comm-switch-dot" aria-hidden />
+              <span className="comm-switch-name">{c.name}</span>
             </button>
-          </>
-        ) : (
-          <div className="comm-empty-side">Select or create a community</div>
-        )}
-      </aside>
+          ))}
+        </div>
+      </header>
 
-      <section className="comm-main">
-        {!selected ? (
-          <div className="comm-home">
-            <div className="comm-home-hero">
-              <div className="card-title">Communities</div>
-              <p className="muted">Servers with text &amp; voice — create one or join with an invite.</p>
-            </div>
-            <div className="comm-forms">
-              <div className="comm-form card">
-                <label htmlFor="comm-create-name">Create</label>
-                <input
-                  id="comm-create-name"
-                  value={createName}
-                  onChange={(e) => setCreateName(e.target.value)}
-                  placeholder="Community name"
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
-                />
-                <button type="button" className="action-btn primary" disabled={busy || createName.trim().length < 2} onClick={handleCreate}>
-                  Create community
-                </button>
-              </div>
-              <div className="comm-form card">
-                <label htmlFor="comm-join-code">Join with invite</label>
-                <input
-                  id="comm-join-code"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="Invite code"
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleJoin(); }}
-                />
-                <button type="button" className="action-btn ghost" disabled={busy || !joinCode.trim()} onClick={handleJoin}>
-                  Join community
-                </button>
+      {!selected ? (
+        <section className="comm-lobby">
+          <div className="comm-lobby-hero">
+            <div className="comm-lobby-copy">
+              <p className="comm-lobby-eyebrow">Your people. Your rooms.</p>
+              <h3 className="comm-lobby-title">Hang out without the server clutter.</h3>
+              <p className="comm-lobby-lead">
+                Spin up a lounge, invite the crew, then hop between chat rooms and voice decks.
+              </p>
+              <div className="comm-lobby-stats">
+                <span className="comm-stat">
+                  <b>{communities.length}</b>
+                  lounge{communities.length === 1 ? '' : 's'}
+                </span>
+                <span className="comm-stat-sep" aria-hidden />
+                <span className="comm-stat muted-stat">Invite codes · live voice</span>
               </div>
             </div>
-            {communities.length > 0 && (
-              <div className="comm-home-list">
-                <div className="comm-section-label">Your communities</div>
-                {communities.map((c) => (
+            <div className="comm-lobby-art" aria-hidden>
+              <span className="comm-orb o1" />
+              <span className="comm-orb o2" />
+              <span className="comm-orb o3" />
+              <span className="comm-art-label">LIVE FLOOR</span>
+            </div>
+          </div>
+
+          <div className="comm-lobby-actions">
+            <div className="comm-panel create">
+              <div className="comm-panel-head">
+                <div className="comm-panel-label">Start a lounge</div>
+                <div className="comm-panel-hint">Hosts get chat + voice rooms by default</div>
+              </div>
+              <input
+                id="comm-create-name"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="Name your community"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+              />
+              <button
+                type="button"
+                className="action-btn primary comm-panel-btn"
+                disabled={busy || createName.trim().length < 2}
+                onClick={handleCreate}
+              >
+                Create lounge
+              </button>
+            </div>
+            <div className="comm-panel join">
+              <div className="comm-panel-head">
+                <div className="comm-panel-label">Enter with invite</div>
+                <div className="comm-panel-hint">Paste a code from a friend</div>
+              </div>
+              <input
+                id="comm-join-code"
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                placeholder="Invite code"
+                onKeyDown={(e) => { if (e.key === 'Enter') handleJoin(); }}
+              />
+              <button
+                type="button"
+                className="action-btn ghost comm-panel-btn"
+                disabled={busy || !joinCode.trim()}
+                onClick={handleJoin}
+              >
+                Join lounge
+              </button>
+            </div>
+          </div>
+
+          {communities.length > 0 ? (
+            <div className="comm-roster">
+              <div className="comm-roster-head">
+                <div className="comm-roster-label">Your lounges</div>
+                <div className="comm-roster-count">{communities.length}</div>
+              </div>
+              <div className="comm-roster-grid">
+                {communities.map((c, i) => (
                   <button
                     key={c.id}
                     type="button"
-                    className="comm-home-row"
+                    className="comm-roster-card"
+                    style={{ '--comm-color': c.icon_color || '#3B7EFF', '--stagger': `${i * 45}ms` }}
                     onClick={() => setSelectedId(c.id)}
                   >
-                    <span className="comm-home-av" style={{ background: `${c.icon_color || '#3B7EFF'}33`, color: c.icon_color || '#3B7EFF' }}>
-                      {initials(c.name)}
+                    <span className="comm-roster-sheen" aria-hidden />
+                    <span className="comm-roster-mark">{initials(c.name)}</span>
+                    <span className="comm-roster-body">
+                      <span className="comm-roster-name">{c.name}</span>
+                      <span className="comm-roster-code">Invite {c.invite_code}</span>
                     </span>
-                    <span className="comm-home-name">{c.name}</span>
-                    <span className="comm-home-code">#{c.invite_code}</span>
+                    <span className="comm-roster-go">Enter →</span>
                   </button>
                 ))}
               </div>
-            )}
-          </div>
-        ) : activeChannel?.kind === 'voice' ? (
-          <div className="comm-voice-panel">
-            <div className="card-title">{activeChannel.name}</div>
-            <p className="muted">Same as a call — mute, deafen, share — with everyone in the channel.</p>
-            <div className="comm-voice-people">
-              {voiceHere.length === 0 ? (
-                <div className="friends-empty">No one is here yet.</div>
-              ) : (
-                voiceHere.map((v) => (
-                  <div key={v.user_id} className="comm-voice-person">
-                    <PlayerAvatar profile={profiles[v.user_id]} size={40} />
-                    <GamerTag profile={profiles[v.user_id] || { gamer_tag: 'Player' }} />
-                  </div>
-                ))
-              )}
             </div>
-            <div className="comm-voice-actions">
-              {!inThisVoice ? (
-                <button type="button" className="action-btn primary" disabled={busy} onClick={joinVoice}>
-                  Join Voice
-                </button>
-              ) : (
-                <button type="button" className="action-btn voice-hangup" disabled={busy} onClick={leaveVoice}>
-                  Leave Voice
+          ) : (
+            <div className="comm-empty-lobby">
+              <div className="comm-empty-lobby-title">No lounges yet</div>
+              <p>Create one above, or join with an invite code.</p>
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="comm-stage">
+          <div className="comm-stage-banner">
+            <div className="comm-stage-identity">
+              <span className="comm-stage-mark">{initials(selected.name)}</span>
+              <div className="comm-stage-copy">
+                <div className="comm-stage-meta">
+                  <span className="comm-pill-soft">{members.length} in crew</span>
+                  <button
+                    type="button"
+                    className="comm-invite-btn"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(selected.invite_code);
+                      showToast('Invite code copied', 'success');
+                    }}
+                  >
+                    Copy invite · {selected.invite_code}
+                  </button>
+                </div>
+                <div className="comm-crew-strip" aria-label="Members">
+                  {members.slice(0, 8).map((m) => (
+                    <div key={m.user_id} className="comm-crew-chip" title={m.role}>
+                      <PlayerAvatar profile={profiles[m.user_id]} size={24} />
+                      <span className="comm-crew-tag">
+                        <GamerTag profile={profiles[m.user_id] || { gamer_tag: 'Player' }} />
+                      </span>
+                      {(m.role === 'owner' || m.role === 'admin') && (
+                        <span className="comm-crew-role">{m.role === 'owner' ? 'host' : 'admin'}</span>
+                      )}
+                    </div>
+                  ))}
+                  {members.length > 8 && (
+                    <span className="comm-crew-more">+{members.length - 8}</span>
+                  )}
+                </div>
+              </div>
+            </div>
+            <button type="button" className="comm-leave-btn" disabled={busy} onClick={handleLeave}>
+              {selected.owner_id === myId ? 'Delete lounge' : 'Leave lounge'}
+            </button>
+          </div>
+
+          <div className="comm-workspace">
+            <aside className="comm-room-rail">
+              <div className="comm-room-rail-label">Rooms</div>
+              <div className="comm-rooms" role="tablist" aria-label="Rooms">
+                {channels.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`comm-room ${channelId === c.id ? 'active' : ''} kind-${c.kind}`}
+                    onClick={() => setChannelId(c.id)}
+                  >
+                    <span className={`comm-room-ico kind-${c.kind}`} aria-hidden>
+                      {c.kind === 'voice' ? '◎' : '✦'}
+                    </span>
+                    <span className="comm-room-text">
+                      <span className="comm-room-kind">{c.kind === 'voice' ? 'Voice' : 'Chat'}</span>
+                      <span className="comm-room-name">{c.name}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {canManage && (
+                <button
+                  type="button"
+                  className={`comm-room add ${showAddRoom ? 'active' : ''}`}
+                  onClick={() => setShowAddRoom((v) => !v)}
+                >
+                  + Add room
                 </button>
               )}
-            </div>
-          </div>
-        ) : (
-          <>
-            <div className="comm-chat-title"># {activeChannel?.name || 'channel'}</div>
-            <div className="comm-messages" ref={scrollRef}>
-              {messages.length === 0 ? (
-                <div className="friends-empty">No messages yet — say hi!</div>
-              ) : (
-                messages.map((m) => (
-                  <div key={m.id} className={`comm-msg ${m.sender_id === myId ? 'mine' : ''}`}>
-                    <PlayerAvatar profile={profiles[m.sender_id]} size={32} />
+              {showAddRoom && canManage && (
+                <div className="comm-add-room">
+                  <input
+                    value={newChannelName}
+                    onChange={(e) => setNewChannelName(e.target.value)}
+                    placeholder="Room name"
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleAddChannel(); }}
+                  />
+                  <select value={newChannelKind} onChange={(e) => setNewChannelKind(e.target.value)}>
+                    <option value="text">Chat room</option>
+                    <option value="voice">Voice deck</option>
+                  </select>
+                  <button type="button" className="action-btn primary friend-mini-btn" disabled={busy} onClick={handleAddChannel}>
+                    Add
+                  </button>
+                </div>
+              )}
+            </aside>
+
+            <div className="comm-floor">
+              {activeChannel?.kind === 'voice' ? (
+                <div className="comm-voice-panel">
+                  <div className="comm-floor-head">
                     <div>
-                      <div className="comm-msg-meta">
-                        <GamerTag profile={profiles[m.sender_id] || { gamer_tag: 'Player' }} />
-                        <span>{new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
-                      </div>
-                      <div className="comm-msg-body">{m.body}</div>
+                      <div className="comm-floor-label">{roomKindLabel('voice')}</div>
+                      <h4 className="comm-floor-title">{activeChannel.name}</h4>
+                    </div>
+                    <span className={`comm-live-dot ${voiceHere.length ? 'on' : ''}`}>
+                      {voiceHere.length ? `${voiceHere.length} live` : 'Quiet'}
+                    </span>
+                  </div>
+                  <div className="comm-voice-stage">
+                    <div className="comm-voice-rings" aria-hidden>
+                      <span /><span /><span />
+                    </div>
+                    <div className="comm-voice-people">
+                      {voiceHere.length === 0 ? (
+                        <div className="comm-empty-note center">Deck is quiet. Be the first in.</div>
+                      ) : (
+                        voiceHere.map((v) => (
+                          <div key={v.user_id} className="comm-voice-person">
+                            <PlayerAvatar profile={profiles[v.user_id]} size={48} />
+                            <GamerTag profile={profiles[v.user_id] || { gamer_tag: 'Player' }} />
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
-                ))
+                  <div className="comm-voice-actions">
+                    {!inThisVoice ? (
+                      <button type="button" className="action-btn primary" disabled={busy} onClick={joinVoice}>
+                        Join voice
+                      </button>
+                    ) : (
+                      <button type="button" className="action-btn voice-hangup" disabled={busy} onClick={leaveVoice}>
+                        Leave voice
+                      </button>
+                    )}
+                    <p className="comm-voice-hint">Mute, deafen, and share from the call bar.</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="comm-chat-head">
+                    <div>
+                      <div className="comm-floor-label">{roomKindLabel('text')}</div>
+                      <h4 className="comm-floor-title">{activeChannel?.name || 'Room'}</h4>
+                    </div>
+                    <span className="comm-msg-count">{messages.length} msg{messages.length === 1 ? '' : 's'}</span>
+                  </div>
+                  <div className="comm-messages" ref={scrollRef}>
+                    {messages.length === 0 ? (
+                      <div className="comm-empty-chat">
+                        <div className="comm-empty-chat-mark">✦</div>
+                        <div className="comm-empty-lobby-title">Open the floor</div>
+                        <p>Say something — this room is waiting.</p>
+                      </div>
+                    ) : (
+                      messages.map((m) => (
+                        <div key={m.id} className={`comm-msg ${m.sender_id === myId ? 'mine' : ''}`}>
+                          <PlayerAvatar profile={profiles[m.sender_id]} size={34} />
+                          <div className="comm-msg-stack">
+                            <div className="comm-msg-meta">
+                              <GamerTag profile={profiles[m.sender_id] || { gamer_tag: 'Player' }} />
+                              <span>{new Date(m.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                            </div>
+                            <div className="comm-msg-body">{m.body}</div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="comm-composer">
+                    <input
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      placeholder={`Message ${activeChannel?.name || 'room'}…`}
+                      onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
+                    />
+                    <button type="button" className="action-btn primary" disabled={busy || !draft.trim()} onClick={sendMessage}>
+                      Send
+                    </button>
+                  </div>
+                </>
               )}
             </div>
-            <div className="comm-input-row">
-              <input
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                placeholder={`Message #${activeChannel?.name || ''}`}
-                onKeyDown={(e) => { if (e.key === 'Enter') sendMessage(); }}
-              />
-              <button type="button" className="action-btn primary" disabled={busy || !draft.trim()} onClick={sendMessage}>
-                Send
-              </button>
-            </div>
-          </>
-        )}
-      </section>
-
-      <aside className="comm-members">
-        <div className="comm-section-label">Members — {members.length}</div>
-        {members.map((m) => (
-          <div key={m.user_id} className="comm-member-row">
-            <PlayerAvatar profile={profiles[m.user_id]} size={28} />
-            <div className="comm-member-meta">
-              <GamerTag profile={profiles[m.user_id] || { gamer_tag: 'Player' }} />
-              <span className="comm-role">{m.role}</span>
-            </div>
           </div>
-        ))}
-      </aside>
+        </section>
+      )}
     </div>
   );
 }

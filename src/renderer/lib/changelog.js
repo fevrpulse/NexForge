@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.0.2',
+    highlights: [
+      'Handmade UI polish across the app — shell, cards, Friends, Shop, and motion',
+      'Communities redesigned as crew lounges (no Discord-style server rail)',
+    ],
+  },
+  {
     version: '4.0.1',
     highlights: [
       'Restored Communities (servers, text & voice channels) — missing from the incomplete 4.0.0 build',

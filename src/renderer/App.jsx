@@ -27,7 +27,7 @@ const SCREEN_META = {
   tournaments: { title: 'Tournaments', badge: 'OPEN' },
   leaderboard: { title: 'Leaderboard', badge: 'SEASON' },
   friends: { title: 'Friends', badge: 'SOCIAL' },
-  communities: { title: 'Communities', badge: 'SERVERS' },
+  communities: { title: 'Communities', badge: 'LOUNGES' },
   clans: { title: 'Clans', badge: 'CREW' },
   shop: { title: 'Cosmetics Shop', badge: 'FORGE' },
   profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
@@ -56,6 +56,7 @@ function AppShell() {
     return (
       <div className="loading-center">
         <div className="loading-logo">Nex<span>Forge</span></div>
+        <div className="loading-bar"><div className="loading-fill" /></div>
       </div>
     );
   }
@@ -85,10 +86,7 @@ function AppShell() {
           <b>Local-only mode</b> — Cloud sync unavailable.
           {cloudReason ? ` (${cloudReason})` : ' Duels/tournaments may not sync until Supabase is reachable.'}
         </span>
-        <button
-          style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid #FF8C42', background: 'transparent', color: '#FF8C42', fontFamily: 'var(--font)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-          onClick={probeCloud}
-        >
+        <button type="button" className="offline-retry-btn" onClick={probeCloud}>
           Retry
         </button>
       </div>

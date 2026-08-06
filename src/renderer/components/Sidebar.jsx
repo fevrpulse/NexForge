@@ -54,28 +54,30 @@ export default function Sidebar() {
         Nex<span>Forge</span>
         {appVersion && <div className="sb-version">v{appVersion}</div>}
       </div>
-      <nav>
+      <nav className="sb-nav">
+        <div className="sb-section-label">Play</div>
         {PRIMARY_NAV.map(renderNavItem)}
-        <div className="nav-div" />
+        <div className="sb-section-label">Social &amp; more</div>
         {SECONDARY_NAV.map(renderNavItem)}
       </nav>
       <div className="sb-bottom">
         <div className="user-pill">
           {guestMode ? (
-            <div className="avatar" style={{ background: 'var(--panel)', border: '1px solid var(--border2)' }}>—</div>
+            <div className="avatar guest-av">—</div>
           ) : (
             <PlayerAvatar profile={profile} size={36} className="sb-avatar" />
           )}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="user-pill-meta">
             <div className="user-name">{guestMode ? tag : <GamerTag profile={profile} />}</div>
             <div className="user-rank">{rank}</div>
           </div>
         </div>
-        <button className="signout-btn" onClick={signOut}>
+        <button type="button" className="signout-btn" onClick={signOut}>
           {guestMode ? 'Exit Guest' : 'Sign out'}
         </button>
         {!guestMode && (
           <button
+            type="button"
             className="sb-update-btn"
             onClick={() => {
               if (window.nexforge?.openExternalUrl) {
@@ -91,6 +93,7 @@ export default function Sidebar() {
         )}
         {!guestMode && (
           <button
+            type="button"
             className={`sb-update-btn ${dndEnabled ? 'dnd-on' : ''}`}
             onClick={() => setDndEnabled(!dndEnabled)}
             title="Mute message sounds and in-game overlay toasts"
@@ -98,7 +101,7 @@ export default function Sidebar() {
             {dndEnabled ? 'Do Not Disturb · On' : 'Do Not Disturb'}
           </button>
         )}
-        <button className="sb-update-btn" onClick={checkForUpdates}>
+        <button type="button" className="sb-update-btn" onClick={checkForUpdates}>
           Check for updates
         </button>
       </div>
