@@ -25,9 +25,10 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   'www.github.com',
   'fevrpulse.github.io',
 ]);
-const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
-const UPDATE_FIRST_RECHECK_MS = 2 * 60 * 1000;
+const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+const UPDATE_FIRST_RECHECK_MS = 15 * 1000;
 const UPDATE_INSTALL_DELAY_MS = 2500;
+const GENERIC_UPDATE_FEED = 'https://github.com/fevrpulse/NexForge/releases/latest/download';
 
 let mainWindow = null;
 let overlayWindow = null;
@@ -89,7 +90,18 @@ function setupAutoUpdater() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = false;
+  autoUpdater.disableDifferentialDownload = true;
   autoUpdater.logger = console;
+  try {
+    // Generic feed skips the GitHub API (rate limits / pagination) so every
+    // packaged build can read latest.yml from the current GitHub latest release.
+    autoUpdater.setFeedURL({
+      provider: 'generic',
+      url: GENERIC_UPDATE_FEED,
+    });
+  } catch (err) {
+    console.error('Generic update feed failed; using GitHub provider:', err);
+  }
 
   let installingUpdate = false;
   let updateReadyVersion = null;

@@ -4,6 +4,12 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.0.4',
+    highlights: [
+      'Auto-update now works from every previous installer (including old NexForge.exe builds)',
+    ],
+  },
+  {
     version: '4.0.3',
     highlights: [
       'NexForge AI is now a small button in the bottom-right — no longer mixed into Friends chat',
