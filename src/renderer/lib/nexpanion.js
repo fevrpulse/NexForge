@@ -1,5 +1,5 @@
 /**
- * NexPanion — Groq-powered AI companion (via Supabase edge function).
+ * NexAI — Groq-powered AI companion (via Supabase edge function).
  */
 import { sb } from './supabase.js';
 
@@ -7,8 +7,8 @@ export const NEXPANION_ID = '__nexpanion__';
 
 export const NEXPANION_PROFILE = {
   id: NEXPANION_ID,
-  gamer_tag: 'NexPanion',
-  display_name: 'NexPanion',
+  gamer_tag: 'NexAI',
+  display_name: 'NexAI',
   main_game: 'All games',
   platform: 'AI',
   mmr: 9999,
@@ -26,7 +26,7 @@ export async function askNexPanion(message, history = []) {
     body: { message, history },
   });
   if (error) {
-    let detail = error.message || 'NexPanion is unavailable';
+    let detail = error.message || 'NexAI is unavailable';
     try {
       const ctx = error.context;
       if (ctx && typeof ctx.json === 'function') {
@@ -38,6 +38,6 @@ export async function askNexPanion(message, history = []) {
   }
   if (data?.error) throw new Error(String(data.error));
   const reply = String(data?.reply || '').trim();
-  if (!reply) throw new Error('Empty reply from NexPanion');
+  if (!reply) throw new Error('Empty reply from NexAI');
   return reply;
 }

@@ -6,14 +6,50 @@ import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 
 const COLORS = ['#C9FF00', '#3B7EFF', '#FF8C42', '#4ade80', '#9B5CFF'];
 
+const PROFILE_COLS = 'id,gamer_tag,display_name,mmr,main_game,platform,avatar_path,avatar_preset,equipped_frame,equipped_banner,equipped_nameplate,clan_tag';
+
 export default function Leaderboard() {
-  const { user, profile, setCloudOffline, reportCloudError, activeSeason, clan } = useNexForge();
-  const [mode, setMode] = useState('season'); // 'season' | 'lifetime' | 'clans'
+  const { user, profile, guestMode, setCloudOffline, reportCloudError, activeSeason, clan } = useNexForge();
+  const [mode, setMode] = useState('season'); // 'season' | 'lifetime' | 'friends' | 'clans'
   const [players, setPlayers] = useState(null);
   const [clans, setClans] = useState(null);
 
   const load = useCallback(async () => {
     try {
+      if (mode === 'friends') {
+        if (!user || guestMode) {
+          setCloudOffline(false);
+          setClans(null);
+          setPlayers([]);
+          return;
+        }
+        const { data: rows, error: fErr } = await sb
+          .from('friendships')
+          .select('requester_id,addressee_id,status')
+          .eq('status', 'accepted');
+        if (fErr) throw fErr;
+        const ids = [...new Set((rows || []).map((r) => (
+          r.requester_id === user.id ? r.addressee_id : r.requester_id
+        )).filter(Boolean))];
+        if (!ids.length) {
+          setCloudOffline(false);
+          setClans(null);
+          setPlayers([]);
+          return;
+        }
+        ids.push(user.id);
+        const { data, error } = await sb
+          .from('profiles')
+          .select(PROFILE_COLS)
+          .in('id', ids);
+        if (error) throw error;
+        setCloudOffline(false);
+        setClans(null);
+        setPlayers(
+          [...(data || [])].sort((a, b) => (b.mmr ?? 1200) - (a.mmr ?? 1200)),
+        );
+        return;
+      }
       if (mode === 'clans') {
         const { data, error } = await sb.rpc('get_clan_leaderboard', { p_limit: 20 });
         if (error) throw error;
@@ -34,7 +70,7 @@ export default function Leaderboard() {
         return;
       }
       const { data, error } = await sb.from('profiles')
-        .select('id,gamer_tag,display_name,mmr,main_game,platform,avatar_path,avatar_preset,equipped_frame,equipped_banner,equipped_nameplate,clan_tag')
+        .select(PROFILE_COLS)
         .order('mmr', { ascending: false })
         .limit(10);
       if (error) throw error;
@@ -45,7 +81,7 @@ export default function Leaderboard() {
       setPlayers([]);
       setClans([]);
     }
-  }, [mode, setCloudOffline, reportCloudError]);
+  }, [mode, user, guestMode, setCloudOffline, reportCloudError]);
 
   useEffect(() => {
     setPlayers(null);
@@ -61,9 +97,11 @@ export default function Leaderboard() {
         <div className="card-title" style={{ marginBottom: 0 }}>
           {mode === 'clans'
             ? 'Top Clans — Total MMR'
-            : mode === 'season'
-              ? `Top Players — ${seasonName}`
-              : 'Top Players — Lifetime'}
+            : mode === 'friends'
+              ? 'Friends — Lifetime MMR'
+              : mode === 'season'
+                ? `Top Players — ${seasonName}`
+                : 'Top Players — Lifetime'}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="lb-mode-toggle">
@@ -83,6 +121,13 @@ export default function Leaderboard() {
             </button>
             <button
               type="button"
+              className={`lb-mode-btn ${mode === 'friends' ? 'active' : ''}`}
+              onClick={() => setMode('friends')}
+            >
+              Friends
+            </button>
+            <button
+              type="button"
               className={`lb-mode-btn ${mode === 'clans' ? 'active' : ''}`}
               onClick={() => setMode('clans')}
             >
@@ -95,6 +140,11 @@ export default function Leaderboard() {
       {mode === 'season' && (
         <div className="lb-season-hint">
           Ranked duel wins/losses this season (±15 MMR). Lifetime cosmetics unlocks still use career MMR.
+        </div>
+      )}
+      {mode === 'friends' && (
+        <div className="lb-season-hint">
+          You and your accepted friends, ranked by career MMR.
         </div>
       )}
       {mode === 'clans' && (
@@ -148,9 +198,13 @@ export default function Leaderboard() {
         </div>
       ) : players.length === 0 ? (
         <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
-          {mode === 'season'
-            ? 'No season games yet — finish a ranked duel to appear here.'
-            : 'No players yet — be the first!'}
+          {mode === 'friends'
+            ? (!user || guestMode
+              ? 'Sign in to see how you rank against friends.'
+              : 'No friends yet — add people from the Friends tab.')
+            : mode === 'season'
+              ? 'No season games yet — finish a ranked duel to appear here.'
+              : 'No players yet — be the first!'}
         </div>
       ) : (
         players.map((p, i) => {

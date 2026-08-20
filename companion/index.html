@@ -155,7 +155,7 @@
   <nav class="nav" id="nav">
     <button type="button" data-tab="home" class="active">Home</button>
     <button type="button" data-tab="inbox">Inbox</button>
-    <button type="button" data-tab="ai">NexPanion</button>
+    <button type="button" data-tab="ai">NexAI</button>
     <button type="button" data-tab="party">Party</button>
     <button type="button" data-tab="events">Events</button>
   </nav>
@@ -173,7 +173,7 @@
     let pollId = null;
     let aiBusy = false;
     let aiMsgs = [
-      { role: 'assistant', content: "Hey — I'm NexPanion. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
+      { role: 'assistant', content: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
     ];
 
     const $ = (id) => document.getElementById(id);
@@ -243,7 +243,7 @@
             <h2 style="margin:0">Alerts</h2>
             <span class="pill ${home.unread_count ? 'neon' : ''}">${home.unread_count || 0} unread</span>
           </div>
-          <p class="muted" style="margin-top:8px">Desktop owns tracking & overlay. Companion is for chat, NexPanion AI, party, lobby codes, and check-in.</p>
+          <p class="muted" style="margin-top:8px">Desktop owns tracking & overlay. Companion is for chat, NexAI, party, lobby codes, and check-in.</p>
         </div>
         ${coach ? `
           <div class="card">
@@ -368,7 +368,7 @@
             `).join('')}
           </div>
           <div class="ai-compose">
-            <input id="ai-input" type="text" maxlength="2000" placeholder="Ask NexPanion…" ${aiBusy ? 'disabled' : ''} />
+            <input id="ai-input" type="text" maxlength="2000" placeholder="Ask NexAI…" ${aiBusy ? 'disabled' : ''} />
             <button class="btn" type="button" id="ai-send" ${aiBusy ? 'disabled' : ''}>${aiBusy ? '…' : 'Send'}</button>
           </div>
           <div class="actions">
@@ -407,7 +407,7 @@
       } catch (err) {
         aiMsgs = [...aiMsgs, {
           role: 'assistant',
-          content: `Sorry — ${err?.message || 'NexPanion is unavailable right now.'}`,
+          content: `Sorry — ${err?.message || 'NexAI is unavailable right now.'}`,
         }];
       } finally {
         aiBusy = false;
@@ -540,7 +540,7 @@
       }
       if (t.id === 'ai-clear') {
         aiMsgs = [
-          { role: 'assistant', content: "Hey — I'm NexPanion. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
+          { role: 'assistant', content: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
         ];
         renderAi();
       }

@@ -11,7 +11,7 @@ const GROQ_MODEL = "llama-3.3-70b-versatile";
 const MAX_HISTORY = 16;
 const MAX_MESSAGE_LEN = 2000;
 
-const SYSTEM_PROMPT = `You are NexPanion, the in-app AI companion for NexForge — a competitive gaming desktop + mobile companion platform.
+const SYSTEM_PROMPT = `You are NexAI, the in-app AI companion for NexForge — a competitive gaming desktop + mobile companion platform.
 
 Personality:
 - Friendly, sharp, and hype without being cringe
@@ -27,7 +27,7 @@ Rules:
 - Never invent private user data, match results, or API keys
 - If unsure about a live patch number, say so and give evergreen advice
 - No harmful or illegal instructions
-- Stay in character as NexPanion`;
+- Stay in character as NexAI`;
 
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
   const publishableKey = resolvePublishableKey();
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !publishableKey || !serviceKey) {
-    return json({ error: "NexPanion backend is misconfigured" }, 503);
+    return json({ error: "NexAI backend is misconfigured" }, 503);
   }
 
   const userClient = createClient(supabaseUrl, publishableKey, {
@@ -175,6 +175,6 @@ Deno.serve(async (req) => {
   return json({
     reply: reply.trim(),
     model: GROQ_MODEL,
-    assistant: "NexPanion",
+    assistant: "NexAI",
   });
 });

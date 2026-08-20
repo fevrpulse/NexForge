@@ -51,7 +51,10 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sb-logo">
-        Nex<span>Forge</span>
+        <div className="sb-brand">
+          Nex<span>Forge</span>
+          <span className="sb-live-pip" title="Online" />
+        </div>
         {appVersion && <div className="sb-version">v{appVersion}</div>}
       </div>
       <nav className="sb-nav">

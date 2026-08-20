@@ -5,7 +5,7 @@ import { askNexPanion, NEXPANION_ID } from '../lib/nexpanion.js';
 const WELCOME = {
   id: 'nexpanion-welcome',
   role: 'assistant',
-  body: "Hey — I'm NexForge AI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself.",
+  body: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself.",
 };
 
 function timeLabel(iso) {
@@ -111,7 +111,7 @@ export default function NexPanionDock() {
         },
       ]);
     } catch (err) {
-      showToast(err?.message || 'NexForge AI failed to reply.', 'error');
+      showToast(err?.message || 'NexAI failed to reply.', 'error');
       await reportCloudError(err);
     } finally {
       setSending(false);
@@ -123,11 +123,11 @@ export default function NexPanionDock() {
   return (
     <div className={`np-dock ${open ? 'open' : ''}`}>
       {open && (
-        <section className="np-panel" role="dialog" aria-label="NexForge AI">
+        <section className="np-panel" role="dialog" aria-label="NexAI">
           <header className="np-head">
             <div className="np-head-mark" aria-hidden>AI</div>
             <div className="np-head-copy">
-              <div className="np-head-title">NexForge AI</div>
+              <div className="np-head-title">NexAI</div>
               <div className="np-head-sub">Gaming tips · ranked · the app</div>
             </div>
             <button
@@ -168,7 +168,7 @@ export default function NexPanionDock() {
               type="text"
               value={draft}
               maxLength={2000}
-              placeholder="Ask NexForge AI…"
+              placeholder="Ask NexAI…"
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') send(); }}
             />
@@ -183,15 +183,18 @@ export default function NexPanionDock() {
           </div>
         </section>
       )}
-      <button
-        type="button"
-        className={`np-fab ${open ? 'active' : ''}`}
-        title={open ? 'Close NexForge AI' : 'Open NexForge AI'}
-        aria-label={open ? 'Close NexForge AI' : 'Open NexForge AI'}
-        onClick={() => setOpen((v) => !v)}
-      >
-        {open ? '×' : 'AI'}
-      </button>
+      <div className={`np-fab-wrap ${open ? 'open' : ''}`}>
+        {!open && <span className="np-orbit" aria-hidden="true" />}
+        <button
+          type="button"
+          className={`np-fab ${open ? 'active' : ''}`}
+          title={open ? 'Close NexAI' : 'Open NexAI'}
+          aria-label={open ? 'Close NexAI' : 'Open NexAI'}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {open ? '×' : 'AI'}
+        </button>
+      </div>
     </div>
   );
 }

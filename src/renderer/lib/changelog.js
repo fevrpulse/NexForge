@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.1.0',
+    highlights: [
+      'HUD UI — viewport brackets, scan beam, hotter neon, and an orbiting NexAI button',
+      'The in-app AI is now NexAI',
+      'Friends tab on the leaderboard, ranked by career MMR',
+    ],
+  },
+  {
     version: '4.0.4',
     highlights: [
       'Auto-update now works from every previous installer (including old NexForge.exe builds)',
@@ -12,7 +20,7 @@ export const CHANGELOG = [
   {
     version: '4.0.3',
     highlights: [
-      'NexForge AI is now a small button in the bottom-right — no longer mixed into Friends chat',
+      'NexAI is now a small button in the bottom-right — no longer mixed into Friends chat',
       'Tournaments expire after 5 days, with a clearer start-time window when you create one',
     ],
   },

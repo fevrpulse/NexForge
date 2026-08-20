@@ -21,6 +21,7 @@ import Clans from './screens/Clans.jsx';
 import Communities from './screens/Communities.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
+import ClickBurst from './components/ClickBurst.jsx';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
@@ -56,8 +57,10 @@ function AppShell() {
   if (loading) {
     return (
       <div className="loading-center">
+        <div className="loading-ring" aria-hidden="true" />
         <div className="loading-logo">Nex<span>Forge</span></div>
         <div className="loading-bar"><div className="loading-fill" /></div>
+        <div className="loading-boot">Igniting forge systems</div>
       </div>
     );
   }
@@ -127,6 +130,14 @@ export default function App() {
     <ErrorBoundary>
       <NexForgeProvider>
         <VoiceCallProvider>
+          <div className="ui-atmosphere" aria-hidden="true" />
+          <div className="hud-frame" aria-hidden="true">
+            <span className="hud-c hud-tl" />
+            <span className="hud-c hud-tr" />
+            <span className="hud-c hud-bl" />
+            <span className="hud-c hud-br" />
+          </div>
+          <ClickBurst />
           <AppShell />
         </VoiceCallProvider>
       </NexForgeProvider>
