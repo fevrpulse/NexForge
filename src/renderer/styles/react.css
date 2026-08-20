@@ -1,7 +1,7 @@
 /* React-specific layout tweaks on top of legacy app.css */
 #root{min-height:100vh}
 .toast-stack{
-  position:fixed;right:18px;bottom:18px;z-index:9999;
+  position:fixed;right:18px;bottom:88px;z-index:9999;
   display:flex;flex-direction:column;gap:8px;max-width:360px;
 }
 .toast-item{
@@ -107,9 +107,88 @@
 .friend-actions{display:flex;gap:6px;flex-shrink:0}
 .friend-mini-btn{padding:5px 11px!important;font-size:11px!important;flex-shrink:0}
 .friend-hint{font-family:var(--mono);font-size:10px;color:var(--muted2);flex-shrink:0}
-.nexpanion-row .friend-hint{
-  color:var(--neon);border:1px solid rgba(201,255,0,.35);border-radius:8px;padding:2px 7px;
+
+/* ── NexForge AI dock ── */
+.np-dock{
+  position:fixed;right:20px;bottom:20px;z-index:120;
+  display:flex;flex-direction:column;align-items:flex-end;gap:12px;
+  pointer-events:none;
 }
+.np-fab{
+  pointer-events:auto;width:46px;height:46px;border-radius:16px 12px 18px 13px;
+  border:1px solid rgba(201,255,0,.42);
+  background:
+    linear-gradient(160deg, rgba(201,255,0,.18), rgba(201,255,0,.04) 55%),
+    #121610;
+  color:var(--neon);font-family:var(--font-display);font-size:13px;font-weight:800;
+  letter-spacing:.04em;cursor:pointer;
+  box-shadow:0 10px 28px rgba(0,0,0,.42), 0 0 0 1px rgba(201,255,0,.08), 0 0 22px rgba(201,255,0,.12);
+  transition:transform .16s var(--ease),background .16s,border-color .16s,box-shadow .16s;
+}
+.np-fab:hover{
+  transform:translateY(-1px) scale(1.03);
+  background:var(--neon);color:#000;
+  box-shadow:0 12px 28px rgba(201,255,0,.22);
+}
+.np-fab.active{
+  background:rgba(0,0,0,.55);color:var(--text);border-color:var(--border2);
+  box-shadow:0 8px 20px rgba(0,0,0,.35);font-size:20px;line-height:1;
+}
+.np-panel{
+  pointer-events:auto;width:min(380px,calc(100vw - 40px));height:min(520px,calc(100vh - 120px));
+  display:flex;flex-direction:column;overflow:hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.03), transparent 28%),
+    linear-gradient(145deg, #141914, #0c0f0c);
+  border:1px solid rgba(201,255,0,.22);
+  border-radius:18px 14px 16px 18px;
+  box-shadow:0 22px 64px rgba(0,0,0,.55), 0 0 0 1px rgba(201,255,0,.06);
+  animation:ui-rise .22s var(--ease) both;
+}
+.np-head{
+  display:flex;align-items:center;gap:10px;padding:12px 12px 12px 14px;
+  border-bottom:1px solid var(--border);flex-shrink:0;
+}
+.np-head-mark{
+  width:32px;height:32px;border-radius:10px 8px 11px 8px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--font-display);font-size:11px;font-weight:800;color:#000;
+  background:var(--neon);letter-spacing:.04em;
+}
+.np-head-copy{flex:1;min-width:0}
+.np-head-title{font-family:var(--font-display);font-size:14px;font-weight:800;letter-spacing:-.2px}
+.np-head-sub{font-family:var(--mono);font-size:10px;color:var(--muted2);margin-top:2px}
+.np-icon-btn{
+  background:transparent;border:1px solid var(--border);color:var(--muted2);
+  border-radius:9px;padding:5px 9px;font-family:var(--mono);font-size:10px;
+  cursor:pointer;transition:border-color .15s,color .15s,background .15s;
+}
+.np-icon-btn:hover{border-color:rgba(201,255,0,.35);color:var(--text);background:var(--neon2)}
+.np-icon-btn.np-close{font-size:16px;line-height:1;padding:3px 8px}
+.np-messages{flex:1;overflow-y:auto;padding:14px 12px;display:flex;flex-direction:column;gap:8px}
+.np-msg{display:flex;justify-content:flex-start}
+.np-msg.mine{justify-content:flex-end}
+.np-bubble{
+  max-width:86%;background:var(--panel);border:1px solid var(--border);
+  border-radius:14px 14px 14px 5px;padding:9px 12px;
+}
+.np-msg.mine .np-bubble{
+  background:var(--neon2);border-color:rgba(201,255,0,.25);
+  border-radius:14px 14px 5px 14px;
+}
+.np-body{font-size:13px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.np-time{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:5px}
+.np-bubble.thinking{font-family:var(--mono);font-size:11px;color:var(--muted2);font-style:italic}
+.np-composer{
+  display:flex;gap:8px;padding:12px;border-top:1px solid var(--border);flex-shrink:0;
+}
+.np-composer input{
+  flex:1;min-width:0;background:rgba(0,0,0,.28);border:1px solid var(--border2);
+  border-radius:11px;padding:10px 12px;font-size:13px;font-family:var(--font);
+  color:var(--text);outline:none;
+}
+.np-composer input:focus{border-color:var(--neon);box-shadow:0 0 0 3px rgba(201,255,0,.08)}
+.np-composer .action-btn{padding:10px 16px;flex-shrink:0}
 .friends-empty{
   font-family:var(--mono);font-size:11px;color:var(--muted2);
   padding:14px 4px;text-align:center;line-height:1.6;

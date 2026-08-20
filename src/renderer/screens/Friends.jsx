@@ -7,16 +7,7 @@ import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
 import { useVoiceCall } from '../components/VoiceCallOverlay.jsx';
 import { formatDuration } from '../lib/format.js';
-import { askNexPanion, NEXPANION_ID, NEXPANION_PROFILE } from '../lib/nexpanion.js';
-
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
-const NEXPANION_WELCOME = {
-  id: 'nexpanion-welcome',
-  sender_id: NEXPANION_ID,
-  recipient_id: 'me',
-  body: "Hey — I'm NexPanion. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself.",
-  created_at: new Date(0).toISOString(),
-};
 
 function avatarColor(id) {
   let hash = 0;
@@ -298,8 +289,6 @@ export default function Friends() {
   const [rows, setRows] = useState([]);
   const [profiles, setProfiles] = useState({});
   const [selectedId, setSelectedId] = useState(null);
-  const [nexpanionMsgs, setNexpanionMsgs] = useState([NEXPANION_WELCOME]);
-  const isNexPanion = selectedId === NEXPANION_ID;
   const [messages, setMessages] = useState(null);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
@@ -456,22 +445,6 @@ export default function Friends() {
       setMessages(null);
       return undefined;
     }
-    if (selectedId === NEXPANION_ID) {
-      try {
-        const raw = localStorage.getItem(`nexpanion-chat:${myId || 'guest'}`);
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed) && parsed.length) setNexpanionMsgs(parsed);
-          else setNexpanionMsgs([NEXPANION_WELCOME]);
-        } else {
-          setNexpanionMsgs([NEXPANION_WELCOME]);
-        }
-      } catch {
-        setNexpanionMsgs([NEXPANION_WELCOME]);
-      }
-      setMessages([]);
-      return undefined;
-    }
     setMessages(null);
     loadConversation(selectedId, { markRead: true });
     const id = setInterval(() => {
@@ -485,18 +458,11 @@ export default function Friends() {
   }, [selectedId, loadConversation, clearTyping, myId]);
 
   useEffect(() => {
-    if (!myId || selectedId !== NEXPANION_ID) return;
-    try {
-      localStorage.setItem(`nexpanion-chat:${myId}`, JSON.stringify(nexpanionMsgs.slice(-80)));
-    } catch { /* ignore */ }
-  }, [nexpanionMsgs, myId, selectedId]);
-
-  useEffect(() => {
     setStatusDraft(profile?.custom_status || '');
   }, [profile?.custom_status]);
 
   useEffect(() => {
-    if (!selectedId || !myId || selectedId === NEXPANION_ID) return undefined;
+    if (!selectedId || !myId) return undefined;
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
     if (!draft.trim()) {
       clearTyping(selectedId);
@@ -519,7 +485,7 @@ export default function Friends() {
   }, [draft, selectedId, myId, clearTyping, reportCloudError]);
 
   useEffect(() => {
-    if (!selectedId || !myId || selectedId === NEXPANION_ID) {
+    if (!selectedId || !myId) {
       setFriendTyping(false);
       return undefined;
     }
@@ -552,7 +518,7 @@ export default function Friends() {
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages?.length, nexpanionMsgs?.length, selectedId]);
+  }, [messages?.length, selectedId]);
 
   const { friends, incoming, outgoing } = useMemo(() => {
     const f = [];
@@ -724,46 +690,6 @@ export default function Friends() {
     const body = draft.trim();
     if ((!body && !attachFile) || !selectedId || sending) return;
 
-    if (selectedId === NEXPANION_ID) {
-      if (!body) return;
-      setSending(true);
-      const userMsg = {
-        id: `np-u-${Date.now()}`,
-        sender_id: myId,
-        recipient_id: NEXPANION_ID,
-        body,
-        created_at: new Date().toISOString(),
-      };
-      setDraft('');
-      setNexpanionMsgs((prev) => [...prev, userMsg]);
-      try {
-        const history = nexpanionMsgs
-          .filter((m) => m.id !== 'nexpanion-welcome' && m.body)
-          .slice(-16)
-          .map((m) => ({
-            role: m.sender_id === NEXPANION_ID ? 'assistant' : 'user',
-            content: m.body,
-          }));
-        const reply = await askNexPanion(body, history);
-        setNexpanionMsgs((prev) => [
-          ...prev,
-          {
-            id: `np-a-${Date.now()}`,
-            sender_id: NEXPANION_ID,
-            recipient_id: myId,
-            body: reply,
-            created_at: new Date().toISOString(),
-          },
-        ]);
-      } catch (err) {
-        showToast(err?.message || 'NexPanion failed to reply.', 'error');
-        await reportCloudError(err);
-      } finally {
-        setSending(false);
-      }
-      return;
-    }
-
     setSending(true);
     try {
       let imagePath = null;
@@ -894,7 +820,7 @@ export default function Friends() {
   }
 
   async function challengeFriend() {
-    if (!selectedId || selectedId === NEXPANION_ID || challenging) return;
+    if (!selectedId || challenging) return;
     const target = profiles[selectedId];
     const game = target?.main_game || profile?.main_game || 'Valorant';
     setChallenging(true);
@@ -927,7 +853,7 @@ export default function Friends() {
   }
 
   async function inviteFriendToParty() {
-    if (!selectedId || selectedId === NEXPANION_ID || invitingParty) return;
+    if (!selectedId || invitingParty) return;
     const target = profiles[selectedId];
     const game = target?.main_game || profile?.main_game || null;
     setInvitingParty(true);
@@ -951,28 +877,25 @@ export default function Friends() {
   const canInviteToParty = !party
     || (party.my_status === 'joined' && party.host_id === myId);
 
-  const selectedProfile = isNexPanion
-    ? NEXPANION_PROFILE
-    : (selectedId ? profiles[selectedId] : null);
-  const friendTag = isNexPanion ? 'NexPanion' : (selectedProfile?.gamer_tag || 'Friend');
+  const selectedProfile = selectedId ? profiles[selectedId] : null;
+  const friendTag = selectedProfile?.gamer_tag || 'Friend';
 
   const messagesById = useMemo(() => {
     const map = {};
-    for (const m of (isNexPanion ? nexpanionMsgs : messages) || []) map[m.id] = m;
+    for (const m of messages || []) map[m.id] = m;
     return map;
-  }, [messages, nexpanionMsgs, isNexPanion]);
+  }, [messages]);
 
   const displayedMessages = useMemo(() => {
-    const source = isNexPanion ? nexpanionMsgs : messages;
-    if (!source) return isNexPanion ? [] : null;
+    if (!messages) return null;
     const q = msgSearch.trim().toLowerCase();
-    if (!q) return source;
-    return source.filter((m) => {
+    if (!q) return messages;
+    return messages.filter((m) => {
       if (m.body?.toLowerCase().includes(q)) return true;
       if (m.image_path && 'photo'.includes(q)) return true;
       return false;
     });
-  }, [messages, nexpanionMsgs, isNexPanion, msgSearch]);
+  }, [messages, msgSearch]);
 
   async function openFriendProfile(friendId) {
     if (!friendId) return;
@@ -1146,19 +1069,6 @@ export default function Friends() {
           </>
         )}
 
-        <div className="card-title friends-section">Chats</div>
-        <div
-          className={`friend-row clickable nexpanion-row ${isNexPanion ? 'active' : ''}`}
-          onClick={() => setSelectedId(NEXPANION_ID)}
-        >
-          <PlayerAvatar profile={NEXPANION_PROFILE} size={40} className="friend-av" showPresence online />
-          <div className="player-info">
-            <div className="player-tag"><GamerTag profile={NEXPANION_PROFILE} /></div>
-            <div className="player-game presence-online">AI companion · gaming tips & more</div>
-          </div>
-          <span className="friend-hint">AI</span>
-        </div>
-
         <div className="card-title friends-section">Friends {friends.length > 0 && `(${friends.length})`}</div>
         {friends.length === 0 ? (
           <div className="friends-empty">No friends yet — search a gamer tag above to send a request.</div>
@@ -1186,32 +1096,15 @@ export default function Friends() {
               <div className="player-info">
                 <div className="player-tag"><GamerTag profile={selectedProfile} /></div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  {isNexPanion ? (
-                    <div className="player-game presence-online">Always online · powered by Groq</div>
-                  ) : (
-                    <>
-                      <PresenceBlock
-                        p={selectedProfile}
-                        offlineDetail={selectedProfile
-                          ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}`
-                          : '—'}
-                      />
-                      {selectedProfile && <SkillTagBadge mmr={selectedProfile.mmr} small />}
-                    </>
-                  )}
+                  <PresenceBlock
+                    p={selectedProfile}
+                    offlineDetail={selectedProfile
+                      ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}`
+                      : '—'}
+                  />
+                  {selectedProfile && <SkillTagBadge mmr={selectedProfile.mmr} small />}
                 </div>
               </div>
-              {isNexPanion ? (
-                <button
-                  type="button"
-                  className="action-btn ghost friend-mini-btn"
-                  onClick={() => setNexpanionMsgs([NEXPANION_WELCOME])}
-                  title="Clear chat history"
-                >
-                  Clear
-                </button>
-              ) : (
-                <>
               <button
                 className="action-btn ghost friend-mini-btn"
                 onClick={() => openFriendProfile(selectedId)}
@@ -1252,8 +1145,6 @@ export default function Friends() {
               >
                 Remove
               </button>
-                </>
-              )}
             </div>
             <div className="chat-search">
               <input
@@ -1264,7 +1155,7 @@ export default function Friends() {
               />
             </div>
             <div className="chat-messages" ref={scrollRef}>
-              {!isNexPanion && messages === null ? (
+              {messages === null ? (
                 <div className="friends-empty">Loading…</div>
               ) : displayedMessages.length === 0 ? (
                 <div className="friends-empty">
@@ -1320,8 +1211,6 @@ export default function Friends() {
                         )}
                       </div>
                       <div className="chat-msg-actions">
-                        {!isNexPanion && (
-                          <>
                         <button
                           className="chat-reply-btn"
                           title="React"
@@ -1343,8 +1232,6 @@ export default function Friends() {
                               <button key={emoji} onClick={() => toggleReaction(m.id, emoji)}>{emoji}</button>
                             ))}
                           </div>
-                        )}
-                          </>
                         )}
                       </div>
                     </div>
@@ -1375,8 +1262,6 @@ export default function Friends() {
               <div className="chat-typing">{friendTag} is typing…</div>
             )}
             <div className="chat-input-row">
-              {!isNexPanion && (
-                <>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1395,11 +1280,9 @@ export default function Friends() {
                   <path d="M21 15.5l-5-5L5 21" />
                 </svg>
               </button>
-                </>
-              )}
               <input
                 type="text"
-                placeholder={isNexPanion ? 'Ask NexPanion anything…' : `Message ${selectedProfile?.gamer_tag || ''}…`}
+                placeholder={`Message ${selectedProfile?.gamer_tag || ''}…`}
                 value={draft}
                 maxLength={2000}
                 onChange={(e) => setDraft(e.target.value)}

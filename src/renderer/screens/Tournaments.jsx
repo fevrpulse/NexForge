@@ -67,7 +67,23 @@ function BracketView({
 }
 
 const FORMATS = ['1v1', '2v2', '5v5', 'Solo BR', 'Squad BR', 'Custom'];
-const TOURNEY_COLUMNS = 'id,host_id,host_tag,name,game,format,max_slots,starts_at,rules,prize_type,cash_amount,inapp_reward,status,registrations,created_at,bank_account_last4,prize_funded,payout_status,winner_id';
+const TOURNEY_COLUMNS = 'id,host_id,host_tag,name,game,format,max_slots,starts_at,expires_at,rules,prize_type,cash_amount,inapp_reward,status,registrations,created_at,bank_account_last4,prize_funded,payout_status,winner_id';
+
+const MAX_TOURNEY_DAYS = 5;
+
+function toLocalDateTimeValue(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function maxTournamentStartLocal() {
+  return toLocalDateTimeValue(new Date(Date.now() + MAX_TOURNEY_DAYS * 24 * 60 * 60 * 1000));
+}
+
+function minTournamentStartLocal() {
+  return toLocalDateTimeValue(new Date(Date.now() + 60 * 1000));
+}
 
 function abaRoutingValid(routing) {
   if (!/^\d{9}$/.test(routing)) return false;
@@ -78,7 +94,12 @@ function abaRoutingValid(routing) {
 
 function tournamentStatus(t) {
   if (t.status === 'completed') return 'completed';
-  if (t.status === 'pending_funds') return 'pending_funds';
+  if (t.status === 'expired') return 'expired';
+  if (t.status === 'pending_funds') {
+    if (t.expires_at && new Date(t.expires_at).getTime() <= Date.now()) return 'expired';
+    return 'pending_funds';
+  }
+  if (t.expires_at && new Date(t.expires_at).getTime() <= Date.now()) return 'expired';
   const start = t.starts_at ? new Date(t.starts_at) : null;
   if (start && start.getTime() < Date.now() - 6 * 60 * 60 * 1000) return 'completed';
   return 'open';
@@ -139,6 +160,7 @@ export default function Tournaments() {
 
   async function loadTournaments() {
     try {
+      await sb.rpc('expire_stale_tournaments').catch(() => {});
       let { data, error } = await sb.from('tournaments_public').select(TOURNEY_COLUMNS).order('starts_at', { ascending: true });
       if (error) {
         ({ data, error } = await sb.from('tournaments').select(TOURNEY_COLUMNS).order('starts_at', { ascending: true }));
@@ -263,6 +285,16 @@ export default function Tournaments() {
 
     if (!name) { setFormMsg({ type: 'error', text: 'Enter a tournament title.' }); return; }
     if (!form.startsAt) { setFormMsg({ type: 'error', text: 'Pick a start date and time.' }); return; }
+    const startMs = new Date(form.startsAt).getTime();
+    if (Number.isNaN(startMs)) {
+      setFormMsg({ type: 'error', text: 'Pick a valid start date and time.' }); return;
+    }
+    if (startMs < Date.now()) {
+      setFormMsg({ type: 'error', text: 'Start time must be in the future.' }); return;
+    }
+    if (startMs > Date.now() + MAX_TOURNEY_DAYS * 24 * 60 * 60 * 1000) {
+      setFormMsg({ type: 'error', text: `Start time must be within ${MAX_TOURNEY_DAYS} days.` }); return;
+    }
     if (slots < 2) { setFormMsg({ type: 'error', text: 'Max players/teams must be at least 2.' }); return; }
     if (needsCash && (!cashAmount || cashAmount < 1)) {
       setFormMsg({ type: 'error', text: 'Enter a cash prize amount of at least $1.' }); return;
@@ -490,7 +522,7 @@ export default function Tournaments() {
   const filtered = tournaments.filter((t) => {
     const status = tournamentStatus(t);
     if (filter === 'open') return status === 'open' || status === 'pending_funds';
-    if (filter === 'completed') return status === 'completed';
+    if (filter === 'completed') return status === 'completed' || status === 'expired';
     if (filter === 'registered') return isRegistered(t, user?.id);
     return true;
   });
@@ -546,7 +578,16 @@ export default function Tournaments() {
 
           <div className="field">
             <label>Start Date &amp; Time</label>
-            <input type="datetime-local" value={form.startsAt} onChange={(e) => updateField('startsAt', e.target.value)} />
+            <input
+              type="datetime-local"
+              value={form.startsAt}
+              min={minTournamentStartLocal()}
+              max={maxTournamentStartLocal()}
+              onChange={(e) => updateField('startsAt', e.target.value)}
+            />
+            <div className="field-hint" style={{ marginTop: 6 }}>
+              Must start within {MAX_TOURNEY_DAYS} days. Listing expires automatically after {MAX_TOURNEY_DAYS} days.
+            </div>
           </div>
 
           <div className="field">
@@ -657,6 +698,9 @@ export default function Tournaments() {
           const startLabel = t.starts_at
             ? new Date(t.starts_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
             : 'TBD';
+          const expiresLabel = t.expires_at
+            ? new Date(t.expires_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+            : null;
           const registered = isRegistered(t, user?.id);
           const isHost = !!(user && t.host_id === user.id);
           const expanded = expandedId === t.id;
@@ -672,12 +716,14 @@ export default function Tournaments() {
                 <div className="prize">{formatPrizeLabel(t)}</div>
               </div>
               <div className="tourney-meta">
-                <span>{startLabel}</span>
+                <span>Starts {startLabel}</span>
+                {expiresLabel && <span>Expires {expiresLabel}</span>}
                 <span>{filled}/{slots} slots</span>
                 <span>
                   {status === 'pending_funds' ? 'Awaiting prize funding'
                     : status === 'open' ? 'Open'
-                      : 'Completed'}
+                      : status === 'expired' ? 'Expired'
+                        : 'Completed'}
                 </span>
                 {registered && <span className="badge badge-neon">REGISTERED</span>}
                 {amCheckedIn && <span className="badge badge-muted">CHECKED IN</span>}

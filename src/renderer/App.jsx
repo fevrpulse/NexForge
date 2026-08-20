@@ -20,6 +20,7 @@ import Shop from './screens/Shop.jsx';
 import Clans from './screens/Clans.jsx';
 import Communities from './screens/Communities.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
+import NexPanionDock from './components/NexPanionDock.jsx';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
@@ -115,6 +116,7 @@ function AppShell() {
       <LockModal />
       <OnboardingModal />
       <WhatsNewModal />
+      <NexPanionDock />
       <ToastStack />
     </div>
   );

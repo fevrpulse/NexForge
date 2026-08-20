@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.0.3',
+    highlights: [
+      'NexForge AI is now a small button in the bottom-right — no longer mixed into Friends chat',
+      'Tournaments expire after 5 days, with a clearer start-time window when you create one',
+    ],
+  },
+  {
     version: '4.0.2',
     highlights: [
       'Handmade UI polish across the app — shell, cards, Friends, Shop, and motion',
