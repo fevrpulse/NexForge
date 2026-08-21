@@ -158,7 +158,10 @@ export default function NexPanionDock() {
             ))}
             {sending && (
               <div className="np-msg">
-                <div className="np-bubble thinking">Thinking…</div>
+                <div className="np-bubble thinking">
+                  <span className="np-dots" aria-hidden="true"><i /><i /><i /></span>
+                  Thinking
+                </div>
               </div>
             )}
           </div>

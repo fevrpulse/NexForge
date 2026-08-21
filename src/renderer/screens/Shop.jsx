@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { mmrToSkillTag } from '../lib/ranks.js';
@@ -67,6 +67,26 @@ export default function Shop() {
     savePendingCash(user.id, map);
   }, [user?.id]);
 
+  const pendingRef = useRef(pendingSessions);
+  pendingRef.current = pendingSessions;
+
+  const dropPending = useCallback((ids, message) => {
+    if (!ids?.length || !user?.id) return false;
+    const current = pendingRef.current;
+    const nextMap = { ...current };
+    let changed = false;
+    ids.forEach((id) => {
+      if (id in nextMap) {
+        delete nextMap[id];
+        changed = true;
+      }
+    });
+    if (!changed) return false;
+    persistPending(nextMap);
+    if (message) showToast(message, 'error');
+    return true;
+  }, [persistPending, showToast, user?.id]);
+
   const load = useCallback(async () => {
     if (!user) return;
     try {
@@ -105,36 +125,59 @@ export default function Shop() {
     if (!user || pendingCash.size === 0) return undefined;
     let active = true;
 
+    const confirmSession = async (sessionId, expire = false) => {
+      const { data } = await sb.functions.invoke('confirm-ring-checkout', {
+        body: { sessionId, expire },
+      });
+      return data || {};
+    };
+
     const checkPurchases = async () => {
-      const pendingIds = [...pendingCash];
-      // Prefer Stripe session confirm when we have a session id (webhook backup).
+      const current = pendingRef.current;
+      const pendingIds = Object.keys(current);
+      if (!pendingIds.length) return;
+
+      const expiredIds = [];
+      const staleIds = [];
       for (const cosmeticId of pendingIds) {
-        const sessionId = pendingSessions[cosmeticId]?.sessionId;
-        if (!sessionId) continue;
+        const sessionId = current[cosmeticId]?.sessionId;
+        if (!sessionId) {
+          staleIds.push(cosmeticId);
+          continue;
+        }
         try {
-          const { data } = await sb.functions.invoke('confirm-ring-checkout', {
-            body: { sessionId },
-          });
-          if (data?.paid && data?.cosmeticId) {
-            /* ownership poll below will clear pending */
+          const data = await confirmSession(sessionId);
+          if (!active) return;
+          if (data?.expired || data?.sessionStatus === 'expired') {
+            expiredIds.push(cosmeticId);
           }
         } catch {
           /* webhook may still land */
         }
       }
+      if (!active) return;
+      if (staleIds.length) dropPending(staleIds);
+      if (expiredIds.length) {
+        dropPending(expiredIds, expiredIds.length === 1
+          ? 'Checkout expired — nothing was charged.'
+          : 'Checkout sessions expired — nothing was charged.');
+      }
+
+      const remaining = Object.keys(pendingRef.current);
+      if (!remaining.length) return;
 
       const { data, error } = await sb
         .from('user_cosmetics')
         .select('cosmetic_id')
         .eq('user_id', user.id)
-        .in('cosmetic_id', pendingIds);
+        .in('cosmetic_id', remaining);
       if (!active || error || !data?.length) return;
 
       const purchased = new Set(data.map((row) => row.cosmetic_id));
-      setOwned((current) => new Set([...current, ...purchased]));
-      const nextMap = { ...pendingSessions };
+      setOwned((currentOwned) => new Set([...currentOwned, ...purchased]));
+      const nextMap = { ...pendingRef.current };
       purchased.forEach((id) => { delete nextMap[id]; });
-      if (Object.keys(nextMap).length !== Object.keys(pendingSessions).length) {
+      if (Object.keys(nextMap).length !== Object.keys(pendingRef.current).length) {
         persistPending(nextMap);
       }
       purchased.forEach((id) => {
@@ -153,7 +196,7 @@ export default function Shop() {
       clearInterval(timer);
       window.removeEventListener('focus', onFocus);
     };
-  }, [catalog, pendingCash, pendingSessions, persistPending, refreshProfile, showToast, user]);
+  }, [catalog, dropPending, pendingCash, persistPending, refreshProfile, showToast, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -280,21 +323,61 @@ export default function Shop() {
       }
       if (!payload?.url) throw new Error(payload?.error || 'Checkout did not return a secure URL');
 
-      if (window.nexforge?.openExternalUrl) {
+      const sessionId = payload.sessionId || null;
+      persistPending({
+        ...pendingRef.current,
+        [item.id]: { sessionId, at: Date.now() },
+      });
+      setCashBusyId(null);
+      showToast('Complete checkout in the window — unlock is automatic after payment.', 'success');
+
+      let outcome = { reason: 'opened' };
+      if (window.nexforge?.openCheckoutWindow) {
+        outcome = await window.nexforge.openCheckoutWindow(payload.url) || outcome;
+      } else if (window.nexforge?.openExternalUrl) {
         await window.nexforge.openExternalUrl(payload.url);
+        outcome = { reason: 'external' };
       } else {
-        window.open(payload.url, '_blank', 'noopener,noreferrer');
+        const child = window.open(payload.url, 'nexforge-checkout');
+        if (child) {
+          outcome = await new Promise((resolve) => {
+            const timer = window.setInterval(() => {
+              if (child.closed) {
+                window.clearInterval(timer);
+                resolve({ reason: 'closed' });
+              }
+            }, 400);
+          });
+        }
       }
-      const nextMap = {
-        ...pendingSessions,
-        [item.id]: {
-          sessionId: payload.sessionId || null,
-          at: Date.now(),
-        },
-      };
-      persistPending(nextMap);
-      showToast('Stripe checkout opened — return here after paying; unlock is automatic.', 'success');
+
+      if (outcome?.reason === 'already-open' || outcome?.reason === 'external') return;
+
+      if (sessionId) {
+        let confirmed = {};
+        try {
+          const { data: confirmData } = await sb.functions.invoke('confirm-ring-checkout', {
+            body: {
+              sessionId,
+              expire: outcome?.reason !== 'returned',
+            },
+          });
+          confirmed = confirmData || {};
+        } catch { /* fall through to unpaid clear */ }
+        if (confirmed?.paid) return;
+        if (confirmed?.expired || outcome?.reason === 'closed' || outcome?.reason === 'cancelled') {
+          dropPending(
+            [item.id],
+            outcome?.reason === 'cancelled' || confirmed?.expired
+              ? 'Checkout cancelled — nothing was charged.'
+              : 'Checkout closed — nothing was charged.',
+          );
+        }
+      } else if (outcome?.reason === 'closed' || outcome?.reason === 'cancelled') {
+        dropPending([item.id], 'Checkout closed — nothing was charged.');
+      }
     } catch (err) {
+      dropPending([item.id]);
       showToast(err?.message || 'Could not start secure checkout.', 'error');
       await reportCloudError(err);
     } finally {

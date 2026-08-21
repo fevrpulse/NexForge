@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.1.5',
+    highlights: [
+      'Friends chat overhaul — HUD channel, day markers, and a docked composer',
+      'Shop cash checkout no longer stays on “Waiting for payment…” after you close or expire Stripe',
+      'NexAI and community lounges share the same glowing chat bubbles',
+    ],
+  },
+  {
     version: '4.1.0',
     highlights: [
       'HUD UI — viewport brackets, scan beam, hotter neon, and an orbiting NexAI button',

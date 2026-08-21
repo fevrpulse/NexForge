@@ -23,6 +23,26 @@ function timeLabel(iso) {
   return `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })} ${time}`;
 }
 
+function sameDay(a, b) {
+  if (!a || !b) return false;
+  return new Date(a).toDateString() === new Date(b).toDateString();
+}
+
+function dayLabel(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const y = new Date(now);
+  y.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString()) return 'Today';
+  if (d.toDateString() === y.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: d.getFullYear() !== now.getFullYear() ? 'numeric' : undefined,
+  });
+}
+
 const ONLINE_WINDOW_MS = 2 * 60 * 1000;
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🔥', '😮', '😢'];
 
@@ -1081,21 +1101,22 @@ export default function Friends() {
         {!selectedId ? (
           <div className="chat-placeholder">
             <div className="chat-placeholder-mark">✉</div>
-            Select a friend to start chatting
+            <div className="chat-placeholder-title">Direct line</div>
+            <div>Select a friend to open a private channel</div>
           </div>
         ) : (
           <>
             <div className="chat-header">
               <PlayerAvatar
                 profile={selectedProfile}
-                size={40}
+                size={42}
                 className="friend-av"
                 showPresence
                 online={isOnline(selectedProfile)}
               />
-              <div className="player-info">
+              <div className="chat-header-copy player-info">
                 <div className="player-tag"><GamerTag profile={selectedProfile} /></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <div className="chat-header-meta">
                   <PresenceBlock
                     p={selectedProfile}
                     offlineDetail={selectedProfile
@@ -1105,46 +1126,48 @@ export default function Friends() {
                   {selectedProfile && <SkillTagBadge mmr={selectedProfile.mmr} small />}
                 </div>
               </div>
-              <button
-                className="action-btn ghost friend-mini-btn"
-                onClick={() => openFriendProfile(selectedId)}
-                title="View wins, recent matches, and sessions"
-              >
-                Profile
-              </button>
-              <button
-                className="action-btn primary friend-mini-btn"
-                onClick={() => startCall?.(selectedId)}
-                disabled={!selectedId || (inCall && call?.peerId !== selectedId)}
-                title={isOnline(selectedProfile) ? 'Start a voice call' : 'Friend may be offline — call anyway'}
-              >
-                {inCall && call?.peerId === selectedId ? 'In call' : 'Call'}
-              </button>
-              <button
-                className="action-btn ghost friend-mini-btn"
-                onClick={inviteFriendToParty}
-                disabled={invitingParty || !canInviteToParty}
-                title={canInviteToParty ? 'Invite this friend to your party' : 'Only the party host can invite'}
-              >
-                {invitingParty ? '…' : 'Party'}
-              </button>
-              <button
-                className="action-btn primary friend-mini-btn"
-                onClick={challengeFriend}
-                disabled={challenging}
-                title="Post a duel queue and invite this friend"
-              >
-                {challenging ? '…' : '⚔ Challenge'}
-              </button>
-              <button
-                className="action-btn ghost friend-mini-btn"
-                onClick={() => {
-                  const item = friends.find((f) => f.otherId === selectedId);
-                  if (item) removeFriendship(item, 'Friend removed');
-                }}
-              >
-                Remove
-              </button>
+              <div className="chat-header-actions">
+                <button
+                  className="action-btn ghost friend-mini-btn"
+                  onClick={() => openFriendProfile(selectedId)}
+                  title="View wins, recent matches, and sessions"
+                >
+                  Profile
+                </button>
+                <button
+                  className="action-btn primary friend-mini-btn"
+                  onClick={() => startCall?.(selectedId)}
+                  disabled={!selectedId || (inCall && call?.peerId !== selectedId)}
+                  title={isOnline(selectedProfile) ? 'Start a voice call' : 'Friend may be offline — call anyway'}
+                >
+                  {inCall && call?.peerId === selectedId ? 'In call' : 'Call'}
+                </button>
+                <button
+                  className="action-btn ghost friend-mini-btn"
+                  onClick={inviteFriendToParty}
+                  disabled={invitingParty || !canInviteToParty}
+                  title={canInviteToParty ? 'Invite this friend to your party' : 'Only the party host can invite'}
+                >
+                  {invitingParty ? '…' : 'Party'}
+                </button>
+                <button
+                  className="action-btn primary friend-mini-btn"
+                  onClick={challengeFriend}
+                  disabled={challenging}
+                  title="Post a duel queue and invite this friend"
+                >
+                  {challenging ? '…' : '⚔ Challenge'}
+                </button>
+                <button
+                  className="action-btn ghost friend-mini-btn"
+                  onClick={() => {
+                    const item = friends.find((f) => f.otherId === selectedId);
+                    if (item) removeFriendship(item, 'Friend removed');
+                  }}
+                >
+                  Remove
+                </button>
+              </div>
             </div>
             <div className="chat-search">
               <input
@@ -1162,7 +1185,7 @@ export default function Friends() {
                   {msgSearch.trim() ? 'No messages match your search.' : 'No messages yet — say hi!'}
                 </div>
               ) : (
-                displayedMessages.map((m) => {
+                displayedMessages.map((m, i) => {
                   const quoted = m.reply_to_id ? messagesById[m.reply_to_id] : null;
                   const imgUrl = m.image_path ? imageUrls[m.image_path] : null;
                   const mine = m.sender_id === myId;
@@ -1171,8 +1194,16 @@ export default function Friends() {
                   for (const r of reacts) {
                     (byEmoji[r.emoji] = byEmoji[r.emoji] || []).push(r.user_id);
                   }
+                  const prev = displayedMessages[i - 1];
+                  const showDay = !prev || !sameDay(prev.created_at, m.created_at);
                   return (
-                    <div key={m.id} className={`chat-bubble-row ${mine ? 'mine' : ''}`}>
+                    <React.Fragment key={m.id}>
+                      {showDay && (
+                        <div className="chat-day">
+                          <span>{dayLabel(m.created_at)}</span>
+                        </div>
+                      )}
+                      <div className={`chat-bubble-row ${mine ? 'mine' : ''}`}>
                       <div className="chat-bubble-stack">
                         <div className="chat-bubble">
                           {m.reply_to_id && (
@@ -1235,10 +1266,12 @@ export default function Friends() {
                         )}
                       </div>
                     </div>
+                    </React.Fragment>
                   );
                 })
               )}
             </div>
+            <div className="chat-composer">
             {(replyTo || attachPreview) && (
               <div className="chat-compose-chips">
                 {replyTo && (
@@ -1259,7 +1292,10 @@ export default function Friends() {
               </div>
             )}
             {friendTyping && (
-              <div className="chat-typing">{friendTag} is typing…</div>
+              <div className="chat-typing">
+                <span className="chat-typing-dots" aria-hidden="true"><i /><i /><i /></span>
+                {friendTag} is typing
+              </div>
             )}
             <div className="chat-input-row">
               <input
@@ -1295,6 +1331,7 @@ export default function Friends() {
               >
                 {sending ? '…' : 'Send'}
               </button>
+            </div>
             </div>
           </>
         )}

@@ -32,6 +32,7 @@ const GENERIC_UPDATE_FEED = 'https://github.com/fevrpulse/NexForge/releases/late
 
 let mainWindow = null;
 let overlayWindow = null;
+let checkoutWindow = null;
 let tray = null;
 let isQuitting = false;
 let authServer = null;
@@ -436,6 +437,26 @@ function isAllowedExternalUrl(urlString) {
   }
 }
 
+function isCheckoutReturnUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'https:'
+      && url.hostname === 'nfaxokwpmaxyhnvatrwf.supabase.co'
+      && url.pathname.includes('/functions/v1/stripe-checkout-return');
+  } catch {
+    return false;
+  }
+}
+
+function isSafeCheckoutNav(urlString) {
+  try {
+    const url = new URL(urlString);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
 function setupTray() {
   const iconIco = path.join(__dirname, 'build', 'icon.ico');
   const iconPng = path.join(__dirname, 'build', 'icon.png');
@@ -553,6 +574,87 @@ ipcMain.handle('open-external-url', async (_event, url) => {
   }
   await shell.openExternal(url);
   return { ok: true };
+});
+
+ipcMain.handle('open-checkout-window', async (_event, url) => {
+  if (!isAllowedExternalUrl(url)) {
+    throw new Error('Blocked untrusted checkout URL');
+  }
+  if (checkoutWindow && !checkoutWindow.isDestroyed()) {
+    checkoutWindow.focus();
+    return { ok: true, reason: 'already-open' };
+  }
+
+  checkoutWindow = new BrowserWindow({
+    width: 520,
+    height: 780,
+    title: 'NexForge Checkout',
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+    },
+  });
+  checkoutWindow.setMenu(null);
+
+  const outcome = new Promise((resolve) => {
+    let settled = false;
+    const finish = (reason) => {
+      if (settled) return;
+      settled = true;
+      resolve({ ok: true, reason });
+    };
+
+    checkoutWindow.on('closed', () => {
+      checkoutWindow = null;
+      finish('closed');
+    });
+
+    const handleReturn = (navUrl) => {
+      if (!isCheckoutReturnUrl(navUrl)) return false;
+      const cancelled = /[?&]status=cancelled(?:&|$)/.test(navUrl);
+      finish(cancelled ? 'cancelled' : 'returned');
+      if (checkoutWindow && !checkoutWindow.isDestroyed()) {
+        checkoutWindow.close();
+      }
+      return true;
+    };
+
+    checkoutWindow.webContents.on('will-navigate', (event, navUrl) => {
+      if (handleReturn(navUrl)) {
+        event.preventDefault();
+        return;
+      }
+      if (!isSafeCheckoutNav(navUrl)) event.preventDefault();
+    });
+    checkoutWindow.webContents.on('will-redirect', (event, navUrl) => {
+      if (handleReturn(navUrl)) {
+        event.preventDefault();
+        return;
+      }
+      if (!isSafeCheckoutNav(navUrl)) event.preventDefault();
+    });
+    checkoutWindow.webContents.setWindowOpenHandler(({ url: popUrl }) => {
+      if (!isSafeCheckoutNav(popUrl)) return { action: 'deny' };
+      return {
+        action: 'allow',
+        overrideBrowserWindowOptions: {
+          autoHideMenuBar: true,
+          webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true },
+        },
+      };
+    });
+  });
+
+  try {
+    await checkoutWindow.loadURL(url);
+  } catch (err) {
+    if (checkoutWindow && !checkoutWindow.isDestroyed()) checkoutWindow.destroy();
+    checkoutWindow = null;
+    throw err;
+  }
+  return outcome;
 });
 
 ipcMain.handle('check-for-updates', async () => {

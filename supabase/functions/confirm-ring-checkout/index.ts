@@ -56,9 +56,11 @@ Deno.serve(async (req) => {
   if (authError || !user) return json({ error: "Invalid session" }, 401);
 
   let sessionId = "";
+  let expireRequested = false;
   try {
     const body = await req.json();
     sessionId = String(body?.sessionId || body?.session_id || "");
+    expireRequested = body?.expire === true;
   } catch {
     return json({ error: "Invalid request body" }, 400);
   }
@@ -66,11 +68,12 @@ Deno.serve(async (req) => {
     return json({ error: "Missing checkout session id" }, 400);
   }
 
+  const stripeHeaders = { Authorization: `Bearer ${stripeSecret}` };
   const stripeResponse = await fetch(
     `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`,
-    { headers: { Authorization: `Bearer ${stripeSecret}` } },
+    { headers: stripeHeaders },
   );
-  const session = await stripeResponse.json();
+  let session = await stripeResponse.json();
   if (!stripeResponse.ok) {
     return json({ error: session?.error?.message || "Could not load checkout session" }, 502);
   }
@@ -80,8 +83,40 @@ Deno.serve(async (req) => {
   if (metaUser !== user.id) {
     return json({ error: "Checkout session does not belong to this account" }, 403);
   }
-  if (session?.mode !== "payment" || session?.payment_status !== "paid") {
-    return json({ ok: false, paid: false, status: session?.payment_status || "unpaid" });
+
+  if (
+    expireRequested
+    && session?.status === "open"
+    && session?.payment_status !== "paid"
+  ) {
+    await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(session.id)}/expire`,
+      { method: "POST", headers: stripeHeaders },
+    );
+    const refresh = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(session.id)}`,
+      { headers: stripeHeaders },
+    );
+    if (refresh.ok) {
+      session = await refresh.json();
+    } else {
+      session = { ...session, status: "expired" };
+    }
+  }
+
+  const sessionStatus = String(session?.status || "open");
+  const paymentStatus = String(session?.payment_status || "unpaid");
+
+  if (session?.mode !== "payment" || paymentStatus !== "paid") {
+    return json({
+      ok: false,
+      paid: false,
+      expired: sessionStatus === "expired",
+      status: paymentStatus,
+      paymentStatus,
+      sessionStatus,
+      cosmeticId: cosmeticId || null,
+    });
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {

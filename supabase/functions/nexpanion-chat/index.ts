@@ -50,13 +50,14 @@ function resolvePublishableKey() {
 }
 
 async function loadGroqKey(service: ReturnType<typeof createClient>) {
-  const fromEnv = Deno.env.get("GROQ_API_KEY");
-  if (fromEnv) return fromEnv;
   const { data, error } = await service.rpc("_internal_get_app_secret", {
     p_name: "groq_api_key",
   });
+  if (!error && typeof data === "string" && data) return data;
+  const fromEnv = Deno.env.get("GROQ_API_KEY");
+  if (fromEnv) return fromEnv;
   if (error) throw error;
-  return (typeof data === "string" && data) ? data : null;
+  return null;
 }
 
 Deno.serve(async (req) => {
