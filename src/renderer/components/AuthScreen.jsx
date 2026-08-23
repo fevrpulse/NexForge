@@ -35,6 +35,7 @@ export default function AuthScreen() {
       <div className="auth-grid" />
       <div className="auth-glow" />
       <div className="auth-box">
+        <div className="auth-kicker">Competitive OS</div>
         <div className="auth-logo">Nex<span>Forge</span></div>
         <div className="auth-tagline">// COMPETE · DOMINATE · FORGE YOUR LEGACY</div>
 
@@ -42,8 +43,7 @@ export default function AuthScreen() {
           Sign in with Browser →
         </button>
         <button
-          className="auth-btn"
-          style={{ marginTop: 10, background: 'transparent', color: 'var(--text)', border: '1px solid var(--border2)' }}
+          className="auth-btn ghost"
           onClick={() => openAuth('signup')}
           disabled={waiting}
         >
@@ -68,25 +68,17 @@ export default function AuthScreen() {
           </div>
         )}
 
-        <div style={{ marginTop: 20, textAlign: 'center' }}>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', marginBottom: 10, letterSpacing: 1 }}>
-            OR
-          </div>
-          <button
-            onClick={enterGuest}
-            disabled={waiting}
-            style={{
-              width: '100%', padding: 11, borderRadius: 8, border: '1px solid var(--border2)',
-              background: 'transparent', color: 'var(--muted2)', fontFamily: 'var(--font)',
-              fontSize: 13, fontWeight: 600, cursor: waiting ? 'not-allowed' : 'pointer',
-              opacity: waiting ? 0.5 : 1,
-            }}
-          >
-            Browse as Guest
-          </button>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>
-            Limited access · No stats saved
-          </div>
+        <div className="auth-or">or</div>
+        <button
+          type="button"
+          className="auth-guest-btn"
+          onClick={enterGuest}
+          disabled={waiting}
+        >
+          Browse as Guest
+        </button>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', marginTop: 8, textAlign: 'center' }}>
+          Limited access · No stats saved
         </div>
       </div>
     </div>

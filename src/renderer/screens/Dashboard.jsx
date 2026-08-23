@@ -76,31 +76,42 @@ export default function Dashboard() {
       <LiveSessionBanner />
       <MatchResultPrompt />
       {!guestMode && <CoachPanel compact />}
-      {!guestMode && (
-        <div className={`card loadout-showcase banner-${bannerStyleKey(profile.equipped_banner)}`}>
-          <PlayerAvatar profile={profile} size={88} />
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 800 }}><GamerTag profile={profile} /></div>
-            <div className="loadout-showcase-meta">
-              {skillTag} · {mmrToRank(profile.mmr)} · {coins.toLocaleString()} coins ·{' '}
-              {shortCosmeticId(profile.equipped_frame)} / {shortCosmeticId(profile.equipped_banner)} / {shortCosmeticId(profile.equipped_nameplate)}
-              {activeSeason?.name ? ` · ${activeSeason.name}` : ''}
-              {seasonRating?.mmr != null ? ` · season ${seasonRating.mmr}` : ''}
-              {battlePassXp != null ? ` · pass ${battlePassXp} XP` : ''}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-              <span className={`badge ${skillTagClass(skillTag)}`}>{skillTag}</span>
-              <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
-              {activeSeason?.name && (
-                <span className="badge season-badge">{activeSeason.name}</span>
-              )}
-              <button className="action-btn ghost" style={{ padding: '6px 12px' }} onClick={() => setScreen('shop')}>
-                Customize
-              </button>
+      <div className={`dash-hero ${guestMode ? 'guest' : ''}`}>
+        <div className="dash-hero-copy">
+          <p className="dash-kicker">Command deck</p>
+          <h2 className="dash-welcome">{guestMode ? 'Drop in as guest.' : 'Welcome back.'}</h2>
+          <p className="dash-lede">
+            {guestMode
+              ? 'Browse the forge. Create an account to keep rank, chat, and cosmetics.'
+              : 'Rank, sessions, and crew on one floor. Queue up or jump into a lounge.'}
+          </p>
+        </div>
+        {!guestMode && (
+          <div className={`loadout-showcase banner-${bannerStyleKey(profile.equipped_banner)}`}>
+            <PlayerAvatar profile={profile} size={88} />
+            <div>
+              <div style={{ fontSize: 20, fontWeight: 800 }}><GamerTag profile={profile} /></div>
+              <div className="loadout-showcase-meta">
+                {skillTag} · {mmrToRank(profile.mmr)} · {coins.toLocaleString()} coins ·{' '}
+                {shortCosmeticId(profile.equipped_frame)} / {shortCosmeticId(profile.equipped_banner)} / {shortCosmeticId(profile.equipped_nameplate)}
+                {activeSeason?.name ? ` · ${activeSeason.name}` : ''}
+                {seasonRating?.mmr != null ? ` · season ${seasonRating.mmr}` : ''}
+                {battlePassXp != null ? ` · pass ${battlePassXp} XP` : ''}
+              </div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                <span className={`badge ${skillTagClass(skillTag)}`}>{skillTag}</span>
+                <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
+                {activeSeason?.name && (
+                  <span className="badge season-badge">{activeSeason.name}</span>
+                )}
+                <button className="action-btn ghost" style={{ padding: '6px 12px' }} onClick={() => setScreen('shop')}>
+                  Customize
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">MMR Rating</div>

@@ -51,6 +51,22 @@ function isOnline(p) {
   return Date.now() - new Date(p.last_seen_at).getTime() < ONLINE_WINDOW_MS;
 }
 
+function mergeConversation(prev, incoming) {
+  const byId = new Map();
+  for (const m of incoming || []) {
+    if (m?.id != null) byId.set(m.id, m);
+  }
+  for (const m of prev || []) {
+    if (m?.id != null && !byId.has(m.id)) byId.set(m.id, m);
+  }
+  return [...byId.values()].sort((a, b) => {
+    const ta = new Date(a.created_at).getTime();
+    const tb = new Date(b.created_at).getTime();
+    if (ta !== tb) return ta - tb;
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
 function presenceLine(p) {
   if (!p) return '—';
   if (isOnline(p) && p.playing_game) return `Playing ${p.playing_game}`;
@@ -389,12 +405,14 @@ export default function Friends() {
         .from('messages')
         .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
         .or(`and(sender_id.eq.${myId},recipient_id.eq.${friendId}),and(sender_id.eq.${friendId},recipient_id.eq.${myId})`)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(200);
       if (error) throw error;
       // Ignore responses that arrive after switching to another chat.
       if (selectedRef.current !== friendId) return;
-      setMessages(data || []);
+      const incoming = (data || []).slice().reverse();
+      // Keep just-sent rows if an in-flight poll started before the insert landed.
+      setMessages((prev) => mergeConversation(prev, incoming));
       const ids = (data || []).map((m) => m.id);
       if (ids.length) {
         const { data: reacts } = await sb

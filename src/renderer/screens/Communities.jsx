@@ -15,6 +15,22 @@ function roomKindLabel(kind) {
   return kind === 'voice' ? 'Voice deck' : 'Chat room';
 }
 
+function mergeChannelMessages(prev, incoming, channelId) {
+  const byId = new Map();
+  for (const m of incoming || []) {
+    if (m?.id != null) byId.set(m.id, m);
+  }
+  for (const m of prev || []) {
+    if (m?.id != null && !byId.has(m.id) && m.channel_id === channelId) byId.set(m.id, m);
+  }
+  return [...byId.values()].sort((a, b) => {
+    const ta = new Date(a.created_at).getTime();
+    const tb = new Date(b.created_at).getTime();
+    if (ta !== tb) return ta - tb;
+    return String(a.id).localeCompare(String(b.id));
+  });
+}
+
 export default function Communities() {
   const { user, showToast, reportCloudError, guestMode, setLockMessage } = useNexForge();
   const voice = useVoiceCall();
@@ -37,6 +53,7 @@ export default function Communities() {
   const [showAddRoom, setShowAddRoom] = useState(false);
   const scrollRef = useRef(null);
   const voiceChannelRef = useRef(null);
+  const channelRef = useRef(null);
 
   const selected = useMemo(
     () => communities.find((c) => c.id === selectedId) || null,
@@ -123,10 +140,12 @@ export default function Communities() {
         .from('community_messages')
         .select('id,channel_id,sender_id,body,created_at')
         .eq('channel_id', chid)
-        .order('created_at', { ascending: true })
+        .order('created_at', { ascending: false })
         .limit(200);
       if (error) throw error;
-      setMessages(data || []);
+      if (channelRef.current !== chid) return;
+      const incoming = (data || []).slice().reverse();
+      setMessages((prev) => mergeChannelMessages(prev, incoming, chid));
     } catch (err) {
       await reportCloudError(err);
     }
@@ -162,14 +181,19 @@ export default function Communities() {
   }, [selectedId, loadCommunityDetail]);
 
   useEffect(() => {
-    if (!activeChannel) return undefined;
-    if (activeChannel.kind === 'text') {
-      loadMessages(activeChannel.id);
-    } else {
-      loadVoiceHere(activeChannel.id);
+    channelRef.current = channelId;
+    if (!channelId) {
+      setMessages([]);
+      return undefined;
+    }
+    setMessages([]);
+    if (activeChannel?.kind === 'voice') {
+      loadVoiceHere(channelId);
+    } else if (activeChannel?.kind === 'text') {
+      loadMessages(channelId);
     }
     return undefined;
-  }, [activeChannel, loadMessages, loadVoiceHere]);
+  }, [channelId, activeChannel?.kind, loadMessages, loadVoiceHere]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

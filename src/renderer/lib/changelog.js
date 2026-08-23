@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.1.6',
+    highlights: [
+      'Friend and community messages stay in the thread after you send them',
+      'Cursor lamp dimmed so it no longer washes out the UI',
+      'Visual refresh — Outfit type, glass panels, command-deck dashboard, quieter neon',
+    ],
+  },
+  {
     version: '4.1.5',
     highlights: [
       'Friends chat overhaul — HUD channel, day markers, and a docked composer',

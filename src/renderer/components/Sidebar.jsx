@@ -52,10 +52,13 @@ export default function Sidebar() {
     <aside className="sidebar">
       <div className="sb-logo">
         <div className="sb-brand">
-          Nex<span>Forge</span>
+          <span className="sb-mark" aria-hidden="true">N</span>
+          <div>
+            Nex<span>Forge</span>
+            {appVersion && <div className="sb-version">v{appVersion}</div>}
+          </div>
           <span className="sb-live-pip" title="Online" />
         </div>
-        {appVersion && <div className="sb-version">v{appVersion}</div>}
       </div>
       <nav className="sb-nav">
         <div className="sb-section-label">Play</div>

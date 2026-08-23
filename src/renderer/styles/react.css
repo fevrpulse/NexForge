@@ -98,16 +98,16 @@
   font-size:10px;font-weight:700;border-radius:9px;padding:2px 7px;line-height:1.3;
 }
 .friends-layout{
-  display:grid;grid-template-columns:300px minmax(0,1fr);gap:14px;
+  display:grid;grid-template-columns:320px minmax(0,1fr);gap:16px;
   height:calc(100vh - 150px);min-height:420px;align-items:stretch;
 }
 .friends-list{
-  overflow-y:auto;padding:14px 12px;border:1px solid var(--border);
-  border-radius:16px 12px 16px 14px;
+  overflow-y:auto;padding:16px 14px;border:1px solid var(--border);
+  border-radius:20px;
   background:
-    linear-gradient(180deg, rgba(201,255,0,.04), transparent 18%),
-    rgba(0,0,0,.28);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04);
+    linear-gradient(180deg, rgba(210,255,42,.05), transparent 20%),
+    rgba(0,0,0,.38);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
 }
 .friends-section{margin-top:16px}
 .friend-search{display:flex;gap:8px;margin-bottom:8px}
@@ -281,13 +281,13 @@
 }
 .chat-panel{
   display:flex;flex-direction:column;overflow:hidden;padding:0;
-  border:1px solid rgba(201,255,0,.16);
-  border-radius:18px 12px 16px 18px;
+  border:1px solid rgba(210,255,42,.16);
+  border-radius:22px;
   background:
-    linear-gradient(180deg, rgba(201,255,0,.05), transparent 22%),
-    linear-gradient(165deg, rgba(255,255,255,.03), transparent 40%),
-    rgba(6,9,6,.72);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.04), 0 18px 40px rgba(0,0,0,.22);
+    linear-gradient(180deg, rgba(210,255,42,.06), transparent 22%),
+    linear-gradient(165deg, rgba(255,255,255,.035), transparent 40%),
+    rgba(5,8,5,.78);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 22px 48px rgba(0,0,0,.28);
   position:relative;
 }
 .card.chat-panel:hover,.card.friends-list:hover{
@@ -1081,11 +1081,11 @@
   display:grid;grid-template-columns:minmax(0,1.35fr) minmax(160px,.75fr);
   gap:18px;align-items:stretch;
   padding:22px 22px 20px;
-  border:1px solid var(--border);border-radius:18px 12px 20px 14px;
+  border:1px solid var(--border);border-radius:22px;
   background:
-    linear-gradient(120deg, rgba(201,255,0,.07), transparent 40%),
-    linear-gradient(200deg, rgba(255,255,255,.02), transparent 50%),
-    rgba(0,0,0,.28);
+    linear-gradient(120deg, rgba(210,255,42,.08), transparent 40%),
+    linear-gradient(200deg, rgba(255,255,255,.03), transparent 50%),
+    rgba(0,0,0,.38);
   overflow:hidden;position:relative;
 }
 .comm-lobby-eyebrow{
@@ -1468,13 +1468,8 @@
 .ui-atmosphere{
   pointer-events:none;position:fixed;inset:0;z-index:3;
   background:
-    radial-gradient(ellipse 80% 70% at 50% 50%, transparent 48%, rgba(0,0,0,.42) 100%),
-    repeating-linear-gradient(
-      180deg,
-      transparent 0 3px,
-      rgba(0,0,0,.08) 3px 4px
-    );
-  opacity:.5;
+    radial-gradient(ellipse 80% 70% at 50% 50%, transparent 52%, rgba(0,0,0,.5) 100%);
+  opacity:.45;
 }
 .ui-atmosphere::before{
   content:"";position:absolute;left:0;right:0;height:140px;
@@ -1507,11 +1502,11 @@
 .hud-bl{bottom:0;left:0;border-right:none;border-top:none;border-radius:0 0 0 3px;border-color:rgba(92,255,231,.45)}
 .hud-br{bottom:0;right:0;border-left:none;border-top:none;border-radius:0 0 3px 0}
 .cursor-lamp{
-  position:absolute;left:0;top:0;width:340px;height:340px;margin:-170px 0 0 -170px;
+  position:absolute;left:0;top:0;width:128px;height:128px;margin:-64px 0 0 -64px;
   border-radius:50%;
   background:
-    radial-gradient(circle, rgba(201,255,0,.2) 0%, rgba(92,255,231,.06) 28%, transparent 64%);
-  filter:blur(1.5px);will-change:transform;
+    radial-gradient(circle, rgba(201,255,0,.035) 0%, rgba(92,255,231,.012) 32%, transparent 68%);
+  filter:blur(2px);opacity:.7;will-change:transform;
 }
 .click-fx-layer{
   position:fixed;inset:0;pointer-events:none;z-index:10050;overflow:hidden;
@@ -1520,25 +1515,25 @@
 .click-ring{
   position:absolute;left:-13px;top:-13px;width:26px;height:26px;border-radius:50%;
   border:1.5px solid var(--neon);
-  box-shadow:0 0 16px rgba(201,255,0,.65);
+  box-shadow:0 0 16px rgba(201,255,0,.39);
   animation:click-ring .42s cubic-bezier(.2,.8,.2,1) forwards;
 }
 .click-hex{
   position:absolute;left:-11px;top:-11px;width:22px;height:22px;
   background:transparent;border:1px solid var(--hud);
   clip-path:polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%);
-  box-shadow:0 0 10px rgba(92,255,231,.4);
+  box-shadow:0 0 10px rgba(92,255,231,.24);
   animation:click-hex .5s cubic-bezier(.2,.8,.2,1) forwards;
 }
 .click-core{
   position:absolute;left:-3px;top:-3px;width:6px;height:6px;border-radius:50%;
-  background:#fff;box-shadow:0 0 12px rgba(201,255,0,.95);
+  background:#fff;box-shadow:0 0 12px rgba(201,255,0,.57);
   animation:click-core .28s ease-out forwards;
 }
 .click-spark{
   position:absolute;left:-2px;top:-2px;width:4px;height:4px;
   border-radius:1px;background:var(--neon);
-  box-shadow:0 0 8px rgba(201,255,0,.85);
+  box-shadow:0 0 8px rgba(201,255,0,.51);
   animation:click-spark .4s ease-out forwards;
 }
 @keyframes click-ring{
@@ -1555,7 +1550,7 @@
 }
 @media (prefers-reduced-motion: reduce){
   .ui-atmosphere,.click-fx-layer,.app::before,.action-btn.primary::after,.np-fab,.np-orbit,.loading-ring,.hud-scan,.chat-pop,.np-dots i,.chat-typing-dots i,.chat-bubble-row,.np-msg,.comm-msg{animation:none}
-  .ui-atmosphere,.click-fx-layer,.hud-frame{display:none}
+  .ui-atmosphere,.click-fx-layer,.hud-frame,.ui-grain{display:none}
   .loading-ring,.np-orbit{display:none}
 }
 
