@@ -22,6 +22,7 @@ import Communities from './screens/Communities.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
+import MatchResultPrompt from './components/MatchResultPrompt.jsx';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
@@ -119,6 +120,7 @@ function AppShell() {
       <LockModal />
       <OnboardingModal />
       <WhatsNewModal />
+      <MatchResultPrompt />
       <NexPanionDock />
       <ToastStack />
     </div>

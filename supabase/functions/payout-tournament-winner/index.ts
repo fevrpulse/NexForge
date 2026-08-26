@@ -82,9 +82,9 @@ Deno.serve(async (req) => {
   }
 
   const { data: winner } = await admin
-    .from("profiles")
-    .select("id,stripe_connect_account_id,stripe_connect_onboarded")
-    .eq("id", tourney.winner_id)
+    .from("payout_accounts")
+    .select("user_id,stripe_connect_account_id,stripe_connect_onboarded")
+    .eq("user_id", tourney.winner_id)
     .maybeSingle();
   if (!winner?.stripe_connect_account_id) {
     await admin.from("tournaments").update({
@@ -157,9 +157,12 @@ Deno.serve(async (req) => {
     status: "paid",
     stripe_transfer_id: transfer.id,
   }).eq("tournament_id", tourney.id);
-  await admin.from("profiles").update({
+  await admin.from("payout_accounts").upsert({
+    user_id: winner.user_id,
+    stripe_connect_account_id: winner.stripe_connect_account_id,
     stripe_connect_onboarded: true,
-  }).eq("id", winner.id);
+    updated_at: new Date().toISOString(),
+  });
 
   return json({ ok: true, transferId: transfer.id, amountCents });
 });

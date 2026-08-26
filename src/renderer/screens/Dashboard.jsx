@@ -5,7 +5,6 @@ import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
-import MatchResultPrompt from '../components/MatchResultPrompt.jsx';
 import CoachPanel from '../components/CoachPanel.jsx';
 import { COMPANION_URL } from '../lib/companion.js';
 
@@ -44,7 +43,7 @@ export default function Dashboard() {
       .eq('user_id', user.id)
       .order('played_at', { ascending: false })
       .limit(5)
-      .then(({ data }) => { if (active) setMatches(data || []); })
+      .then(({ data, error }) => { if (active && !error) setMatches(data || []); })
       .catch(() => { if (active) setMatches([]); });
     return () => { active = false; };
   }, [user, guestMode, profile?.wins, profile?.losses]);
@@ -56,7 +55,7 @@ export default function Dashboard() {
     }
     let active = true;
     sb.rpc('friend_activity_feed', { p_limit: 10 })
-      .then(({ data }) => { if (active) setFriendActivity(data || []); })
+      .then(({ data, error }) => { if (active && !error) setFriendActivity(data || []); })
       .catch(() => { if (active) setFriendActivity([]); });
     return () => { active = false; };
   }, [user, guestMode]);
@@ -74,7 +73,6 @@ export default function Dashboard() {
   return (
     <div>
       <LiveSessionBanner />
-      <MatchResultPrompt />
       {!guestMode && <CoachPanel compact />}
       <div className={`dash-hero ${guestMode ? 'guest' : ''}`}>
         <div className="dash-hero-copy">

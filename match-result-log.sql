@@ -198,6 +198,9 @@ begin
     if p_kills < 0 or p_deaths < 0 or p_assists < 0 then
       raise exception 'Combat stats cannot be negative';
     end if;
+    if p_kills > 5000 or p_deaths > 5000 or p_assists > 5000 then
+      raise exception 'Combat stats out of range';
+    end if;
     my_stats := jsonb_build_object(
       'kills', p_kills,
       'deaths', p_deaths,

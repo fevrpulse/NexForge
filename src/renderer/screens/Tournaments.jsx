@@ -95,14 +95,13 @@ function abaRoutingValid(routing) {
 function tournamentStatus(t) {
   if (t.status === 'completed') return 'completed';
   if (t.status === 'expired') return 'expired';
+  if (t.status === 'live') return 'live';
   if (t.status === 'pending_funds') {
     if (t.expires_at && new Date(t.expires_at).getTime() <= Date.now()) return 'expired';
     return 'pending_funds';
   }
   if (t.expires_at && new Date(t.expires_at).getTime() <= Date.now()) return 'expired';
-  const start = t.starts_at ? new Date(t.starts_at) : null;
-  if (start && start.getTime() < Date.now() - 6 * 60 * 60 * 1000) return 'completed';
-  return 'open';
+  return t.status || 'open';
 }
 
 function needsCashPrize(t) {
@@ -521,7 +520,7 @@ export default function Tournaments() {
 
   const filtered = tournaments.filter((t) => {
     const status = tournamentStatus(t);
-    if (filter === 'open') return status === 'open' || status === 'pending_funds';
+    if (filter === 'open') return status === 'open' || status === 'pending_funds' || status === 'live';
     if (filter === 'completed') return status === 'completed' || status === 'expired';
     if (filter === 'registered') return isRegistered(t, user?.id);
     return true;

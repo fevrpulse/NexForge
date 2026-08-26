@@ -763,6 +763,8 @@ app.whenReady().then(async () => {
   setupTray();
   setupGameTracker();
   setupAutoUpdater();
+  const presenceTimer = setInterval(() => sendToRenderer('presence-tick'), 45000);
+  if (presenceTimer.unref) presenceTimer.unref();
   if (process.platform === 'win32') {
     gameTracker.start();
   }

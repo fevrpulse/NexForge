@@ -947,29 +947,44 @@ export function createVoiceCallController({ userId, onState, onError }) {
       /* table may not exist yet */
     }
 
-    const ch = sb
-      .channel(`voice-signals-${userId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'voice_call_signals',
-          filter: `recipient_id=eq.${userId}`,
-        },
-        (payload) => {
-          handleSignal(payload.new).catch((err) => onError?.(err));
-        },
-      );
-
-    await new Promise((resolve) => {
-      ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          resolve(status);
-        }
-      });
-    });
-    signalChannel = ch;
+    let lastErr = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const ch = sb
+        .channel(`voice-signals-${userId}-${attempt}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'voice_call_signals',
+            filter: `recipient_id=eq.${userId}`,
+          },
+          (payload) => {
+            handleSignal(payload.new).catch((err) => onError?.(err));
+          },
+        );
+      try {
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Voice signaling timed out')), 8000);
+          ch.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              clearTimeout(timer);
+              resolve(status);
+            } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+              clearTimeout(timer);
+              reject(new Error(`Voice inbox ${status}`));
+            }
+          });
+        });
+        signalChannel = ch;
+        return;
+      } catch (err) {
+        lastErr = err;
+        try { await sb.removeChannel(ch); } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      }
+    }
+    onError?.(lastErr || new Error('Voice signaling is down'));
   }
 
   async function stopInbox() {

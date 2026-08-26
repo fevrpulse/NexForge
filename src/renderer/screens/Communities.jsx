@@ -51,9 +51,14 @@ export default function Communities() {
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelKind, setNewChannelKind] = useState('text');
   const [showAddRoom, setShowAddRoom] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const scrollRef = useRef(null);
+  const stickToBottomRef = useRef(true);
   const voiceChannelRef = useRef(null);
   const channelRef = useRef(null);
+  const voiceRef = useRef(voice);
+  useEffect(() => { voiceRef.current = voice; }, [voice]);
 
   const selected = useMemo(
     () => communities.find((c) => c.id === selectedId) || null,
@@ -145,11 +150,43 @@ export default function Communities() {
       if (error) throw error;
       if (channelRef.current !== chid) return;
       const incoming = (data || []).slice().reverse();
+      setHasMore((data || []).length >= 200);
       setMessages((prev) => mergeChannelMessages(prev, incoming, chid));
     } catch (err) {
+      if (channelRef.current === chid) setMessages([]);
       await reportCloudError(err);
     }
   }, [reportCloudError]);
+
+  async function loadOlderMessages() {
+    const chid = channelRef.current;
+    if (!chid || loadingOlder || !hasMore) return;
+    const oldest = messages[0];
+    if (!oldest?.created_at) return;
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight || 0;
+    setLoadingOlder(true);
+    try {
+      const { data, error } = await sb
+        .from('community_messages')
+        .select('id,channel_id,sender_id,body,created_at')
+        .eq('channel_id', chid)
+        .lt('created_at', oldest.created_at)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setHasMore((data || []).length >= 50);
+      stickToBottomRef.current = false;
+      setMessages((prev) => mergeChannelMessages(prev, (data || []).slice().reverse(), chid));
+      requestAnimationFrame(() => {
+        if (el) el.scrollTop = el.scrollHeight - prevHeight;
+      });
+    } catch (err) {
+      showToast(err?.message || 'Could not load older messages.', 'error');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   const loadVoiceHere = useCallback(async (chid) => {
     if (!chid) {
@@ -187,6 +224,7 @@ export default function Communities() {
       return undefined;
     }
     setMessages([]);
+    setHasMore(false);
     if (activeChannel?.kind === 'voice') {
       loadVoiceHere(channelId);
     } else if (activeChannel?.kind === 'text') {
@@ -196,7 +234,8 @@ export default function Communities() {
   }, [channelId, activeChannel?.kind, loadMessages, loadVoiceHere]);
 
   useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    const el = scrollRef.current;
+    if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   useEffect(() => {
@@ -289,6 +328,10 @@ export default function Communities() {
 
   async function handleLeave() {
     if (!selectedId) return;
+    if (selected?.owner_id === myId) {
+      const ok = window.confirm(`Delete lounge “${selected.name}”? This cannot be undone.`);
+      if (!ok) return;
+    }
     await run(async () => {
       if (selected?.owner_id === myId) {
         const { error } = await sb.rpc('delete_community', { p_community_id: selectedId });
@@ -395,9 +438,12 @@ export default function Communities() {
   }
 
   useEffect(() => () => {
-    if (voiceChannelRef.current) {
-      sb.rpc('leave_community_voice', { p_channel_id: voiceChannelRef.current }).catch(() => {});
-    }
+    const chid = voiceChannelRef.current;
+    if (!chid) return;
+    sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+    voiceRef.current?.leaveChannelVoice?.().catch(() => {});
+    voiceRef.current?.hangup?.().catch(() => {});
+    voiceChannelRef.current = null;
   }, []);
 
   if (guestMode) {
@@ -564,9 +610,13 @@ export default function Communities() {
                   <button
                     type="button"
                     className="comm-invite-btn"
-                    onClick={() => {
-                      navigator.clipboard?.writeText(selected.invite_code);
-                      showToast('Invite code copied', 'success');
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(selected.invite_code);
+                        showToast('Invite code copied', 'success');
+                      } catch {
+                        showToast('Could not copy invite code', 'error');
+                      }
                     }}
                   >
                     Copy invite · {selected.invite_code}
@@ -695,7 +745,14 @@ export default function Communities() {
                     </div>
                     <span className="comm-msg-count">{messages.length} msg{messages.length === 1 ? '' : 's'}</span>
                   </div>
-                  <div className="comm-messages" ref={scrollRef}>
+                  <div
+                    className="comm-messages"
+                    ref={scrollRef}
+                    onScroll={(e) => {
+                      const el = e.currentTarget;
+                      stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                    }}
+                  >
                     {messages.length === 0 ? (
                       <div className="comm-empty-chat">
                         <div className="comm-empty-chat-mark">✦</div>
@@ -703,7 +760,21 @@ export default function Communities() {
                         <p>Say something — this room is waiting.</p>
                       </div>
                     ) : (
-                      messages.map((m) => (
+                      <>
+                        {hasMore && (
+                          <div style={{ textAlign: 'center', padding: '6px 0 10px' }}>
+                            <button
+                              type="button"
+                              className="action-btn ghost"
+                              style={{ padding: '4px 12px', fontSize: 11 }}
+                              disabled={loadingOlder}
+                              onClick={loadOlderMessages}
+                            >
+                              {loadingOlder ? 'Loading…' : 'Load earlier messages'}
+                            </button>
+                          </div>
+                        )}
+                      {messages.map((m) => (
                         <div key={m.id} className={`comm-msg ${m.sender_id === myId ? 'mine' : ''}`}>
                           <PlayerAvatar profile={profiles[m.sender_id]} size={34} />
                           <div className="comm-msg-stack">
@@ -715,6 +786,7 @@ export default function Communities() {
                           </div>
                         </div>
                       ))
+                      </>
                     )}
                   </div>
                   <div className="comm-composer">

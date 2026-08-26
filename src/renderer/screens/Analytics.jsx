@@ -3,7 +3,6 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
-import MatchResultPrompt from '../components/MatchResultPrompt.jsx';
 import CoachPanel from '../components/CoachPanel.jsx';
 
 const SESSION_SERIES = [
@@ -132,7 +131,7 @@ export default function Analytics() {
       .eq('user_id', user.id)
       .order('played_at', { ascending: false })
       .limit(20)
-      .then(({ data }) => { if (active) setMatches(data || []); })
+      .then(({ data, error }) => { if (active && !error) setMatches(data || []); })
       .catch(() => { if (active) setMatches([]); });
     return () => { active = false; };
   }, [user, profile?.wins, profile?.losses]);
@@ -210,7 +209,6 @@ export default function Analytics() {
         </div>
       )}
       <LiveSessionBanner />
-      <MatchResultPrompt />
       <CoachPanel />
 
       <div className="stats-grid">

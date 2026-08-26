@@ -111,6 +111,7 @@
         <div class="field"><label>Email</label><input id="email" type="email" autocomplete="username" /></div>
         <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" /></div>
         <button class="btn full" id="login-btn" type="button">Sign in</button>
+        <button class="btn full ghost" id="google-btn" type="button" style="margin-top:8px">Continue with Google</button>
         <div class="msg" id="auth-msg"></div>
         <p class="muted" style="margin-top:12px">Use the same account as the desktop app. Desktop still handles tracking & overlay.</p>
       </div>
@@ -140,8 +141,8 @@
     </div>
 
     <div id="ai-view" class="hidden">
-      <div class="logo">Nex<span>Panion</span></div>
-      <div class="tag">AI companion · gaming tips & anything else</div>
+      <div class="logo">Nex<span>AI</span></div>
+      <div class="tag">Ask anything — especially ranked climb, comps, and NexForge</div>
       <div id="ai-body"></div>
     </div>
 
@@ -171,6 +172,7 @@
     let home = null;
     let tab = 'home';
     let pollId = null;
+    let uid = null;
     let aiBusy = false;
     let aiMsgs = [
       { role: 'assistant', content: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
@@ -320,11 +322,13 @@
       }
       if (party?.my_status === 'joined') {
         const members = (party.members || []).filter((m) => m.status === 'joined');
+        const me = members.find((m) => m.user_id === uid);
+        const ready = !!me?.ready;
         html += `<div class="card"><h2>Party</h2>
           ${members.map((m) => `<div class="list-item"><div class="list-title">${esc(m.gamer_tag)}</div>
             <p class="muted">${esc(m.role)}${m.ready ? ' · ready' : ''}</p></div>`).join('')}
           <div class="actions">
-            <button class="btn ghost" type="button" data-party-ready="${party.status === 'ready' ? '0' : '1'}">${party.status === 'ready' ? 'Unready' : 'Ready up'}</button>
+            <button class="btn ghost" type="button" data-party-ready="${ready ? '0' : '1'}">${ready ? 'Unready' : 'Ready up'}</button>
             <button class="btn danger" type="button" data-party-leave="1">Leave</button>
           </div>
         </div>`;
@@ -427,8 +431,10 @@
       const { data: { session } } = await sb.auth.getSession();
       if (!session) {
         setAuthed(false);
+        uid = null;
         return;
       }
+      uid = session.user.id;
       setAuthed(true);
       try {
         await sb.rpc('register_companion_device', {
@@ -447,6 +453,16 @@
         refreshHome().catch(() => {});
       }, 8000);
     }
+
+    $('google-btn').onclick = async () => {
+      setMsg($('auth-msg'), 'Opening Google…', true);
+      const redirectTo = window.location.href.split('#')[0].split('?')[0];
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo },
+      });
+      if (error) setMsg($('auth-msg'), error.message, false);
+    };
 
     $('login-btn').onclick = async () => {
       const email = $('email').value.trim();

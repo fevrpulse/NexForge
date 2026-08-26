@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import PlayerAvatar, { GamerTag } from './PlayerAvatar.jsx';
 
-const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+const ONLINE_WINDOW_MS = 3 * 60 * 1000;
 
 function memberOnline(m) {
   if (!m?.last_seen_at) return false;

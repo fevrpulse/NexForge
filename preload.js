@@ -28,4 +28,5 @@ contextBridge.exposeInMainWorld('nexforge', {
   onGameSessionSample: (callback) => subscribe('game-session-sample', callback),
   onGameSessionEnded: (callback) => subscribe('game-session-ended', callback),
   onGameSessionCancelled: (callback) => subscribe('game-session-cancelled', callback),
+  onPresenceTick: (callback) => subscribe('presence-tick', callback),
 });

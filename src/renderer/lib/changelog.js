@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.2.0',
+    highlights: [
+      'Database hardening — tournament brackets, clan coin farm, DM edits, and lobby timeouts',
+      'Chat: load earlier messages, keep your place when you scroll up, photos stay signed in',
+      'Squad Finder actually filters by rank, and guests can no longer open the leaderboard empty',
+    ],
+  },
+  {
     version: '4.1.6',
     highlights: [
       'Friend and community messages stay in the thread after you send them',

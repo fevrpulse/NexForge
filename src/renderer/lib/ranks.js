@@ -10,6 +10,20 @@ export function mmrToRank(mmr) {
   return 'Grandmaster';
 }
 
+/** Inclusive MMR bounds for a rank band. Used by Squad / duo search. */
+export function rankToMmrBounds(rank) {
+  switch (rank) {
+    case 'Bronze': return { gte: 0, lt: 1000 };
+    case 'Silver': return { gte: 1000, lt: 1400 };
+    case 'Gold': return { gte: 1400, lt: 1800 };
+    case 'Platinum': return { gte: 1800, lt: 2200 };
+    case 'Diamond': return { gte: 2200, lt: 2700 };
+    case 'Master': return { gte: 2700, lt: 3200 };
+    case 'Grandmaster': return { gte: 3200, lt: 100000 };
+    default: return null;
+  }
+}
+
 /**
  * Skill tags shown on profiles / friends / sidebar.
  * Flavor ladder: Noob → Amateur → Pro → Legend.

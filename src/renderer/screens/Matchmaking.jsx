@@ -12,14 +12,6 @@ import LobbyPanel from '../components/LobbyPanel.jsx';
 
 const STEP_LABELS = ['1 · Game', '2 · Queue', '3 · Details'];
 
-function duoSkillMatches(mmr, skill) {
-  const m = mmr || 1200;
-  if (skill === 'Casual') return m < 1400;
-  if (skill === 'Competitive') return m >= 1400 && m < 2200;
-  if (skill === 'Pro') return m >= 2200;
-  return true;
-}
-
 function CombatInputs({ values, onChange }) {
   return (
     <div className="field" style={{ marginBottom: 10 }}>
@@ -121,10 +113,16 @@ export default function Matchmaking() {
       setCloudOffline(false);
       setOpenQueues(all.filter((d) => d.status === 'open'));
       if (user) {
-        const mineOpen = all.find((d) => d.status === 'open' && d.host_id === user.id);
-        const mineActive = all.find((d) => d.status === 'active' && (d.host_id === user.id || d.challenger_id === user.id));
-        setMyOpenDuel(mineOpen || null);
-        setMyActiveDuel(mineActive || null);
+        const { data: mine } = await sb.rpc('get_my_duel');
+        if (mine && typeof mine === 'object') {
+          setMyOpenDuel(mine.open || null);
+          setMyActiveDuel(mine.active || null);
+        } else {
+          const mineOpen = all.find((d) => d.status === 'open' && d.host_id === user.id);
+          const mineActive = all.find((d) => d.status === 'active' && (d.host_id === user.id || d.challenger_id === user.id));
+          setMyOpenDuel(mineOpen || null);
+          setMyActiveDuel(mineActive || null);
+        }
       }
     } catch (err) {
       await reportCloudError(err);
@@ -306,16 +304,18 @@ export default function Matchmaking() {
     setDuoResults(null);
     try {
       let query = sb.from('profiles')
-        .select('gamer_tag,mmr,platform,main_game,wins')
+        .select('id,gamer_tag,mmr,platform,main_game,wins')
         .eq('main_game', 'Fortnite')
         .neq('id', user?.id || '00000000-0000-0000-0000-000000000000')
-        .limit(24);
+        .limit(40);
       if (duoPlat !== 'Any') query = query.eq('platform', duoPlat);
+      if (duoSkill === 'Casual') query = query.lt('mmr', 1400);
+      else if (duoSkill === 'Competitive') query = query.gte('mmr', 1400).lt('mmr', 2200);
+      else if (duoSkill === 'Pro') query = query.gte('mmr', 2200);
       const { data, error } = await query;
       if (error) throw error;
       setCloudOffline(false);
-      const filtered = (data || []).filter((p) => duoSkillMatches(p.mmr, duoSkill));
-      setDuoResults(filtered.slice(0, 8));
+      setDuoResults((data || []).slice(0, 8));
     } catch (err) {
       await reportCloudError(err);
       setDuoResults([]);

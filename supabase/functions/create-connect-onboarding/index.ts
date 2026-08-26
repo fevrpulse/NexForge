@@ -54,13 +54,18 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  const { data: stored } = await admin
+    .from("payout_accounts")
+    .select("stripe_connect_account_id,stripe_connect_onboarded")
+    .eq("user_id", user.id)
+    .maybeSingle();
   const { data: profile } = await admin
     .from("profiles")
-    .select("id,gamer_tag,stripe_connect_account_id,stripe_connect_onboarded")
+    .select("id,gamer_tag")
     .eq("id", user.id)
     .maybeSingle();
 
-  let accountId = profile?.stripe_connect_account_id || "";
+  let accountId = stored?.stripe_connect_account_id || "";
   if (!accountId) {
     const createRes = await fetch("https://api.stripe.com/v1/accounts", {
       method: "POST",
@@ -82,10 +87,12 @@ Deno.serve(async (req) => {
       }, 502);
     }
     accountId = account.id;
-    await admin
-      .from("profiles")
-      .update({ stripe_connect_account_id: accountId })
-      .eq("id", user.id);
+    await admin.from("payout_accounts").upsert({
+      user_id: user.id,
+      stripe_connect_account_id: accountId,
+      stripe_connect_onboarded: false,
+      updated_at: new Date().toISOString(),
+    });
   }
 
   const refreshUrl = `${supabaseUrl}/functions/v1/stripe-checkout-return?status=success`;

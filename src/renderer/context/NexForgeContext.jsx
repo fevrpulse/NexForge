@@ -12,7 +12,7 @@ import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.j
 const NexForgeContext = createContext(null);
 
 /** Screens that guests cannot access — matches legacy GUEST_LOCKED behavior. */
-export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans', 'communities'];
+export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans', 'communities', 'leaderboard'];
 
 const GUEST_LOCKED_LABELS = {
   matchmaking: 'Matchmaking is locked in Guest Mode',
@@ -23,6 +23,7 @@ const GUEST_LOCKED_LABELS = {
   shop: 'The cosmetics shop requires an account',
   clans: 'Clans require an account',
   communities: 'Communities require an account',
+  leaderboard: 'The leaderboard requires an account',
 };
 
 const GUEST_PROFILE = {
@@ -412,18 +413,28 @@ export function NexForgeProvider({ children }) {
       return;
     }
     try {
-      const { data, error } = await sb
-        .from('messages')
-        .select('sender_id')
-        .eq('recipient_id', u.id)
-        .is('read_at', null)
-        .limit(500);
-      if (error) throw error;
-      const counts = {};
-      for (const row of data || []) {
-        counts[row.sender_id] = (counts[row.sender_id] || 0) + 1;
+      const { data: rpcData, error: rpcErr } = await sb.rpc('unread_dm_counts');
+      let counts = {};
+      let total = 0;
+      if (!rpcErr && Array.isArray(rpcData)) {
+        for (const row of rpcData) {
+          const n = Number(row.n) || 0;
+          counts[row.sender_id] = n;
+          total += n;
+        }
+      } else {
+        const { data, error } = await sb
+          .from('messages')
+          .select('sender_id')
+          .eq('recipient_id', u.id)
+          .is('read_at', null)
+          .limit(2000);
+        if (error) throw error;
+        for (const row of data || []) {
+          counts[row.sender_id] = (counts[row.sender_id] || 0) + 1;
+        }
+        total = (data || []).length;
       }
-      const total = (data || []).length;
       if (
         unreadSoundBaselineRef.current !== null
         && total > unreadSoundBaselineRef.current
@@ -470,9 +481,16 @@ export function NexForgeProvider({ children }) {
       }
     };
     beat();
-    const id = setInterval(beat, 60000);
-    return () => clearInterval(id);
+    const id = setInterval(beat, 45000);
+    const offTick = window.nexforge?.onPresenceTick?.(beat);
+    return () => {
+      clearInterval(id);
+      offTick?.();
+    };
   }, [user, playingGame]);
+
+  const unreadBySenderRef = useRef(unreadBySender);
+  useEffect(() => { unreadBySenderRef.current = unreadBySender; }, [unreadBySender]);
 
   // In-game overlay: while a game session is tracked, poll fast for new
   // incoming messages and forward them to the always-on-top overlay window.
@@ -493,16 +511,15 @@ export function NexForgeProvider({ children }) {
           .eq('recipient_id', user.id)
           .is('read_at', null)
           .order('id', { ascending: false })
-          .limit(5);
+          .limit(40);
         if (error || cancelled) return;
         const rows = (data || []).slice().reverse();
         const maxId = rows.length ? rows[rows.length - 1].id : null;
         if (lastSeenId === null) {
-          // Baseline on session start — don't replay messages that were already waiting.
           lastSeenId = maxId ?? 0;
           return;
         }
-        const fresh = rows.filter((m) => m.id > lastSeenId);
+        const fresh = rows.filter((m) => Number(m.id) > Number(lastSeenId));
         if (!fresh.length) return;
         lastSeenId = maxId;
         const unknown = [...new Set(fresh.map((m) => m.sender_id))].filter((id) => !tagCache[id]);
@@ -515,8 +532,7 @@ export function NexForgeProvider({ children }) {
           refreshUnread();
           return;
         }
-        // Approximate unread for the toast badge; exact total refreshes after.
-        const approxUnread = (Object.values(unreadBySender).reduce((s, n) => s + n, 0) || 0) + fresh.length;
+        const approxUnread = (Object.values(unreadBySenderRef.current).reduce((s, n) => s + n, 0) || 0) + fresh.length;
         for (const m of fresh) {
           nf.overlayNotify({
             kind: 'message',

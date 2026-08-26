@@ -43,7 +43,7 @@ function dayLabel(iso) {
   });
 }
 
-const ONLINE_WINDOW_MS = 2 * 60 * 1000;
+const ONLINE_WINDOW_MS = 3 * 60 * 1000;
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '🔥', '😮', '😢'];
 
 function isOnline(p) {
@@ -65,6 +65,18 @@ function mergeConversation(prev, incoming) {
     if (ta !== tb) return ta - tb;
     return String(a.id).localeCompare(String(b.id));
   });
+}
+
+function signedImageUrl(entry) {
+  if (!entry) return null;
+  if (typeof entry === 'string') return entry;
+  return entry.url || null;
+}
+
+function imageNeedsRefresh(entry) {
+  if (!entry) return true;
+  if (typeof entry === 'string') return true;
+  return !entry.exp || entry.exp - Date.now() < 5 * 60 * 1000;
 }
 
 function presenceLine(p) {
@@ -347,8 +359,11 @@ export default function Friends() {
   const [savingStatus, setSavingStatus] = useState(false);
   const [msgSearch, setMsgSearch] = useState('');
   const [friendTyping, setFriendTyping] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
   const scrollRef = useRef(null);
+  const stickToBottomRef = useRef(true);
   const typingTimerRef = useRef(null);
   const fileInputRef = useRef(null);
   const selectedRef = useRef(null);
@@ -386,8 +401,9 @@ export default function Friends() {
       }
     } catch (err) {
       await reportCloudError(err);
+      showToast(err?.message || 'Could not load friends.', 'error');
     }
-  }, [myId, reportCloudError]);
+  }, [myId, reportCloudError, showToast]);
 
   const clearTyping = useCallback(async (peerId) => {
     if (!myId || !peerId) return;
@@ -411,6 +427,7 @@ export default function Friends() {
       // Ignore responses that arrive after switching to another chat.
       if (selectedRef.current !== friendId) return;
       const incoming = (data || []).slice().reverse();
+      setHasMore((data || []).length >= 200);
       // Keep just-sent rows if an in-flight poll started before the insert landed.
       setMessages((prev) => mergeConversation(prev, incoming));
       const ids = (data || []).map((m) => m.id);
@@ -424,20 +441,31 @@ export default function Friends() {
           for (const r of reacts || []) {
             (grouped[r.message_id] = grouped[r.message_id] || []).push(r);
           }
-          setReactions(grouped);
+          setReactions((prev) => {
+            const next = { ...grouped };
+            for (const [mid, list] of Object.entries(prev || {})) {
+              const incomingList = next[mid] || [];
+              const optimistic = (list || []).filter((r) => (
+                r.user_id === myId
+                && !incomingList.some((x) => x.user_id === r.user_id && x.emoji === r.emoji)
+              ));
+              next[mid] = [...incomingList, ...optimistic];
+            }
+            return next;
+          });
         }
       } else {
         setReactions({});
       }
-      // Private bucket — photos are shown through short-lived signed URLs.
-      const missing = [...new Set((data || []).map((m) => m.image_path).filter((p) => p && !imageUrlsRef.current[p]))];
+      const missing = [...new Set((data || []).map((m) => m.image_path).filter((p) => p && imageNeedsRefresh(imageUrlsRef.current[p])))];
       if (missing.length) {
         const { data: signed } = await sb.storage.from('chat-images').createSignedUrls(missing, 3600);
         if (signed?.length) {
           setImageUrls((prev) => {
             const next = { ...prev };
+            const exp = Date.now() + 55 * 60 * 1000;
             for (const s of signed) {
-              if (s.signedUrl && s.path) next[s.path] = s.signedUrl;
+              if (s.signedUrl && s.path) next[s.path] = { url: s.signedUrl, exp };
             }
             return next;
           });
@@ -453,9 +481,40 @@ export default function Friends() {
         refreshUnread();
       }
     } catch (err) {
+      if (selectedRef.current === friendId) setMessages([]);
       await reportCloudError(err);
     }
   }, [myId, refreshUnread, reportCloudError]);
+
+  async function loadOlderMessages() {
+    if (!myId || !selectedId || loadingOlder || !hasMore) return;
+    const oldest = (messages || [])[0];
+    if (!oldest?.created_at) return;
+    const el = scrollRef.current;
+    const prevHeight = el?.scrollHeight || 0;
+    setLoadingOlder(true);
+    try {
+      const { data, error } = await sb
+        .from('messages')
+        .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
+        .or(`and(sender_id.eq.${myId},recipient_id.eq.${selectedId}),and(sender_id.eq.${selectedId},recipient_id.eq.${myId})`)
+        .lt('created_at', oldest.created_at)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      setHasMore((data || []).length >= 50);
+      const incoming = (data || []).slice().reverse();
+      stickToBottomRef.current = false;
+      setMessages((prev) => mergeConversation(prev, incoming));
+      requestAnimationFrame(() => {
+        if (el) el.scrollTop = el.scrollHeight - prevHeight;
+      });
+    } catch (err) {
+      showToast(err?.message || 'Could not load older messages.', 'error');
+    } finally {
+      setLoadingOlder(false);
+    }
+  }
 
   useEffect(() => {
     loadFriendships();
@@ -484,6 +543,7 @@ export default function Friends() {
       return undefined;
     }
     setMessages(null);
+    setHasMore(false);
     loadConversation(selectedId, { markRead: true });
     const id = setInterval(() => {
       const hasUnread = (unreadBySenderRef.current[selectedRef.current] || 0) > 0;
@@ -555,8 +615,25 @@ export default function Friends() {
 
   useEffect(() => {
     const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (el && stickToBottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages?.length, selectedId]);
+
+  useEffect(() => {
+    if (!myId || !selectedId) return undefined;
+    const ch = sb
+      .channel(`dm-${myId}-${selectedId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `recipient_id=eq.${myId}` },
+        (payload) => {
+          const m = payload.new;
+          if (!m || m.sender_id !== selectedId) return;
+          setMessages((prev) => mergeConversation(prev, [m]));
+        },
+      )
+      .subscribe();
+    return () => { sb.removeChannel(ch); };
+  }, [myId, selectedId]);
 
   const { friends, incoming, outgoing } = useMemo(() => {
     const f = [];
@@ -752,14 +829,17 @@ export default function Friends() {
         .single();
       if (error) throw error;
       if (imagePath && attachPreview) {
-        setImageUrls((prev) => ({ ...prev, [imagePath]: attachPreview }));
+        setImageUrls((prev) => ({ ...prev, [imagePath]: { url: attachPreview, exp: Date.now() + 55 * 60 * 1000 } }));
       }
       setDraft('');
       setReplyTo(null);
       setAttachFile(null);
       setAttachPreview(null);
       clearTyping(selectedId);
-      setMessages((prev) => [...(prev || []), data]);
+      setMessages((prev) => {
+        const list = prev || [];
+        return list.some((m) => m.id === data.id) ? list : [...list, data];
+      });
     } catch (err) {
       showToast(err?.message || 'Message failed to send.', 'error');
       await reportCloudError(err);
@@ -795,6 +875,13 @@ export default function Friends() {
         if (error && error.code !== '23505') throw error;
       }
     } catch (err) {
+      setReactions((prev) => {
+        const list = prev[messageId] || [];
+        const next = mine
+          ? [...list, { message_id: messageId, user_id: myId, emoji }]
+          : list.filter((r) => !(r.user_id === myId && r.emoji === emoji));
+        return { ...prev, [messageId]: next };
+      });
       showToast(err?.message || 'Reaction failed.', 'error');
       await reportCloudError(err);
     }
@@ -880,7 +967,10 @@ export default function Friends() {
         .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
         .single();
       if (error) throw error;
-      setMessages((prev) => [...(prev || []), data]);
+      setMessages((prev) => {
+        const list = prev || [];
+        return list.some((m) => m.id === data.id) ? list : [...list, data];
+      });
       showToast(`Duel challenge sent to ${target?.gamer_tag || 'friend'}`, 'success');
     } catch (err) {
       showToast(err?.message || 'Could not create the challenge.', 'error');
@@ -903,7 +993,12 @@ export default function Friends() {
         .insert({ sender_id: myId, recipient_id: selectedId, body })
         .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
         .single();
-      if (!error && data) setMessages((prev) => [...(prev || []), data]);
+      if (!error && data) {
+        setMessages((prev) => {
+          const list = prev || [];
+          return list.some((m) => m.id === data.id) ? list : [...list, data];
+        });
+      }
     } catch (err) {
       showToast(err?.message || 'Could not send party invite.', 'error');
       await reportCloudError(err);
@@ -1195,7 +1290,14 @@ export default function Friends() {
                 onChange={(e) => setMsgSearch(e.target.value)}
               />
             </div>
-            <div className="chat-messages" ref={scrollRef}>
+            <div
+              className="chat-messages"
+              ref={scrollRef}
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+              }}
+            >
               {messages === null ? (
                 <div className="friends-empty">Loading…</div>
               ) : displayedMessages.length === 0 ? (
@@ -1203,9 +1305,23 @@ export default function Friends() {
                   {msgSearch.trim() ? 'No messages match your search.' : 'No messages yet — say hi!'}
                 </div>
               ) : (
-                displayedMessages.map((m, i) => {
+                <>
+                  {hasMore && !msgSearch.trim() && (
+                    <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                      <button
+                        type="button"
+                        className="action-btn ghost"
+                        style={{ padding: '4px 12px', fontSize: 11 }}
+                        disabled={loadingOlder}
+                        onClick={loadOlderMessages}
+                      >
+                        {loadingOlder ? 'Loading…' : 'Load earlier messages'}
+                      </button>
+                    </div>
+                  )}
+                {displayedMessages.map((m, i) => {
                   const quoted = m.reply_to_id ? messagesById[m.reply_to_id] : null;
-                  const imgUrl = m.image_path ? imageUrls[m.image_path] : null;
+                  const imgUrl = m.image_path ? signedImageUrl(imageUrls[m.image_path]) : null;
                   const mine = m.sender_id === myId;
                   const reacts = reactions[m.id] || [];
                   const byEmoji = {};
@@ -1237,6 +1353,19 @@ export default function Friends() {
                                 src={imgUrl}
                                 alt="Shared photo"
                                 onClick={() => setLightboxUrl(imgUrl)}
+                                onError={async () => {
+                                  if (!m.image_path) return;
+                                  const { data: signed } = await sb.storage
+                                    .from('chat-images')
+                                    .createSignedUrls([m.image_path], 3600);
+                                  const s = signed?.[0];
+                                  if (s?.signedUrl) {
+                                    setImageUrls((prev) => ({
+                                      ...prev,
+                                      [m.image_path]: { url: s.signedUrl, exp: Date.now() + 55 * 60 * 1000 },
+                                    }));
+                                  }
+                                }}
                               />
                             ) : (
                               <div className="chat-image-loading">Loading photo…</div>
@@ -1286,7 +1415,8 @@ export default function Friends() {
                     </div>
                     </React.Fragment>
                   );
-                })
+                })}
+                </>
               )}
             </div>
             <div className="chat-composer">
