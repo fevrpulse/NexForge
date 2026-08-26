@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.2.3',
+    highlights: [
+      'Dashboard is quieter — friend activity, session lists, and season pass are gone',
+      'Shop is cosmetics only — frames, banners, and nameplates',
+      'Analytics charts skip missing sessions instead of connecting across gaps',
+      'Live hardware graphs while a game is running, and java.exe Minecraft is tracked too',
+    ],
+  },
+  {
     version: '4.2.2',
     highlights: [
       'Linked accounts — connect Discord, Steam, Riot, and Epic on your profile',

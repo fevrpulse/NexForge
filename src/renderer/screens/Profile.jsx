@@ -18,7 +18,6 @@ export default function Profile() {
   const [customName, setCustomName] = useState('');
   const [customDesc, setCustomDesc] = useState('');
   const [saving, setSaving] = useState(false);
-  const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef(null);
 
@@ -194,23 +193,6 @@ export default function Profile() {
     } finally {
       setUploadingAvatar(false);
     }
-  }
-
-  async function toggleHideMatchHistory(next) {
-    setSavingPrivacy(true);
-    const { error } = await sb.from('profiles')
-      .update({ hide_match_history: next })
-      .eq('id', user.id);
-    setSavingPrivacy(false);
-    if (error) {
-      showToast(error.message || 'Could not update privacy setting.', 'error');
-      return;
-    }
-    await refreshProfile();
-    showToast(
-      next ? 'Session history hidden from friends' : 'Session history visible to friends',
-      'success',
-    );
   }
 
   const since = profile.created_at
@@ -400,21 +382,6 @@ export default function Profile() {
             </div>
           </div>
         )}
-      </div>
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-title">Privacy</div>
-        <div className="row" style={{ borderBottom: 'none' }}>
-          <span>Hide session history from friends</span>
-          <label style={{ cursor: savingPrivacy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center' }}>
-            <input
-              type="checkbox"
-              checked={!!profile.hide_match_history}
-              disabled={savingPrivacy}
-              onChange={(e) => toggleHideMatchHistory(e.target.checked)}
-            />
-          </label>
-        </div>
       </div>
     </div>
   );

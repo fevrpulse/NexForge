@@ -25,18 +25,23 @@ function fmtPct(v) {
   return v != null ? `${Number(v).toFixed(0)}%` : '—';
 }
 
-function polyline(values, w, h, pad, yMin, yMax) {
+function polylineSegments(values, w, h, pad, yMin, yMax) {
   const span = (yMax - yMin) || 1;
   const step = (w - pad * 2) / Math.max(values.length - 1, 1);
-  return values
-    .map((v, i) => {
-      if (typeof v !== 'number') return null;
-      const x = pad + i * step;
-      const y = h - pad - ((v - yMin) / span) * (h - pad * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .filter(Boolean)
-    .join(' ');
+  const segs = [];
+  let cur = [];
+  values.forEach((v, i) => {
+    if (typeof v !== 'number') {
+      if (cur.length >= 2) segs.push(cur.join(' '));
+      cur = [];
+      return;
+    }
+    const x = pad + i * step;
+    const y = h - pad - ((v - yMin) / span) * (h - pad * 2);
+    cur.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+  });
+  if (cur.length >= 2) segs.push(cur.join(' '));
+  return segs;
 }
 
 function HardwareChart({ title, series, height = 200, yMin, yMax, unit }) {
@@ -71,17 +76,17 @@ function HardwareChart({ title, series, height = 200, yMin, yMax, unit }) {
             stroke="rgba(255,255,255,.06)"
           />
         ))}
-        {usable.map((s) => (
+        {usable.flatMap((s) => polylineSegments(s.values, w, h, pad, lo, hi).map((pts, i) => (
           <polyline
-            key={s.key}
-            points={polyline(s.values, w, h, pad, lo, hi)}
+            key={`${s.key}-${i}`}
+            points={pts}
             fill="none"
             stroke={s.color}
             strokeWidth="2.2"
             strokeLinejoin="round"
             strokeLinecap="round"
           />
-        ))}
+        )))}
       </svg>
       <div className="hw-legend">
         {usable.map((s) => (
@@ -153,7 +158,7 @@ function SessionCharts({ session }) {
 }
 
 export default function Analytics() {
-  const { user, profile, appPlatform, sessionSaveTick } = useNexForge();
+  const { user, profile, appPlatform, sessionSaveTick, liveSession } = useNexForge();
   const [sessions, setSessions] = useState([]);
   const [expandedSession, setExpandedSession] = useState(null);
   const isWindows = String(appPlatform || '').toLowerCase().includes('win');
@@ -164,9 +169,11 @@ export default function Analytics() {
     sb.from('game_sessions')
       .select('*')
       .eq('user_id', user.id)
-      .order('ended_at', { ascending: true })
+      .order('ended_at', { ascending: false })
       .limit(40)
-      .then(({ data, error }) => { if (active && !error) setSessions(data || []); })
+      .then(({ data, error }) => {
+        if (active && !error) setSessions((data || []).slice().reverse());
+      })
       .catch(() => {});
     return () => { active = false; };
   }, [user, sessionSaveTick]);
@@ -194,6 +201,24 @@ export default function Analytics() {
     return { ...s, avg: mean(values) };
   });
 
+  const liveSamples = Array.isArray(liveSession?.samples) ? liveSession.samples : [];
+  const livePctSeries = HW_SERIES.filter((s) => s.kind === 'pct').map((s) => ({
+    ...s,
+    values: liveSamples.map((row) => {
+      const n = Number(row?.[s.key]);
+      return Number.isFinite(n) ? n : null;
+    }),
+  }));
+  const liveRamSeries = [{
+    ...HW_SERIES[0],
+    values: liveSamples.map((row) => {
+      const n = Number(row?.ramMb);
+      return Number.isFinite(n) ? n : null;
+    }),
+  }];
+  const hasLivePct = livePctSeries.some((s) => s.values.filter((n) => typeof n === 'number').length >= 2);
+  const hasLiveRam = liveRamSeries[0].values.filter((n) => typeof n === 'number').length >= 2;
+
   if (!profile) return null;
 
   return (
@@ -207,6 +232,27 @@ export default function Analytics() {
         </div>
       )}
       <LiveSessionBanner />
+
+      {(hasLivePct || hasLiveRam) && (
+        <div className="hw-dash-grid" style={{ marginBottom: 16 }}>
+          {hasLivePct && (
+            <HardwareChart
+              title={`This session · ${liveSession?.game || 'Live'}`}
+              series={livePctSeries}
+              yMin={0}
+              yMax={100}
+              unit="0–100%"
+            />
+          )}
+          {hasLiveRam && (
+            <HardwareChart
+              title="This session · RAM"
+              series={liveRamSeries}
+              unit="MB"
+            />
+          )}
+        </div>
+      )}
 
       <div className="stats-grid hw-avg-grid">
         {lifetimeAvgs.map((s) => (

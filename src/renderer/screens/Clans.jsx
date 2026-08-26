@@ -24,13 +24,11 @@ export default function Clans() {
   } = useNexForge();
   const [name, setName] = useState('');
   const [tag, setTag] = useState('');
-  const [minMmr, setMinMmr] = useState(0);
   const [isOpen, setIsOpen] = useState(true);
   const [busy, setBusy] = useState(false);
   const [friends, setFriends] = useState([]);
   const [openClans, setOpenClans] = useState([]);
   const [tab, setTab] = useState('browse'); // browse | create
-  const [settingsMmr, setSettingsMmr] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(true);
 
   const me = useMemo(() => {
@@ -113,10 +111,9 @@ export default function Clans() {
 
   useEffect(() => {
     if (inClan && clan) {
-      setSettingsMmr(clan.min_mmr ?? 0);
       setSettingsOpen(clan.is_open !== false);
     }
-  }, [inClan, clan?.id, clan?.min_mmr, clan?.is_open]);
+  }, [inClan, clan?.id, clan?.is_open]);
 
   async function run(action) {
     if (busy) return;
@@ -208,7 +205,7 @@ export default function Clans() {
           <div className="card clan-panel">
             <div className="card-title">Open clans</div>
             <div className="clan-sub" style={{ marginBottom: 12 }}>
-              Your MMR: {myMmr}. First clan join grants +75 Forge Coins; members get weekly rewards.
+              First clan join grants +75 Forge Coins; members get weekly rewards.
             </div>
             {openClans.length === 0 ? (
               <div className="clan-sub">No open clans yet — create one and set it to open.</div>
@@ -232,9 +229,10 @@ export default function Clans() {
                         className="action-btn primary"
                         style={{ padding: '6px 12px', fontSize: 11 }}
                         disabled={busy || locked}
+                        title={locked ? "You don't meet this clan's join requirements" : 'Join this clan'}
                         onClick={() => run(() => joinClan(c.id))}
                       >
-                        {locked ? `Need ${c.min_mmr}` : 'Join'}
+                        {locked ? 'Locked' : 'Join'}
                       </button>
                     </div>
                   );
@@ -277,31 +275,20 @@ export default function Clans() {
                 onChange={(e) => setTag(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
               />
             </div>
-            <div className="field">
-              <label>Minimum MMR to join</label>
-              <input
-                type="number"
-                min={0}
-                max={5000}
-                step={50}
-                value={minMmr}
-                onChange={(e) => setMinMmr(Number(e.target.value) || 0)}
-              />
-            </div>
             <label className="clan-check">
               <input
                 type="checkbox"
                 checked={isOpen}
                 onChange={(e) => setIsOpen(e.target.checked)}
               />
-              Open clan (anyone who meets MMR can join)
+              Open clan (players can join without an invite)
             </label>
             <button
               type="button"
               className="action-btn primary"
               style={{ marginTop: 12 }}
               disabled={busy || !name.trim() || tag.trim().length < 2}
-              onClick={() => run(() => createClan(name.trim(), tag.trim(), minMmr, isOpen))}
+              onClick={() => run(() => createClan(name.trim(), tag.trim(), 0, isOpen))}
             >
               Create Clan
             </button>
@@ -325,7 +312,6 @@ export default function Clans() {
             </div>
             <div className="clan-sub">
               {joined.length} member{joined.length === 1 ? '' : 's'}
-              {clan.leaderboard_rank ? ` · #${clan.leaderboard_rank} clans` : ''}
               {clan.is_open === false ? ' · invite-only' : ' · open'}
               {invited.length ? ` · ${invited.length} pending` : ''}
             </div>
@@ -364,7 +350,7 @@ export default function Clans() {
             <div className="clan-sub">
               {reward.claimed
                 ? 'Claimed for this week'
-                : `${reward.coins || 0} Forge Coins available (rank + clan MMR bonus)`}
+                : `${reward.coins || 0} Forge Coins available (rank bonus)`}
             </div>
           </div>
           <button
@@ -405,17 +391,6 @@ export default function Clans() {
       {isOwner && (
         <div className="card clan-panel">
           <div className="card-title">Clan settings</div>
-          <div className="field">
-            <label>Minimum MMR</label>
-            <input
-              type="number"
-              min={0}
-              max={5000}
-              step={50}
-              value={settingsMmr}
-              onChange={(e) => setSettingsMmr(Number(e.target.value) || 0)}
-            />
-          </div>
           <label className="clan-check">
             <input
               type="checkbox"
@@ -430,7 +405,7 @@ export default function Clans() {
             style={{ marginTop: 10, padding: '6px 12px', fontSize: 11 }}
             disabled={busy}
             onClick={() => run(() => updateClanSettings({
-              minMmr: settingsMmr,
+              minMmr: clan.min_mmr ?? 0,
               isOpen: settingsOpen,
             }))}
           >
@@ -456,6 +431,7 @@ export default function Clans() {
                     className="action-btn ghost"
                     style={{ padding: '4px 10px', fontSize: 11 }}
                     disabled={busy || f.mmr < (clan.min_mmr || 0)}
+                    title={f.mmr < (clan.min_mmr || 0) ? "Doesn't meet this clan's join requirements" : 'Send invite'}
                     onClick={() => run(() => inviteToClan(f.id))}
                   >
                     Invite

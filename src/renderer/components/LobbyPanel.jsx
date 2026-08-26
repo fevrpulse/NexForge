@@ -109,7 +109,7 @@ export default function LobbyPanel({ game, mode, details }) {
         <div>
           <div className="card-title" style={{ marginBottom: 4 }}>Match Lobby</div>
           <div className="lobby-panel-sub">
-            Auto-match by MMR · queues expire after 5 minutes
+            Auto-match · queues expire after 5 minutes
           </div>
         </div>
       </div>
@@ -146,7 +146,6 @@ export default function LobbyPanel({ game, mode, details }) {
             <span className={`lobby-status-pill status-${lobby.status}`}>{lobby.status}</span>
             <span className="lobby-panel-sub">
               {lobby.game} · {lobby.mode} · {lobby.member_count}/{lobby.target_size}
-              {' · '}MMR {lobby.mmr_min}–{lobby.mmr_max}
             </span>
           </div>
 
@@ -176,7 +175,7 @@ export default function LobbyPanel({ game, mode, details }) {
                   {m.user_id === lobby.host_id ? ' · host' : ''}
                 </span>
                 <span className={`lobby-member-ready ${m.ready ? 'on' : ''}`}>
-                  {m.ready ? 'Ready' : 'Waiting'} · {m.mmr_snapshot}
+                  {m.ready ? 'Ready' : 'Waiting'}
                 </span>
               </div>
             ))}

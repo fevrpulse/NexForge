@@ -28,6 +28,7 @@ const PROCESS_GAME_MAP = {
   'dota2': 'Dota 2',
   'Minecraft.Windows': 'Minecraft',
   'javaw': 'Minecraft',
+  'java': 'Minecraft',
   'RobloxPlayerBeta': 'Roblox',
   'GTA5': 'GTA Online',
   'PlayGTAV': 'GTA Online',
@@ -83,7 +84,7 @@ function maxOf(nums) {
   return Math.max(...nums);
 }
 
-/** Java Edition is javaw.exe — do not treat every Java app as Minecraft. */
+/** Java Edition is javaw.exe / java.exe — do not treat every Java app as Minecraft. */
 function isJavaMinecraft(windowTitle, exePath) {
   const title = String(windowTitle || '').toLowerCase();
   const path = String(exePath || '').toLowerCase();
@@ -216,6 +217,7 @@ class GameTracker extends EventEmitter {
         diskPct: disk.length ? Math.round(avg(disk) * 10) / 10 : null,
         wifiPct: wifi.length ? Math.round(avg(wifi) * 10) / 10 : null,
       },
+      samples: s.samples.slice(-120),
     };
   }
 
@@ -345,7 +347,7 @@ Get-Process -ErrorAction SilentlyContinue |
         const processName = String(row.ProcessName || '');
         const game = PROCESS_GAME_MAP[processName];
         if (!game) continue;
-        if (processName.toLowerCase() === 'javaw'
+        if ((processName.toLowerCase() === 'javaw' || processName.toLowerCase() === 'java')
             && !isJavaMinecraft(row.MainWindowTitle, row.Path)) {
           continue;
         }

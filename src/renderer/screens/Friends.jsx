@@ -6,7 +6,6 @@ import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
 import { LinkedAccountChips } from '../components/VerifiedStatsPanel.jsx';
 import { useVoiceCall } from '../components/VoiceCallOverlay.jsx';
-import { formatDuration } from '../lib/format.js';
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
 
 function avatarColor(id) {
@@ -101,8 +100,6 @@ function PresenceBlock({ p, offlineDetail }) {
 
 function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToast, myId, onBlock, onReport }) {
   const p = data?.profile;
-  const sessions = data?.sessions || [];
-  const historyHidden = !!data?.history_hidden;
 
   async function copyTag() {
     if (!p?.gamer_tag) return;
@@ -163,32 +160,6 @@ function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToa
             </div>
 
             <LinkedAccountChips links={data?.linked_accounts} />
-
-            <div className="card-title" style={{ marginTop: 16 }}>Recent Sessions</div>
-            {historyHidden ? (
-              <div className="friends-empty" style={{ padding: '8px 0 12px' }}>
-                This player hides session history
-              </div>
-            ) : sessions.length === 0 ? (
-              <div className="friends-empty">No tracked sessions yet</div>
-            ) : (
-              sessions.map((s) => (
-                <div className="row" key={s.id}>
-                  <div>
-                    <div className="row-title">{s.game}</div>
-                    <div className="row-sub">
-                      {formatDuration(s.duration_sec)}
-                      {s.ended_at ? ` · ${new Date(s.ended_at).toLocaleString()}` : ''}
-                    </div>
-                  </div>
-                  <div className="row-sub" style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 11 }}>
-                    {s.avg_cpu_pct != null ? `CPU ${Number(s.avg_cpu_pct).toFixed(0)}%` : ''}
-                    {s.avg_gpu_pct != null ? ` · GPU ${Number(s.avg_gpu_pct).toFixed(0)}%` : ''}
-                    {s.avg_ram_mb != null ? ` · RAM ${Math.round(s.avg_ram_mb)} MB` : ''}
-                  </div>
-                </div>
-              ))
-            )}
 
             {(onBlock || onReport) && (
               <div className="friend-profile-actions" style={{ marginTop: 18, justifyContent: 'flex-end' }}>
@@ -1139,7 +1110,7 @@ export default function Friends() {
                 <button
                   className="action-btn ghost friend-mini-btn"
                   onClick={() => openFriendProfile(selectedId)}
-                  title="View profile and sessions"
+                  title="View profile"
                 >
                   Profile
                 </button>
