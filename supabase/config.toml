@@ -1,0 +1,4 @@
+project_id = "nfaxokwpmaxyhnvatrwf"
+
+[functions.link-account-callback]
+verify_jwt = false

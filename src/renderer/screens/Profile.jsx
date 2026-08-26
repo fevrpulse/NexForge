@@ -1,31 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { AVATAR_PRESETS, bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import { isBuiltinGame } from '../lib/games.js';
 import VerifiedStatsPanel from '../components/VerifiedStatsPanel.jsx';
 
-function statBits(st) {
-  const bits = [];
-  if (st.kills !== undefined) bits.push(`${st.kills}K/${st.deaths || 0}D${st.assists !== undefined ? `/${st.assists}A` : ''}`);
-  if (st.kda) bits.push(`KDA ${st.kda}`);
-  if (st.placement) bits.push(st.placement);
-  if (st.goals !== undefined) bits.push(`${st.goals} goals`);
-  if (st.score !== undefined && st.kills === undefined) bits.push(`Score ${st.score}`);
-  if (st.damage) bits.push(`${st.damage.toLocaleString()} dmg`);
-  if (st.mvp) bits.push('MVP ⭐');
-  if (st.ace) bits.push('ACE 🔥');
-  if (st.victory_royale) bits.push('Victory Royale 👑');
-  if (st.chicken_dinner) bits.push('Winner 🍗');
-  if (st.champion) bits.push('Champion 🏆');
-  return bits.join(' · ');
-}
-
 export default function Profile() {
   const { user, profile, refreshProfile, showToast, gameCatalog, knownGames, syncCommunityGames } = useNexForge();
-  const [matches, setMatches] = useState([]);
   const [editing, setEditing] = useState(false);
   const [editingIdentity, setEditingIdentity] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState('');
@@ -39,19 +21,6 @@ export default function Profile() {
   const [savingPrivacy, setSavingPrivacy] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const avatarInputRef = useRef(null);
-
-  useEffect(() => {
-    if (!user) return;
-    let active = true;
-    sb.from('matches')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('played_at', { ascending: false })
-      .limit(20)
-      .then(({ data }) => { if (active) setMatches(data || []); })
-      .catch(() => { if (active) setMatches([]); });
-    return () => { active = false; };
-  }, [user]);
 
   if (!profile) return null;
 
@@ -239,13 +208,11 @@ export default function Profile() {
     }
     await refreshProfile();
     showToast(
-      next ? 'Match history hidden from friends' : 'Match history visible to friends',
+      next ? 'Session history hidden from friends' : 'Session history visible to friends',
       'success',
     );
   }
 
-  const total = (profile.wins || 0) + (profile.losses || 0);
-  const wr = total > 0 ? `${Math.round((profile.wins / total) * 100)}%` : '—';
   const since = profile.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
     : '—';
@@ -317,10 +284,8 @@ export default function Profile() {
             @{profile.gamer_tag || 'player'} · Member since {since} · {profile.platform || 'PC'} · {profile.main_game || '—'}
           </div>
           <div className="profile-tags">
-            <span className={`badge ${skillTagClass(mmrToSkillTag(profile.mmr))}`}>{mmrToSkillTag(profile.mmr)}</span>
-            <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
-            <span className="badge badge-blue">{total} Matches</span>
             <span className="badge badge-muted">{profile.platform || 'PC'}</span>
+            {profile.main_game ? <span className="badge badge-blue">{profile.main_game}</span> : null}
           </div>
         </div>
       </div>
@@ -440,7 +405,7 @@ export default function Profile() {
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title">Privacy</div>
         <div className="row" style={{ borderBottom: 'none' }}>
-          <span>Hide match history from friends</span>
+          <span>Hide session history from friends</span>
           <label style={{ cursor: savingPrivacy ? 'wait' : 'pointer', display: 'flex', alignItems: 'center' }}>
             <input
               type="checkbox"
@@ -450,66 +415,6 @@ export default function Profile() {
             />
           </label>
         </div>
-      </div>
-
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-        <div className="stat-card">
-          <div className="stat-label">Total Wins</div>
-          <div className="stat-val neon">{profile.wins || 0}</div>
-          <div className="stat-sub">{total > 0 ? `${wr} win rate` : 'No matches yet'}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Matches Played</div>
-          <div className="stat-val">{total}</div>
-          <div className="stat-sub">career total</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Current MMR</div>
-          <div className="stat-val">{(profile.mmr || 1200).toLocaleString()}</div>
-          <div className="stat-sub">Starting rank</div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-title">Match History</div>
-        {matches.length > 0 ? (
-          matches.map((m) => {
-            const line = statBits(m.stats || {});
-            return (
-              <div key={m.id} style={{ padding: '12px 0', borderBottom: '1px solid var(--border)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 5 }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>
-                      {m.game} <span style={{ fontWeight: 400, color: 'var(--muted2)', fontSize: 11 }}>· {m.mode}</span>
-                    </div>
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', marginTop: 2 }}>
-                      {new Date(m.played_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} · {m.duration || '—'}
-                    </div>
-                  </div>
-                  <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`} style={{ flexShrink: 0, marginLeft: 8 }}>
-                    {m.source === 'self_report'
-                      ? (m.result === 'win' ? 'WIN' : 'LOSS')
-                      : (m.result === 'win' ? `WIN +${m.mmr_change}` : `LOSS ${m.mmr_change}`)}
-                  </div>
-                </div>
-                {m.source === 'self_report' && (
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', marginBottom: 6 }}>
-                    <span className="match-source-badge">logged</span> self-reported · no MMR
-                  </div>
-                )}
-                {line && (
-                  <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', background: 'var(--panel)', padding: '6px 10px', borderRadius: 6 }}>
-                    {line}
-                  </div>
-                )}
-              </div>
-            );
-          })
-        ) : (
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '16px 0', textAlign: 'center' }}>
-            No matches yet. Find your first match!
-          </div>
-        )}
       </div>
     </div>
   );

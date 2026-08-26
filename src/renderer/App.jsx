@@ -11,7 +11,6 @@ import WhatsNewModal from './components/WhatsNewModal.jsx';
 import Dashboard from './screens/Dashboard.jsx';
 import Matchmaking from './screens/Matchmaking.jsx';
 import Tournaments from './screens/Tournaments.jsx';
-import Leaderboard from './screens/Leaderboard.jsx';
 import Profile from './screens/Profile.jsx';
 import Analytics from './screens/Analytics.jsx';
 import Squad from './screens/Squad.jsx';
@@ -22,13 +21,11 @@ import Communities from './screens/Communities.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
-import MatchResultPrompt from './components/MatchResultPrompt.jsx';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
   matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
   tournaments: { title: 'Tournaments', badge: 'OPEN' },
-  leaderboard: { title: 'Leaderboard', badge: 'SEASON' },
   friends: { title: 'Friends', badge: 'SOCIAL' },
   communities: { title: 'Communities', badge: 'LOUNGES' },
   clans: { title: 'Clans', badge: 'CREW' },
@@ -42,7 +39,6 @@ const SCREEN_COMPONENTS = {
   dashboard: Dashboard,
   matchmaking: Matchmaking,
   tournaments: Tournaments,
-  leaderboard: Leaderboard,
   friends: Friends,
   communities: Communities,
   clans: Clans,
@@ -120,7 +116,6 @@ function AppShell() {
       <LockModal />
       <OnboardingModal />
       <WhatsNewModal />
-      <MatchResultPrompt />
       <NexPanionDock />
       <ToastStack />
     </div>

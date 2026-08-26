@@ -103,12 +103,15 @@ function isJavaMinecraft(windowTitle, exePath) {
     || path.includes('.minecraft');
 }
 
-function buildTips({ avgRamMb, avgCpuPct, avgGpuPct, avgPingMs }) {
+function buildTips({ avgRamMb, avgCpuPct, avgGpuPct, avgDiskPct, avgWifiPct, avgPingMs }) {
   const tips = [];
+  if (avgWifiPct != null && avgWifiPct > 70) {
+    tips.push('Wi‑Fi / network was busy — pause downloads and streams, or switch to Ethernet if you can.');
+  } else if (avgWifiPct != null && avgWifiPct > 40) {
+    tips.push('Network usage was elevated — close cloud backups and background updates while you play.');
+  }
   if (avgPingMs != null && avgPingMs > 80) {
-    tips.push('Average network ping was high — prefer a wired Ethernet connection and close bandwidth-heavy apps (downloads, streams).');
-  } else if (avgPingMs != null && avgPingMs > 50) {
-    tips.push('Ping was moderate — move closer to your router or switch to 5 GHz Wi‑Fi if you are on wireless.');
+    tips.push('Average ping was high — prefer wired Ethernet and close bandwidth-heavy apps.');
   }
   if (avgRamMb != null && avgRamMb > 6000) {
     tips.push('This game used a lot of RAM — close browsers and background apps before your next session.');
@@ -125,8 +128,13 @@ function buildTips({ avgRamMb, avgCpuPct, avgGpuPct, avgPingMs }) {
   } else if (avgGpuPct != null && avgGpuPct > 75) {
     tips.push('GPU load was high — try a lower graphics preset or cap FPS if you see hitching.');
   }
+  if (avgDiskPct != null && avgDiskPct > 80) {
+    tips.push('Disk was very busy — move the game to an SSD and pause installs/updates during play.');
+  } else if (avgDiskPct != null && avgDiskPct > 50) {
+    tips.push('Disk usage was high — avoid copying files or launching extra apps mid-session.');
+  }
   if (!tips.length) {
-    tips.push('Session looked solid — network, CPU, GPU, and RAM stayed in a healthy range.');
+    tips.push('Session looked solid — RAM, CPU, GPU, disk, and network stayed in a healthy range.');
   }
   return tips.slice(0, 3);
 }
@@ -144,6 +152,8 @@ class GameTracker extends EventEmitter {
     this._knownNames = Object.keys(PROCESS_GAME_MAP);
     this._lastGpuPct = null;
     this._gpuInFlight = null;
+    this._lastIo = { diskPct: null, wifiPct: null };
+    this._ioInFlight = null;
   }
 
   start() {
@@ -189,7 +199,8 @@ class GameTracker extends EventEmitter {
     const ram = s.samples.map((x) => x.ramMb).filter((n) => n != null);
     const cpu = s.samples.map((x) => x.cpuPct).filter((n) => n != null);
     const gpu = s.samples.map((x) => x.gpuPct).filter((n) => n != null);
-    const ping = s.samples.map((x) => x.pingMs).filter((n) => n != null);
+    const disk = s.samples.map((x) => x.diskPct).filter((n) => n != null);
+    const wifi = s.samples.map((x) => x.wifiPct).filter((n) => n != null);
     const last = s.samples[s.samples.length - 1] || null;
     return {
       game: s.game,
@@ -202,7 +213,8 @@ class GameTracker extends EventEmitter {
         ramMb: ram.length ? Math.round(avg(ram)) : null,
         cpuPct: cpu.length ? Math.round(avg(cpu) * 10) / 10 : null,
         gpuPct: gpu.length ? Math.round(avg(gpu) * 10) / 10 : null,
-        pingMs: ping.length ? Math.round(avg(ping)) : null,
+        diskPct: disk.length ? Math.round(avg(disk) * 10) / 10 : null,
+        wifiPct: wifi.length ? Math.round(avg(wifi) * 10) / 10 : null,
       },
     };
   }
@@ -217,6 +229,7 @@ class GameTracker extends EventEmitter {
         if (this._session) this._endSession(true);
         this._cpuPrev = null;
         this._lastGpuPct = null;
+        this._lastIo = { diskPct: null, wifiPct: null };
         return;
       }
 
@@ -256,6 +269,7 @@ class GameTracker extends EventEmitter {
       at: Date.now(),
     };
     this._lastGpuPct = null;
+    this._lastIo = { diskPct: null, wifiPct: null };
     this.emit('started', this._publicSession(this._session));
   }
 
@@ -274,6 +288,8 @@ class GameTracker extends EventEmitter {
     const ram = s.samples.map((x) => x.ramMb).filter((n) => typeof n === 'number');
     const cpu = s.samples.map((x) => x.cpuPct).filter((n) => typeof n === 'number');
     const gpu = s.samples.map((x) => x.gpuPct).filter((n) => typeof n === 'number');
+    const disk = s.samples.map((x) => x.diskPct).filter((n) => typeof n === 'number');
+    const wifi = s.samples.map((x) => x.wifiPct).filter((n) => typeof n === 'number');
     const ping = s.samples.map((x) => x.pingMs).filter((n) => typeof n === 'number');
 
     const summary = {
@@ -286,6 +302,10 @@ class GameTracker extends EventEmitter {
       maxCpuPct: cpu.length ? Math.round(maxOf(cpu) * 10) / 10 : null,
       avgGpuPct: gpu.length ? Math.round(avg(gpu) * 10) / 10 : null,
       maxGpuPct: gpu.length ? Math.round(maxOf(gpu) * 10) / 10 : null,
+      avgDiskPct: disk.length ? Math.round(avg(disk) * 10) / 10 : null,
+      maxDiskPct: disk.length ? Math.round(maxOf(disk) * 10) / 10 : null,
+      avgWifiPct: wifi.length ? Math.round(avg(wifi) * 10) / 10 : null,
+      maxWifiPct: wifi.length ? Math.round(maxOf(wifi) * 10) / 10 : null,
       avgPingMs: ping.length ? Math.round(avg(ping)) : null,
       maxPingMs: ping.length ? Math.round(maxOf(ping)) : null,
       tips: [],
@@ -363,9 +383,10 @@ Get-Process -ErrorAction SilentlyContinue |
     };
 
     const probe = this._resolveProbe(found.game);
-    const [pingMs, gpuPct] = await Promise.all([
+    const [pingMs, gpuPct, io] = await Promise.all([
       this._ping(probe),
       this._gpuUsage(found.pid),
+      this._ioUsage(),
     ]);
 
     return {
@@ -373,6 +394,8 @@ Get-Process -ErrorAction SilentlyContinue |
       ramMb: found.ramMb,
       cpuPct,
       gpuPct,
+      diskPct: io?.diskPct ?? null,
+      wifiPct: io?.wifiPct ?? null,
       pingMs,
       probeHost: probe,
     };
@@ -424,6 +447,69 @@ else { [math]::Min(100, [math]::Round($sum, 1)) }
       });
 
     return this._gpuInFlight;
+  }
+
+  /**
+   * System disk busy % and Wi-Fi (or busiest NIC) utilization vs link speed.
+   */
+  async _ioUsage() {
+    if (this._ioInFlight) {
+      try {
+        await this._ioInFlight;
+      } catch {
+        /* keep last */
+      }
+      return this._lastIo;
+    }
+
+    const script = `
+$diskPct = $null
+$d = Get-CimInstance -ClassName Win32_PerfFormattedData_PerfDisk_PhysicalDisk -Filter "Name='_Total'" -ErrorAction SilentlyContinue
+if ($d) {
+  $idle = 0
+  try { $idle = [double]$d.PercentIdleTime } catch { $idle = -1 }
+  if ($idle -ge 0 -and $idle -le 100) { $diskPct = [math]::Round(100 - $idle, 1) }
+  else {
+    try { $diskPct = [math]::Min(100, [math]::Round([double]$d.PercentDiskTime, 1)) } catch { $diskPct = $null }
+  }
+}
+$wifiPct = $null
+$nics = @(Get-CimInstance -ClassName Win32_PerfFormattedData_Tcpip_NetworkInterface -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -notmatch 'Loopback|isatap|Teredo|VPN|Virtual|vEthernet' })
+$wifi = $nics | Where-Object { $_.Name -match 'Wi-?Fi|Wireless|802\\.11|WLAN' } | Sort-Object BytesTotalPersec -Descending | Select-Object -First 1
+if (-not $wifi) { $wifi = $nics | Sort-Object BytesTotalPersec -Descending | Select-Object -First 1 }
+if ($wifi) {
+  $bw = 0
+  try { $bw = [double]$wifi.CurrentBandwidth } catch { $bw = 0 }
+  if ($bw -gt 0) {
+    $wifiPct = [math]::Min(100, [math]::Round(([double]$wifi.BytesTotalPersec * 8.0 / $bw) * 100, 1))
+  }
+}
+@{ diskPct = $diskPct; wifiPct = $wifiPct } | ConvertTo-Json -Compress
+`;
+
+    this._ioInFlight = execPs(script, 6000)
+      .then((out) => {
+        if (!out) return this._lastIo;
+        try {
+          const parsed = JSON.parse(out);
+          const disk = Number(parsed.diskPct);
+          const wifi = Number(parsed.wifiPct);
+          this._lastIo = {
+            diskPct: Number.isFinite(disk) ? Math.min(100, Math.max(0, disk)) : this._lastIo.diskPct,
+            wifiPct: Number.isFinite(wifi) ? Math.min(100, Math.max(0, wifi)) : this._lastIo.wifiPct,
+          };
+        } catch {
+          /* keep last */
+        }
+        return this._lastIo;
+      })
+      .catch(() => this._lastIo)
+      .finally(() => {
+        this._ioInFlight = null;
+      });
+
+    return this._ioInFlight;
   }
 
   _resolveProbe(game) {

@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.2.2',
+    highlights: [
+      'Linked accounts — connect Discord, Steam, Riot, and Epic on your profile',
+      'Friends see verified handles on your profile card',
+      'Analytics is hardware only — RAM, CPU, GPU, disk, and Wi‑Fi graphs',
+      'MMR, wins, losses, ranks, and the leaderboard are gone from the app',
+    ],
+  },
+  {
     version: '4.2.1',
     highlights: [
       'Java Minecraft is tracked — javaw.exe with a Minecraft, Lunar, Badlion, or Feather window counts as a session',

@@ -155,7 +155,7 @@ export default function Clans() {
         <div className="card-title">Clan invite</div>
         <div className="clan-sub">
           [{clan.tag}] {clan.name}
-          {clan.min_mmr > 0 ? ` · requires ${clan.min_mmr}+ MMR` : ''}
+          {clan.min_mmr > 0 ? ' · requirements to join' : ''}
         </div>
         <div className="party-panel-actions" style={{ marginTop: 12 }}>
           <button
@@ -177,7 +177,7 @@ export default function Clans() {
         </div>
         {myMmr < (clan.min_mmr || 0) && (
           <div className="clan-sub" style={{ marginTop: 10, color: 'var(--red)' }}>
-            You need {clan.min_mmr} MMR (you have {myMmr}).
+            You don't meet this clan's join requirements.
           </div>
         )}
       </div>
@@ -223,8 +223,8 @@ export default function Clans() {
                           <span className="clan-tag-prefix">[{c.tag}]</span> {c.name}
                         </div>
                         <div className="clan-sub">
-                          {c.member_count || 0} members · {Number(c.total_mmr || 0).toLocaleString()} total MMR
-                          {(c.min_mmr || 0) > 0 ? ` · ${c.min_mmr}+ MMR` : ' · open to all'}
+          {c.member_count || 0} members
+                          {(c.min_mmr || 0) > 0 ? ' · requirements' : ' · open to all'}
                         </div>
                       </div>
                       <button
@@ -325,9 +325,7 @@ export default function Clans() {
             </div>
             <div className="clan-sub">
               {joined.length} member{joined.length === 1 ? '' : 's'}
-              {` · ${Number(clan.total_mmr || 0).toLocaleString()} total MMR`}
               {clan.leaderboard_rank ? ` · #${clan.leaderboard_rank} clans` : ''}
-              {(clan.min_mmr || 0) > 0 ? ` · ${clan.min_mmr}+ MMR` : ''}
               {clan.is_open === false ? ' · invite-only' : ' · open'}
               {invited.length ? ` · ${invited.length} pending` : ''}
             </div>
@@ -389,7 +387,6 @@ export default function Clans() {
                   <GamerTag profile={{ gamer_tag: m.gamer_tag, clan_tag: clan.tag }} />
                   {m.role === 'owner' && <span className="party-role-badge">Owner</span>}
                 </div>
-                <div className="party-member-ready">{m.mmr != null ? `${m.mmr} MMR` : ''}</div>
               </div>
             </div>
           ))}
@@ -453,7 +450,6 @@ export default function Clans() {
                 <div className="clan-invite-row" key={f.id}>
                   <span>
                     <GamerTag profile={f} />
-                    <span className="clan-sub"> · {f.mmr} MMR</span>
                   </span>
                   <button
                     type="button"

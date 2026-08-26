@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
+import { LinkedAccountChips } from '../components/VerifiedStatsPanel.jsx';
 import { useVoiceCall } from '../components/VoiceCallOverlay.jsx';
 import { formatDuration } from '../lib/format.js';
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
@@ -83,7 +83,7 @@ function presenceLine(p) {
   if (!p) return '—';
   if (isOnline(p) && p.playing_game) return `Playing ${p.playing_game}`;
   if (isOnline(p)) return 'Online';
-  return `${p.main_game || '—'} · ${mmrToRank(p.mmr)}`;
+  return p.main_game || '—';
 }
 
 function PresenceBlock({ p, offlineDetail }) {
@@ -99,27 +99,10 @@ function PresenceBlock({ p, offlineDetail }) {
   );
 }
 
-function SkillTagBadge({ mmr, small = false }) {
-  const tag = mmrToSkillTag(mmr);
-  return (
-    <span
-      className={`badge ${skillTagClass(tag)}`}
-      style={small ? { fontSize: 10, padding: '2px 6px' } : undefined}
-    >
-      {tag}
-    </span>
-  );
-}
-
 function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToast, myId, onBlock, onReport }) {
   const p = data?.profile;
-  const matches = data?.matches || [];
   const sessions = data?.sessions || [];
-  const duels = data?.duels || [];
-  const badges = data?.badges || [];
   const historyHidden = !!data?.history_hidden;
-  const total = (p?.wins || 0) + (p?.losses || 0);
-  const wr = total > 0 ? Math.round(((p.wins || 0) / total) * 100) : null;
 
   async function copyTag() {
     if (!p?.gamer_tag) return;
@@ -135,13 +118,6 @@ function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToa
     if (!p?.id || !onReport) return;
     const reason = window.prompt('Why are you reporting this player?');
     if (reason?.trim()) onReport(p.id, reason.trim());
-  }
-
-  function duelWinnerLabel(d) {
-    if (!d.winner_id) return 'Draw';
-    if (d.winner_id === myId) return 'You won';
-    if (d.winner_id === p?.id) return `${p.gamer_tag} won`;
-    return 'Completed';
   }
 
   return (
@@ -163,11 +139,10 @@ function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToa
               <div className="player-info">
                 <div style={{ fontSize: 18, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <GamerTag profile={p} />
-                  <SkillTagBadge mmr={p.mmr} small />
                 </div>
                 <PresenceBlock
                   p={p}
-                  offlineDetail={`${p.main_game || '—'} · ${p.platform || 'PC'} · ${mmrToRank(p.mmr)}`}
+                  offlineDetail={`${p.main_game || '—'} · ${p.platform || 'PC'}`}
                 />
               </div>
               <div className="friend-profile-actions">
@@ -187,91 +162,14 @@ function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToa
               </div>
             </div>
 
-            {badges.length > 0 && (
-              <div className="friend-badge-row">
-                {badges.map((b) => (
-                  <span key={b.id} className="friend-badge" title={b.desc}>{b.label}</span>
-                ))}
-              </div>
-            )}
-
-            <div className="friend-profile-stats">
-              <div className="friend-profile-stat">
-                <div className="stat-label">MMR</div>
-                <div className="stat-val neon">{(p.mmr || 1200).toLocaleString()}</div>
-              </div>
-              <div className="friend-profile-stat">
-                <div className="stat-label">Wins</div>
-                <div className="stat-val" style={{ color: '#4ade80' }}>{p.wins || 0}</div>
-              </div>
-              <div className="friend-profile-stat">
-                <div className="stat-label">Losses</div>
-                <div className="stat-val" style={{ color: 'var(--red)' }}>{p.losses || 0}</div>
-              </div>
-              <div className="friend-profile-stat">
-                <div className="stat-label">Win Rate</div>
-                <div className="stat-val">{wr != null ? `${wr}%` : '—'}</div>
-              </div>
-            </div>
-
-            {(p.total_kills || p.total_deaths || p.total_assists) ? (
-              <div className="friend-profile-kda">
-                Career K/D/A · {p.total_kills || 0}/{p.total_deaths || 0}/{p.total_assists || 0}
-              </div>
-            ) : null}
-
-            <div className="card-title" style={{ marginTop: 18 }}>Recent Matches</div>
-            {historyHidden ? (
-              <div className="friends-empty" style={{ padding: '8px 0 12px' }}>
-                This player hides match history
-              </div>
-            ) : matches.length === 0 ? (
-              <div className="friends-empty">No ranked matches yet</div>
-            ) : (
-              matches.map((m) => (
-                <div className="row" key={m.id}>
-                  <div>
-                    <div className="row-title">
-                      {m.game}
-                      {m.source === 'self_report' && <span className="match-source-badge">logged</span>}
-                    </div>
-                    <div className="row-sub">
-                      {m.mode || 'Match'}
-                      {m.played_at ? ` · ${new Date(m.played_at).toLocaleString()}` : ''}
-                    </div>
-                  </div>
-                  <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`}>
-                    {m.source === 'self_report'
-                      ? (m.result === 'win' ? 'WIN' : 'LOSS')
-                      : (m.result === 'win' ? `WIN +${m.mmr_change || 0}` : `LOSS ${m.mmr_change || 0}`)}
-                  </div>
-                </div>
-              ))
-            )}
-
-            <div className="card-title" style={{ marginTop: 16 }}>Shared Duels</div>
-            {duels.length === 0 ? (
-              <div className="friends-empty">No completed duels together yet</div>
-            ) : (
-              duels.map((d) => (
-                <div className="row" key={d.id}>
-                  <div>
-                    <div className="row-title">{d.game}</div>
-                    <div className="row-sub">
-                      {d.mode || 'Duel'}
-                      {d.created_at ? ` · ${new Date(d.created_at).toLocaleString()}` : ''}
-                      {d.host_tag && d.challenger_tag ? ` · ${d.host_tag} vs ${d.challenger_tag}` : ''}
-                    </div>
-                  </div>
-                  <div className={`result ${d.winner_id === myId ? 'win' : d.winner_id === p?.id ? 'loss' : ''}`}>
-                    {duelWinnerLabel(d)}
-                  </div>
-                </div>
-              ))
-            )}
+            <LinkedAccountChips links={data?.linked_accounts} />
 
             <div className="card-title" style={{ marginTop: 16 }}>Recent Sessions</div>
-            {sessions.length === 0 ? (
+            {historyHidden ? (
+              <div className="friends-empty" style={{ padding: '8px 0 12px' }}>
+                This player hides session history
+              </div>
+            ) : sessions.length === 0 ? (
               <div className="friends-empty">No tracked sessions yet</div>
             ) : (
               sessions.map((s) => (
@@ -281,12 +179,12 @@ function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToa
                     <div className="row-sub">
                       {formatDuration(s.duration_sec)}
                       {s.ended_at ? ` · ${new Date(s.ended_at).toLocaleString()}` : ''}
-                      {s.kills != null ? ` · ${s.kills}/${s.deaths ?? 0}/${s.assists ?? 0}` : ''}
                     </div>
                   </div>
                   <div className="row-sub" style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 11 }}>
-                    {s.avg_ping_ms != null ? `${Math.round(s.avg_ping_ms)} ms` : '—'}
+                    {s.avg_cpu_pct != null ? `CPU ${Number(s.avg_cpu_pct).toFixed(0)}%` : ''}
                     {s.avg_gpu_pct != null ? ` · GPU ${Number(s.avg_gpu_pct).toFixed(0)}%` : ''}
+                    {s.avg_ram_mb != null ? ` · RAM ${Math.round(s.avg_ram_mb)} MB` : ''}
                   </div>
                 </div>
               ))
@@ -1103,7 +1001,6 @@ export default function Friends() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <PresenceBlock p={p} offlineDetail={presenceLine(p)} />
-            {p && <SkillTagBadge mmr={p.mmr} small />}
           </div>
         </div>
         {showPin && (
@@ -1164,7 +1061,7 @@ export default function Friends() {
                   </div>
                   <div className="player-info">
                     <div className="player-tag">{p.gamer_tag}</div>
-                    <div className="player-game">{p.main_game || '—'} · {mmrToRank(p.mmr)}</div>
+                    <div className="player-game">{p.main_game || '—'} · {p.platform || 'PC'}</div>
                   </div>
                   {relatedIds.has(p.id) ? (
                     <span className="friend-hint">Added</span>
@@ -1233,17 +1130,16 @@ export default function Friends() {
                   <PresenceBlock
                     p={selectedProfile}
                     offlineDetail={selectedProfile
-                      ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'} · ${mmrToRank(selectedProfile.mmr)}`
+                      ? `${selectedProfile.main_game || '—'} · ${selectedProfile.platform || 'PC'}`
                       : '—'}
                   />
-                  {selectedProfile && <SkillTagBadge mmr={selectedProfile.mmr} small />}
                 </div>
               </div>
               <div className="chat-header-actions">
                 <button
                   className="action-btn ghost friend-mini-btn"
                   onClick={() => openFriendProfile(selectedId)}
-                  title="View wins, recent matches, and sessions"
+                  title="View profile and sessions"
                 >
                   Profile
                 </button>

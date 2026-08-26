@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToSkillTag } from '../lib/ranks.js';
 import PlayerAvatar from '../components/PlayerAvatar.jsx';
 
 const SLOTS = [
@@ -440,7 +439,7 @@ export default function Shop() {
                 </span>
               </div>
               <div className="shop-preview-meta">
-                {mmrToSkillTag(mmr)} · {mmr} MMR · {coins} Forge Coins
+                {coins} Forge Coins
               </div>
             </div>
           </div>

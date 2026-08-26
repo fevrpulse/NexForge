@@ -5,7 +5,6 @@ import {
   gameMark, modeMark, modesForGame,
   honestServerLabel, isShooterGame,
 } from '../lib/games.js';
-import { mmrToRank } from '../lib/ranks.js';
 import { GameIcon, hasGameIcon } from '../components/icons.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
 import LobbyPanel from '../components/LobbyPanel.jsx';
@@ -25,7 +24,7 @@ function CombatInputs({ values, onChange }) {
           onChange={(e) => onChange({ ...values, assists: e.target.value })} />
       </div>
       <div className="field-hint" style={{ marginTop: 8 }}>
-        Optional — enter your scoreboard line so kills and assists count toward Analytics.
+        Optional — enter your scoreboard line if you want.
       </div>
     </div>
   );
@@ -70,7 +69,6 @@ export default function Matchmaking() {
   const [duoOpen, setDuoOpen] = useState(false);
   const [duoResults, setDuoResults] = useState(null);
   const [duoSearching, setDuoSearching] = useState(false);
-  const [duoSkill, setDuoSkill] = useState('Any');
   const [duoStyle, setDuoStyle] = useState('Any');
   const [duoPlat, setDuoPlat] = useState('Any');
 
@@ -278,9 +276,7 @@ export default function Matchmaking() {
         setCombat({ kills: '', deaths: '', assists: '' });
         const iWon = data.winner_id === user.id;
         showToast(
-          iWon
-            ? `WIN +${data.mmr_change || 15} MMR · +25 Forge Coins`
-            : `LOSS -${data.mmr_change || 15} MMR`,
+          iWon ? 'Duel recorded · +25 Forge Coins' : 'Duel recorded',
           iWon ? 'success' : 'error'
         );
         await refreshProfile();
@@ -304,14 +300,11 @@ export default function Matchmaking() {
     setDuoResults(null);
     try {
       let query = sb.from('profiles')
-        .select('id,gamer_tag,mmr,platform,main_game,wins')
+        .select('id,gamer_tag,platform,main_game')
         .eq('main_game', 'Fortnite')
         .neq('id', user?.id || '00000000-0000-0000-0000-000000000000')
         .limit(40);
       if (duoPlat !== 'Any') query = query.eq('platform', duoPlat);
-      if (duoSkill === 'Casual') query = query.lt('mmr', 1400);
-      else if (duoSkill === 'Competitive') query = query.gte('mmr', 1400).lt('mmr', 2200);
-      else if (duoSkill === 'Pro') query = query.gte('mmr', 2200);
       const { data, error } = await query;
       if (error) throw error;
       setCloudOffline(false);
@@ -420,9 +413,6 @@ export default function Matchmaking() {
               <div id="fn-duo-finder">
                 <div className="card-title" style={{ marginBottom: 10 }}>Find a duo partner</div>
                 <div className="filter-row" style={{ marginBottom: 12 }}>
-                  <select value={duoSkill} onChange={(e) => setDuoSkill(e.target.value)}>
-                    <option>Any</option><option>Casual</option><option>Competitive</option><option>Pro</option>
-                  </select>
                   <select value={duoStyle} onChange={(e) => setDuoStyle(e.target.value)}>
                     <option>Any</option><option>Aggressive</option><option>Passive</option><option>Builder</option>
                   </select>
@@ -454,12 +444,9 @@ export default function Matchmaking() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
                               <span style={{ fontSize: 13, fontWeight: 700 }}>{p.gamer_tag}</span>
-                              <span style={{ fontFamily: 'var(--mono)', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'var(--neon)22', color: 'var(--neon)' }}>
-                                {p.mmr || 1200} MMR
-                              </span>
                             </div>
                             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
-                              {mmrToRank(p.mmr)} · {p.platform || 'PC'}
+                              {p.platform || 'PC'}
                               {duoStyle !== 'Any' ? ` · prefers ${duoStyle}` : ''}
                             </div>
                           </div>
@@ -521,8 +508,8 @@ export default function Matchmaking() {
             <label>Who won? (both players must pick the same winner)</label>
             <select value={winnerPick} onChange={(e) => setWinnerPick(e.target.value)}>
               <option value="">Select winner…</option>
-              <option value={myActiveDuel.host_id}>{myActiveDuel.host_tag} ({myActiveDuel.host_mmr || 1200} MMR)</option>
-              <option value={myActiveDuel.challenger_id}>{myActiveDuel.challenger_tag || 'Challenger'} ({myActiveDuel.challenger_mmr || 1200} MMR)</option>
+              <option value={myActiveDuel.host_id}>{myActiveDuel.host_tag}</option>
+              <option value={myActiveDuel.challenger_id}>{myActiveDuel.challenger_tag || 'Challenger'}</option>
             </select>
           </div>
           {shooter && <CombatInputs values={combat} onChange={setCombat} />}
@@ -550,7 +537,7 @@ export default function Matchmaking() {
                 <div style={{ minWidth: 0 }}>
                   <div className="duel-title">{d.mode || 'Open Queue'} · {d.game}</div>
                   <div className="duel-meta">
-                    Host {d.host_tag || 'Player'} · {d.host_mmr || 1200} MMR<br />
+                    Host {d.host_tag || 'Player'}<br />
                     {d.details && <>{d.details}<br /></>}
                     {d.server && <>Server {d.server} · </>}{when}
                   </div>

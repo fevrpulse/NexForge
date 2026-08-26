@@ -12,7 +12,7 @@ import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.j
 const NexForgeContext = createContext(null);
 
 /** Screens that guests cannot access — matches legacy GUEST_LOCKED behavior. */
-export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans', 'communities', 'leaderboard'];
+export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans', 'communities'];
 
 const GUEST_LOCKED_LABELS = {
   matchmaking: 'Matchmaking is locked in Guest Mode',
@@ -23,7 +23,6 @@ const GUEST_LOCKED_LABELS = {
   shop: 'The cosmetics shop requires an account',
   clans: 'Clans require an account',
   communities: 'Communities require an account',
-  leaderboard: 'The leaderboard requires an account',
 };
 
 const GUEST_PROFILE = {
@@ -80,7 +79,6 @@ export function NexForgeProvider({ children }) {
   // Bumped whenever a finished session is saved so screens can refetch history.
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
   const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
-  const [pendingMatchLog, setPendingMatchLog] = useState(null);
   const [party, setParty] = useState(null);
   const [clan, setClan] = useState(null);
   const [activeSeason, setActiveSeason] = useState(null);
@@ -328,6 +326,7 @@ export function NexForgeProvider({ children }) {
   }, [loadProfileFor, showToast]);
 
   const setScreen = useCallback((id) => {
+    if (id === 'leaderboard') id = 'dashboard';
     if (guestMode && GUEST_LOCKED_SCREENS.includes(id)) {
       setLockMessage(GUEST_LOCKED_LABELS[id] || 'This feature requires an account');
       return;
@@ -611,7 +610,7 @@ export function NexForgeProvider({ children }) {
         return;
       }
       try {
-        const { data: saved, error } = await sb.from('game_sessions').insert({
+        const row = {
           user_id: u.id,
           game: summary.game,
           process_name: summary.processName || null,
@@ -622,31 +621,30 @@ export function NexForgeProvider({ children }) {
           max_cpu_pct: summary.maxCpuPct,
           avg_gpu_pct: summary.avgGpuPct,
           max_gpu_pct: summary.maxGpuPct,
+          avg_disk_pct: summary.avgDiskPct,
+          max_disk_pct: summary.maxDiskPct,
+          avg_wifi_pct: summary.avgWifiPct,
+          max_wifi_pct: summary.maxWifiPct,
           avg_ping_ms: summary.avgPingMs,
           max_ping_ms: summary.maxPingMs,
           tips: summary.tips || [],
           samples: summary.samples || [],
           started_at: summary.startedAt,
           ended_at: summary.endedAt,
-        }).select('id').single();
+        };
+        let { error } = await sb.from('game_sessions').insert(row);
+        if (error && /avg_disk_pct|avg_wifi_pct|max_disk_pct|max_wifi_pct/.test(String(error.message || ''))) {
+          delete row.avg_disk_pct;
+          delete row.max_disk_pct;
+          delete row.avg_wifi_pct;
+          delete row.max_wifi_pct;
+          ({ error } = await sb.from('game_sessions').insert(row));
+        }
         if (error) throw error;
         showToast(`${summary.game} session saved`, 'success');
-        setPendingMatchLog({
-          sessionId: saved?.id ?? null,
-          game: summary.game,
-          durationSec: summary.durationSec,
-          mode: null,
-        });
       } catch (err) {
         showToast(`${summary.game} session ended (cloud save failed)`, 'error');
         await reportCloudError(err);
-        // Still offer a result prompt even if session save failed (no session link).
-        setPendingMatchLog({
-          sessionId: null,
-          game: summary.game,
-          durationSec: summary.durationSec,
-          mode: null,
-        });
       } finally {
         setSessionSaveTick((t) => t + 1);
       }
@@ -717,10 +715,6 @@ export function NexForgeProvider({ children }) {
       showToast(`Local v${res.localVersion} → remote v${res.remoteVersion}`, 'success');
     }
   }, [showToast]);
-
-  const clearPendingMatchLog = useCallback(() => {
-    setPendingMatchLog(null);
-  }, []);
 
   const refreshParty = useCallback(async () => {
     if (!user || guestMode) {
@@ -1086,8 +1080,6 @@ export function NexForgeProvider({ children }) {
     pendingFriendChatId,
     openFriendChat,
     clearPendingFriendChat,
-    pendingMatchLog,
-    clearPendingMatchLog,
     party,
     refreshParty,
     createParty,

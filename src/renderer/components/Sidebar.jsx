@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNexForge, GUEST_LOCKED_SCREENS } from '../context/NexForgeContext.jsx';
-import { mmrToRank, mmrToSkillTag } from '../lib/ranks.js';
 import SafeNavIcon from './SafeNavIcon.jsx';
 import PlayerAvatar, { GamerTag, displayTag } from './PlayerAvatar.jsx';
 import { COMPANION_URL } from '../lib/companion.js';
@@ -9,7 +8,6 @@ const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'matchmaking', label: 'Matchmaking' },
   { id: 'tournaments', label: 'Tournaments' },
-  { id: 'leaderboard', label: 'Leaderboard' },
 ];
 
 const SECONDARY_NAV = [
@@ -28,8 +26,7 @@ export default function Sidebar() {
     checkForUpdates, unreadTotal, dndEnabled, setDndEnabled,
   } = useNexForge();
   const tag = displayTag(profile) || profile?.gamer_tag || 'Player';
-  const skill = guestMode ? 'Guest' : mmrToSkillTag(profile?.mmr ?? 1200);
-  const rank = guestMode ? 'No account' : `${skill} · ${mmrToRank(profile?.mmr ?? 1200)}`;
+  const rank = guestMode ? 'No account' : (profile?.main_game || profile?.platform || 'PC');
 
   function renderNavItem(item) {
     const locked = guestMode && GUEST_LOCKED_SCREENS.includes(item.id);

@@ -1,16 +1,13 @@
 import React, { useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank, rankToMmrBounds } from '../lib/ranks.js';
 
-const RANKS = ['Any Rank', 'Bronze', 'Silver', 'Gold', 'Platinum', 'Diamond', 'Master', 'Grandmaster'];
 const PLATFORMS = ['Any Platform', 'PC', 'PS5', 'Xbox', 'Mobile'];
 const COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
 
 export default function Squad() {
   const { user, showToast, knownGames, reportCloudError } = useNexForge();
   const [game, setGame] = useState('Any Game');
-  const [rank, setRank] = useState('Any Rank');
   const [platform, setPlatform] = useState('Any Platform');
   const [players, setPlayers] = useState(null);
   const [searching, setSearching] = useState(false);
@@ -20,14 +17,10 @@ export default function Squad() {
     setSearching(true);
     setPlayers(null);
     try {
-      let query = sb.from('profiles').select('id,gamer_tag,mmr,main_game,platform').limit(24);
+      let query = sb.from('profiles').select('id,gamer_tag,main_game,platform').limit(24);
       if (user?.id) query = query.neq('id', user.id);
       if (game !== 'Any Game') query = query.eq('main_game', game);
       if (platform !== 'Any Platform') query = query.eq('platform', platform);
-      const bounds = rankToMmrBounds(rank);
-      if (bounds) {
-        query = query.gte('mmr', bounds.gte).lt('mmr', bounds.lt);
-      }
       const { data, error } = await query;
       if (error) throw error;
       setPlayers(data || []);
@@ -72,9 +65,6 @@ export default function Squad() {
             <option>Any Game</option>
             {knownGames.map((g) => <option key={g}>{g}</option>)}
           </select>
-          <select value={rank} onChange={(e) => setRank(e.target.value)}>
-            {RANKS.map((r) => <option key={r}>{r}</option>)}
-          </select>
           <select value={platform} onChange={(e) => setPlatform(e.target.value)}>
             {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
           </select>
@@ -103,7 +93,7 @@ export default function Squad() {
                 <div className="player-av" style={{ background: `${col}22`, color: col }}>{init}</div>
                 <div className="player-info">
                   <div className="player-tag">{p.gamer_tag}</div>
-                  <div className="player-game">{p.main_game || '—'} · {p.platform || 'PC'} · {mmrToRank(p.mmr)}</div>
+                  <div className="player-game">{p.main_game || '—'} · {p.platform || 'PC'}</div>
                 </div>
                 <button
                   className="action-btn ghost"

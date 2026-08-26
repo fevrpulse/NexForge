@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
-import { mmrToRank, mmrToSkillTag, skillTagClass } from '../lib/ranks.js';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
-import CoachPanel from '../components/CoachPanel.jsx';
 import { COMPANION_URL } from '../lib/companion.js';
+import { formatDuration } from '../lib/format.js';
 
 function shortCosmeticId(id) {
   if (!id) return '—';
@@ -28,25 +27,28 @@ function formatRelativeTime(dateStr) {
 }
 
 export default function Dashboard() {
-  const { profile, user, guestMode, setScreen, showToast, createAccount, openFriendChat, activeSeason, seasonRating, battlePassXp } = useNexForge();
-  const [matches, setMatches] = useState([]);
+  const {
+    profile, user, guestMode, setScreen, createAccount, openFriendChat,
+    activeSeason, battlePassXp, sessionSaveTick,
+  } = useNexForge();
+  const [sessions, setSessions] = useState([]);
   const [friendActivity, setFriendActivity] = useState([]);
 
   useEffect(() => {
     if (!user || guestMode) {
-      setMatches([]);
+      setSessions([]);
       return;
     }
     let active = true;
-    sb.from('matches')
-      .select('*')
+    sb.from('game_sessions')
+      .select('id,game,duration_sec,ended_at,avg_ram_mb,avg_cpu_pct,avg_gpu_pct,avg_disk_pct,avg_wifi_pct')
       .eq('user_id', user.id)
-      .order('played_at', { ascending: false })
+      .order('ended_at', { ascending: false })
       .limit(5)
-      .then(({ data, error }) => { if (active && !error) setMatches(data || []); })
-      .catch(() => { if (active) setMatches([]); });
+      .then(({ data, error }) => { if (active && !error) setSessions(data || []); })
+      .catch(() => { if (active) setSessions([]); });
     return () => { active = false; };
-  }, [user, guestMode, profile?.wins, profile?.losses]);
+  }, [user, guestMode, sessionSaveTick]);
 
   useEffect(() => {
     if (!user || guestMode) {
@@ -62,26 +64,22 @@ export default function Dashboard() {
 
   if (!profile) return null;
 
-  const total = (profile.wins || 0) + (profile.losses || 0);
-  const wr = total > 0 ? Math.round((profile.wins / total) * 100) : 0;
   const since = profile.created_at
     ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
     : '—';
-  const skillTag = mmrToSkillTag(profile.mmr);
   const coins = profile.forge_coins ?? 0;
 
   return (
     <div>
       <LiveSessionBanner />
-      {!guestMode && <CoachPanel compact />}
       <div className={`dash-hero ${guestMode ? 'guest' : ''}`}>
         <div className="dash-hero-copy">
           <p className="dash-kicker">Command deck</p>
           <h2 className="dash-welcome">{guestMode ? 'Drop in as guest.' : 'Welcome back.'}</h2>
           <p className="dash-lede">
             {guestMode
-              ? 'Browse the forge. Create an account to keep rank, chat, and cosmetics.'
-              : 'Rank, sessions, and crew on one floor. Queue up or jump into a lounge.'}
+              ? 'Browse the forge. Create an account to keep chat, sessions, and cosmetics.'
+              : 'Sessions, crew, and hardware on one floor. Queue up or jump into a lounge.'}
           </p>
         </div>
         {!guestMode && (
@@ -90,15 +88,12 @@ export default function Dashboard() {
             <div>
               <div style={{ fontSize: 20, fontWeight: 800 }}><GamerTag profile={profile} /></div>
               <div className="loadout-showcase-meta">
-                {skillTag} · {mmrToRank(profile.mmr)} · {coins.toLocaleString()} coins ·{' '}
+                {profile.main_game || '—'} · {coins.toLocaleString()} coins ·{' '}
                 {shortCosmeticId(profile.equipped_frame)} / {shortCosmeticId(profile.equipped_banner)} / {shortCosmeticId(profile.equipped_nameplate)}
                 {activeSeason?.name ? ` · ${activeSeason.name}` : ''}
-                {seasonRating?.mmr != null ? ` · season ${seasonRating.mmr}` : ''}
                 {battlePassXp != null ? ` · pass ${battlePassXp} XP` : ''}
               </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                <span className={`badge ${skillTagClass(skillTag)}`}>{skillTag}</span>
-                <span className="badge badge-neon">{mmrToRank(profile.mmr)}</span>
                 {activeSeason?.name && (
                   <span className="badge season-badge">{activeSeason.name}</span>
                 )}
@@ -112,33 +107,23 @@ export default function Dashboard() {
       </div>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-label">MMR Rating</div>
+          <div className="stat-label">Forge Coins</div>
           <div className="stat-val neon" style={guestMode ? { filter: 'blur(4px)' } : undefined}>
-            {guestMode ? '???' : (profile.mmr || 1200).toLocaleString()}
+            {guestMode ? '???' : coins.toLocaleString()}
           </div>
-          <div className="stat-sub up">
-            {guestMode
-              ? 'Your rank score'
-              : seasonRating?.mmr != null
-                ? `Lifetime · season ${seasonRating.mmr}`
-                : 'Lifetime career MMR'}
-          </div>
+          <div className="stat-sub">{guestMode ? 'Sign up to earn coins' : 'Spend in the shop'}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Win Rate</div>
+          <div className="stat-label">Sessions</div>
           <div className="stat-val" style={guestMode ? { filter: 'blur(4px)' } : undefined}>
-            {guestMode ? '??%' : (total > 0 ? `${wr}%` : '—')}
+            {guestMode ? '—' : sessions.length}
           </div>
-          <div className="stat-sub">
-            {guestMode
-              ? 'Sign up to track stats'
-              : total > 0 ? (wr >= 50 ? '↑ Above average' : '↓ Keep grinding') : 'No matches yet'}
-          </div>
+          <div className="stat-sub">{guestMode ? 'Hardware tracking locked' : 'recent tracked games'}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Matches Played</div>
-          <div className="stat-val">{guestMode ? '—' : total}</div>
-          <div className="stat-sub">{guestMode ? 'All games available' : (profile.main_game || 'Set your main game')}</div>
+          <div className="stat-label">Main Game</div>
+          <div className="stat-val" style={{ fontSize: 16 }}>{guestMode ? '—' : (profile.main_game || '—')}</div>
+          <div className="stat-sub">{profile.platform || 'PC'}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Member Since</div>
@@ -149,52 +134,35 @@ export default function Dashboard() {
 
       <div className="three-col">
         <div className="card">
-          <div className="card-title">Recent Matches</div>
+          <div className="card-title">Recent Sessions</div>
           {guestMode ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>🔒</div>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Match history locked</div>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6 }}>Session history locked</div>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginBottom: 14 }}>
-                Create an account to track every match you play
+                Create an account to track RAM, CPU, GPU, disk, and Wi‑Fi
               </div>
-              <button
-                className="action-btn primary"
-                onClick={createAccount}
-              >
+              <button className="action-btn primary" onClick={createAccount}>
                 Create Free Account →
               </button>
             </div>
-          ) : matches.length > 0 ? (
-            matches.map((m) => {
-              const st = m.stats || {};
-              const bits = [];
-              if (st.kills !== undefined) bits.push(`${st.kills}/${st.deaths || 0}/${st.assists || 0}`);
-              if (st.kda) bits.push(`KDA ${st.kda}`);
-              if (st.placement) bits.push(st.placement);
-              if (st.goals !== undefined) bits.push(`${st.goals} goals`);
-              if (st.mvp) bits.push('MVP');
-              if (st.ace) bits.push('ACE');
-              const logged = m.source === 'self_report';
-              return (
-                <div className="row" key={m.id}>
-                  <div>
-                    <div className="row-title">
-                      {m.game}
-                      {logged && <span className="match-source-badge">logged</span>}
-                    </div>
-                    <div className="row-sub">{m.mode}{bits.length ? ` · ${bits.join(' · ')}` : ''}</div>
-                  </div>
-                  <div className={`result ${m.result === 'win' ? 'win' : 'loss'}`}>
-                    {logged
-                      ? (m.result === 'win' ? 'WIN' : 'LOSS')
-                      : (m.result === 'win' ? `WIN +${m.mmr_change}` : `LOSS ${m.mmr_change}`)}
+          ) : sessions.length > 0 ? (
+            sessions.map((s) => (
+              <div className="row" key={s.id}>
+                <div>
+                  <div className="row-title">{s.game}</div>
+                  <div className="row-sub">
+                    {formatDuration(s.duration_sec)}
+                    {s.ended_at ? ` · ${formatRelativeTime(s.ended_at)}` : ''}
                   </div>
                 </div>
-              );
-            })
+                <div className="row-sub" style={{ textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 11 }}>
+                  {s.avg_cpu_pct != null ? `CPU ${Number(s.avg_cpu_pct).toFixed(0)}%` : '—'}
+                </div>
+              </div>
+            ))
           ) : (
             <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
-              No matches yet — find your first match!
+              No sessions yet — launch a tracked game
             </div>
           )}
         </div>
@@ -205,7 +173,6 @@ export default function Dashboard() {
             <>
               <div className="row"><span>Mode</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--red)' }}>Guest</span></div>
               <div className="row"><span>Stats</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted2)' }}>Not saved</span></div>
-              <div className="row"><span>Rank</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted2)' }}>Unranked</span></div>
             </>
           ) : (
             <>
@@ -222,7 +189,6 @@ export default function Dashboard() {
                   )}
                 </span>
               </div>
-              <div className="row"><span>Rank</span><span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--neon)' }}>{mmrToRank(profile.mmr)}</span></div>
               <button className="action-btn ghost full" style={{ marginTop: 10, padding: 8 }} onClick={() => setScreen('profile')}>
                 Change Main Game
               </button>
@@ -232,6 +198,9 @@ export default function Dashboard() {
             <div className="card-title" style={{ marginBottom: 8 }}>Quick Actions</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
               <button className="action-btn primary full" onClick={() => setScreen('matchmaking')}>Find a Match</button>
+              <button className="action-btn ghost full" style={{ padding: 9 }} onClick={() => setScreen('analytics')}>
+                Open Analytics
+              </button>
               <button className="action-btn ghost full" style={{ padding: 9 }} onClick={() => setScreen('tournaments')}>
                 Browse Tournaments
               </button>
@@ -258,7 +227,6 @@ export default function Dashboard() {
           <div className="card-title">Friend Activity</div>
           {guestMode ? (
             <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <div style={{ fontSize: 28, marginBottom: 10 }}>🔒</div>
               <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)' }}>
                 Sign in to see what your friends are playing
               </div>
@@ -273,18 +241,13 @@ export default function Dashboard() {
               >
                 <div>
                   <div className="row-title">{a.gamer_tag} · {a.game}</div>
-                  <div className="row-sub">
-                    {a.result === 'win' ? 'WIN' : 'LOSS'} · {a.mode} · {formatRelativeTime(a.played_at)}
-                  </div>
-                </div>
-                <div className={`result ${a.result === 'win' ? 'win' : 'loss'}`}>
-                  {a.result === 'win' ? `+${a.mmr_change}` : a.mmr_change}
+                  <div className="row-sub">{a.mode || 'Session'} · {formatRelativeTime(a.played_at)}</div>
                 </div>
               </div>
             ))
           ) : (
             <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
-              No friend activity yet — play matches with friends.
+              No friend activity yet.
             </div>
           )}
         </div>
