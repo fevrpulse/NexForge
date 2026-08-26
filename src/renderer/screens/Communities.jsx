@@ -785,7 +785,7 @@ export default function Communities() {
                             <div className="comm-msg-body">{m.body}</div>
                           </div>
                         </div>
-                      ))
+                      ))}
                       </>
                     )}
                   </div>

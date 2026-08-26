@@ -27,6 +27,7 @@ const PROCESS_GAME_MAP = {
   'League of Legends': 'League of Legends',
   'dota2': 'Dota 2',
   'Minecraft.Windows': 'Minecraft',
+  'javaw': 'Minecraft',
   'RobloxPlayerBeta': 'Roblox',
   'GTA5': 'GTA Online',
   'PlayGTAV': 'GTA Online',
@@ -80,6 +81,26 @@ function avg(nums) {
 function maxOf(nums) {
   if (!nums.length) return null;
   return Math.max(...nums);
+}
+
+/** Java Edition is javaw.exe — do not treat every Java app as Minecraft. */
+function isJavaMinecraft(windowTitle, exePath) {
+  const title = String(windowTitle || '').toLowerCase();
+  const path = String(exePath || '').toLowerCase();
+  // Vanilla + common clients. Skip launcher UI so opening it is not a play session.
+  if (title && !title.includes('launcher')) {
+    if (
+      title.includes('minecraft')
+      || title.includes('lunar')
+      || title.includes('badlion')
+      || title.includes('feather')
+      || title.includes('labymod')
+    ) {
+      return true;
+    }
+  }
+  return /[\\/](?:\.minecraft|minecraft|prismlauncher|multimc|modrinth|curseforge|lunarclient|lunar client|badlion|feather)[\\/]/i.test(path)
+    || path.includes('.minecraft');
 }
 
 function buildTips({ avgRamMb, avgCpuPct, avgGpuPct, avgPingMs }) {
@@ -291,25 +312,33 @@ Get-Process -ErrorAction SilentlyContinue |
     ($_.WorkingSet64 -ge $minBytes)
   } |
   Sort-Object WorkingSet64 -Descending |
-  Select-Object -First 1 Id, ProcessName, WorkingSet64, CPU, MainWindowTitle |
+  Select-Object -First 8 Id, ProcessName, Path, WorkingSet64, CPU, MainWindowTitle |
   ConvertTo-Json -Compress
 `;
     try {
       const out = await execPs(script);
       if (!out) return null;
-      const row = JSON.parse(out);
-      if (!row || !row.Id) return null;
-      const processName = String(row.ProcessName);
-      const game = PROCESS_GAME_MAP[processName];
-      if (!game) return null;
-      return {
-        pid: Number(row.Id),
-        processName,
-        game,
-        ramMb: Math.round(Number(row.WorkingSet64 || 0) / (1024 * 1024)),
-        cpuSeconds: Number(row.CPU || 0),
-        windowTitle: row.MainWindowTitle || '',
-      };
+      const parsed = JSON.parse(out);
+      const rows = Array.isArray(parsed) ? parsed : [parsed];
+      for (const row of rows) {
+        if (!row || !row.Id) continue;
+        const processName = String(row.ProcessName || '');
+        const game = PROCESS_GAME_MAP[processName];
+        if (!game) continue;
+        if (processName.toLowerCase() === 'javaw'
+            && !isJavaMinecraft(row.MainWindowTitle, row.Path)) {
+          continue;
+        }
+        return {
+          pid: Number(row.Id),
+          processName,
+          game,
+          ramMb: Math.round(Number(row.WorkingSet64 || 0) / (1024 * 1024)),
+          cpuSeconds: Number(row.CPU || 0),
+          windowTitle: row.MainWindowTitle || '',
+        };
+      }
+      return null;
     } catch (err) {
       console.error('Process scan failed:', err.message || err);
       return null;

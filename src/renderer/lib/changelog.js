@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.2.1',
+    highlights: [
+      'Java Minecraft is tracked — javaw.exe with a Minecraft, Lunar, Badlion, or Feather window counts as a session',
+      'Community chat builds again so the Windows installer can ship',
+    ],
+  },
+  {
     version: '4.2.0',
     highlights: [
       'Database hardening — tournament brackets, clan coin farm, DM edits, and lobby timeouts',
