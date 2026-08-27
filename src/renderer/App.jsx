@@ -23,16 +23,16 @@ import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
 
 const SCREEN_META = {
-  dashboard: { title: 'Dashboard', badge: 'LIVE' },
-  matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
-  tournaments: { title: 'Tournaments', badge: 'OPEN' },
-  friends: { title: 'Friends', badge: 'SOCIAL' },
-  communities: { title: 'Communities', badge: 'LOUNGES' },
-  clans: { title: 'Clans', badge: 'CREW' },
-  shop: { title: 'Cosmetics Shop', badge: 'FORGE' },
-  profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
-  analytics: { title: 'Analytics', badge: 'STATS' },
-  squad: { title: 'Squad Finder', badge: 'FIND TEAM' },
+  dashboard: { title: 'Dashboard', badge: 'LIVE', tone: 'lime' },
+  matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH', tone: 'orange' },
+  tournaments: { title: 'Tournaments', badge: 'OPEN', tone: 'gold' },
+  friends: { title: 'Friends', badge: 'SOCIAL', tone: 'blue' },
+  communities: { title: 'Communities', badge: 'LOUNGES', tone: 'cyan' },
+  clans: { title: 'Clans', badge: 'CREW', tone: 'purple' },
+  shop: { title: 'Cosmetics Shop', badge: 'FORGE', tone: 'magenta' },
+  profile: { title: 'My Profile', badge: 'MY ACCOUNT', tone: 'lime' },
+  analytics: { title: 'Analytics', badge: 'STATS', tone: 'cyan' },
+  squad: { title: 'Squad Finder', badge: 'FIND TEAM', tone: 'coral' },
 };
 
 const SCREEN_COMPONENTS = {
@@ -71,7 +71,7 @@ function AppShell() {
     );
   }
 
-  const meta = SCREEN_META[screen] || { title: screen, badge: '' };
+  const meta = SCREEN_META[screen] || { title: screen, badge: '', tone: 'lime' };
   const ScreenComponent = SCREEN_COMPONENTS[screen] || Dashboard;
 
   return (
@@ -91,7 +91,7 @@ function AppShell() {
           Retry
         </button>
       </div>
-      <div className="app">
+      <div className="app" data-screen={screen}>
         <Sidebar />
         <div className="main">
           <div className="topbar">
@@ -103,7 +103,7 @@ function AppShell() {
               {appVersion && (
                 <span className="badge badge-muted" title="App version">v{appVersion}</span>
               )}
-              <span className="badge badge-neon">{meta.badge}</span>
+              <span className={`badge badge-tone-${meta.tone || 'lime'}`}>{meta.badge}</span>
             </div>
           </div>
           <div className="content">

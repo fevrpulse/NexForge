@@ -52,26 +52,67 @@ export default function Dashboard() {
         )}
       </div>
       <div className="stats-grid stats-grid-3">
-        <div className="stat-card">
+        <div className="stat-card stat-card-coins">
           <div className="stat-label">Forge Coins</div>
           <div className="stat-val neon" style={guestMode ? { filter: 'blur(4px)' } : undefined}>
             {guestMode ? '???' : coins.toLocaleString()}
           </div>
           <div className="stat-sub">{guestMode ? 'Sign up to earn coins' : 'Spend in the shop'}</div>
         </div>
-        <div className="stat-card">
+        <div className="stat-card stat-card-game">
           <div className="stat-label">Main Game</div>
           <div className="stat-val" style={{ fontSize: 16 }}>{guestMode ? '—' : (profile.main_game || '—')}</div>
           <div className="stat-sub">{profile.platform || 'PC'}</div>
         </div>
-        <div className="stat-card">
+        <div className="stat-card stat-card-since">
           <div className="stat-label">Member Since</div>
           <div className="stat-val" style={{ fontSize: 16 }}>{guestMode ? 'Guest' : since}</div>
           <div className="stat-sub">NexForge player</div>
         </div>
       </div>
 
-      <div className="card">
+      <div className="dash-actions">
+        <button type="button" className="dash-tile tile-match" onClick={() => setScreen('matchmaking')}>
+          <span className="dash-tile-kicker">Play</span>
+          <span className="dash-tile-title">Find a Match</span>
+          <span className="dash-tile-sub">Queues, lobbies, and ready-up</span>
+        </button>
+        <button type="button" className="dash-tile tile-tourney" onClick={() => setScreen('tournaments')}>
+          <span className="dash-tile-kicker">Compete</span>
+          <span className="dash-tile-title">Tournaments</span>
+          <span className="dash-tile-sub">Brackets, check-in, prizes</span>
+        </button>
+        <button type="button" className="dash-tile tile-analytics" onClick={() => setScreen('analytics')}>
+          <span className="dash-tile-kicker">Hardware</span>
+          <span className="dash-tile-title">Analytics</span>
+          <span className="dash-tile-sub">RAM, CPU, GPU, and Wi‑Fi</span>
+        </button>
+        {!guestMode ? (
+          <button
+            type="button"
+            className="dash-tile tile-companion"
+            onClick={() => {
+              if (window.nexforge?.openExternalUrl) {
+                window.nexforge.openExternalUrl(COMPANION_URL);
+              } else {
+                window.open(COMPANION_URL, '_blank', 'noopener,noreferrer');
+              }
+            }}
+          >
+            <span className="dash-tile-kicker">Phone</span>
+            <span className="dash-tile-title">Companion</span>
+            <span className="dash-tile-sub">Chat and lobby codes on the go</span>
+          </button>
+        ) : (
+          <button type="button" className="dash-tile tile-shop" onClick={() => setScreen('shop')}>
+            <span className="dash-tile-kicker">Style</span>
+            <span className="dash-tile-title">Shop</span>
+            <span className="dash-tile-sub">Frames, banners, nameplates</span>
+          </button>
+        )}
+      </div>
+
+      <div className="card dash-profile-card">
         <div className="card-title">Your Profile</div>
         {guestMode ? (
           <>
@@ -98,33 +139,6 @@ export default function Dashboard() {
             </button>
           </>
         )}
-        <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
-          <div className="card-title" style={{ marginBottom: 8 }}>Quick Actions</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-            <button className="action-btn primary full" onClick={() => setScreen('matchmaking')}>Find a Match</button>
-            <button className="action-btn ghost full" style={{ padding: 9 }} onClick={() => setScreen('analytics')}>
-              Open Analytics
-            </button>
-            <button className="action-btn ghost full" style={{ padding: 9 }} onClick={() => setScreen('tournaments')}>
-              Browse Tournaments
-            </button>
-            {!guestMode && (
-              <button
-                className="action-btn ghost full"
-                style={{ padding: 9 }}
-                onClick={() => {
-                  if (window.nexforge?.openExternalUrl) {
-                    window.nexforge.openExternalUrl(COMPANION_URL);
-                  } else {
-                    window.open(COMPANION_URL, '_blank', 'noopener,noreferrer');
-                  }
-                }}
-              >
-                Open Companion
-              </button>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );

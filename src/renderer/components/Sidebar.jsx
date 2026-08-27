@@ -33,7 +33,7 @@ export default function Sidebar() {
     return (
       <div
         key={item.id}
-        className={`nav-item ${screen === item.id ? 'active' : ''} ${locked ? 'locked-nav' : ''}`}
+        className={`nav-item nav-${item.id} ${screen === item.id ? 'active' : ''} ${locked ? 'locked-nav' : ''}`}
         onClick={() => setScreen(item.id)}
       >
         <span className="nav-icon"><SafeNavIcon id={item.id} /></span>

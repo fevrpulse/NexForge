@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.5.1',
+    highlights: [
+      'The UI has real color now — each screen has its own accent',
+      'Dashboard uses tinted stats and action tiles instead of a gray stack',
+      'Sidebar, top bar, chat, and shop rarity follow those accents',
+    ],
+  },
+  {
     version: '4.5.0',
     highlights: [
       'NexAI starter prompts plus Ctrl+Shift+A to open or close the dock',
