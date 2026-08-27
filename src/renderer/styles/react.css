@@ -260,6 +260,15 @@
   0%,80%,100%{opacity:.25;transform:translateY(0)}
   40%{opacity:1;transform:translateY(-3px)}
 }
+.np-suggestions{
+  display:flex;flex-wrap:wrap;gap:6px;padding:0 12px 10px;flex-shrink:0;
+}
+.np-chip{
+  background:rgba(201,255,0,.06);border:1px solid rgba(201,255,0,.22);color:var(--text);
+  border-radius:999px;padding:6px 10px;font-family:var(--mono);font-size:10px;
+  cursor:pointer;transition:border-color .15s,color .15s,background .15s;
+}
+.np-chip:hover{border-color:var(--neon);color:var(--neon);background:rgba(201,255,0,.12)}
 .np-composer{
   display:flex;gap:8px;padding:12px;border-top:1px solid rgba(201,255,0,.12);flex-shrink:0;
   background:linear-gradient(180deg, transparent, rgba(0,0,0,.28));

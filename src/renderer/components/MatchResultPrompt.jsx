@@ -3,7 +3,7 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 
-/** Post-session one-tap W/L prompt (no MMR). */
+/** Post-session one-tap W/L prompt. */
 export default function MatchResultPrompt() {
   const {
     pendingMatchLog,
@@ -45,7 +45,6 @@ export default function MatchResultPrompt() {
         <div className="match-result-prompt-sub">
           {pendingMatchLog.game}
           {pendingMatchLog.durationSec != null ? ` · ${formatDuration(pendingMatchLog.durationSec)}` : ''}
-          {' · '}no MMR change
         </div>
       </div>
       <div className="match-result-prompt-actions">

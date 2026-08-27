@@ -100,6 +100,13 @@
     .ai-bubble.bot { align-self: flex-start; }
     .ai-compose { display: flex; gap: 8px; margin-top: 8px; }
     .ai-compose input { flex: 1; }
+    .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .ai-chip {
+      background: transparent; border: 1px solid var(--border); color: var(--text);
+      border-radius: 999px; padding: 6px 10px; font-family: var(--mono);
+      font-size: 10px; cursor: pointer;
+    }
+    .ai-chip:hover { border-color: var(--neon); color: var(--neon); }
   </style>
 </head>
 <body>
@@ -142,7 +149,7 @@
 
     <div id="ai-view" class="hidden">
       <div class="logo">Nex<span>AI</span></div>
-      <div class="tag">Ask anything — especially ranked climb, comps, and NexForge</div>
+      <div class="tag">Ask anything — especially gaming tips, warmups, and NexForge</div>
       <div id="ai-body"></div>
     </div>
 
@@ -173,10 +180,50 @@
     let tab = 'home';
     let pollId = null;
     let uid = null;
-    let aiBusy = false;
-    let aiMsgs = [
-      { role: 'assistant', content: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
+    const AI_WELCOME = "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, warmups, comps, and NexForge itself.";
+    const AI_SUGGESTIONS = [
+      'Give me a 10-minute warmup',
+      'How do I start a party?',
+      'Tips after a losing streak',
     ];
+    let aiBusy = false;
+    let aiMsgs = [{ role: 'assistant', content: AI_WELCOME }];
+
+    function friendlyNexAiError(detail) {
+      const raw = String(detail || '');
+      if (/not authenticated|invalid session/i.test(raw)) return 'Sign in again to use NexAI.';
+      if (/empty/i.test(raw)) return 'NexAI sent a blank reply. Try asking again.';
+      if (/could not reach|failed to fetch|network|load failed/i.test(raw)) {
+        return 'Could not reach NexAI. Check your connection and try again.';
+      }
+      if (/invalid api key|invalid_api_key|authenticate with groq|app_secrets|groq|gsk_|bearer|openai\//i.test(raw)) {
+        return 'NexAI is temporarily unavailable. Try again in a bit.';
+      }
+      return raw || 'NexAI is unavailable';
+    }
+
+    function loadAiMsgs() {
+      if (!uid) return;
+      try {
+        const raw = localStorage.getItem(`nexpanion-chat:${uid}`);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length) {
+          const next = parsed.map((m) => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: String(m.content || m.body || ''),
+          })).filter((m) => m.content);
+          if (next.length) aiMsgs = next;
+        }
+      } catch { /* ignore */ }
+    }
+
+    function saveAiMsgs() {
+      if (!uid) return;
+      try {
+        localStorage.setItem(`nexpanion-chat:${uid}`, JSON.stringify(aiMsgs.slice(-80)));
+      } catch { /* ignore */ }
+    }
 
     const $ = (id) => document.getElementById(id);
     const views = {
@@ -235,7 +282,7 @@
         return;
       }
       const p = home.profile || {};
-      $('hello').textContent = `${p.gamer_tag || 'Player'} · ${p.mmr ?? '—'} MMR`;
+      $('hello').textContent = p.gamer_tag || 'Companion';
       const coach = home.coach;
       const lobby = home.lobby;
       const party = home.party;
@@ -362,8 +409,10 @@
         </div>`).join('')}</div>`;
     }
 
-    function renderAi() {
+    function renderAi(restoreDraft) {
+      const existingDraft = restoreDraft || $('ai-input')?.value || '';
       const body = $('ai-body');
+      const showChips = !aiBusy && !aiMsgs.some((m) => m.role === 'user');
       body.innerHTML = `
         <div class="card">
           <div class="ai-log" id="ai-log">
@@ -371,6 +420,9 @@
               <div class="ai-bubble ${m.role === 'user' ? 'mine' : 'bot'}">${esc(m.content)}</div>
             `).join('')}
           </div>
+          ${showChips ? `<div class="ai-chips">${AI_SUGGESTIONS.map((p) =>
+            `<button class="ai-chip" type="button" data-ai-prompt="${esc(p)}">${esc(p)}</button>`
+          ).join('')}</div>` : ''}
           <div class="ai-compose">
             <input id="ai-input" type="text" maxlength="2000" placeholder="Ask NexAI…" ${aiBusy ? 'disabled' : ''} />
             <button class="btn" type="button" id="ai-send" ${aiBusy ? 'disabled' : ''}>${aiBusy ? '…' : 'Send'}</button>
@@ -383,14 +435,14 @@
       const log = $('ai-log');
       if (log) log.scrollTop = log.scrollHeight;
       const input = $('ai-input');
+      if (input && existingDraft) input.value = existingDraft;
       if (input && !aiBusy) input.focus();
     }
 
-    async function sendAi() {
+    async function sendAi(preset) {
       const input = $('ai-input');
-      if (!input || aiBusy) return;
-      const text = input.value.trim();
-      if (!text) return;
+      const text = String(preset || input?.value || '').trim();
+      if (!text || aiBusy) return;
       aiBusy = true;
       aiMsgs = [...aiMsgs, { role: 'user', content: text }];
       renderAi();
@@ -403,28 +455,40 @@
         const { data, error } = await sb.functions.invoke('nexpanion-chat', {
           body: { message: text, history },
         });
-        if (error) throw error;
+        if (error) {
+          let detail = error.message || 'NexAI is unavailable';
+          try {
+            if (error.context && typeof error.context.json === 'function') {
+              const parsed = await error.context.json();
+              if (parsed?.error) detail = parsed.error;
+            }
+          } catch { /* ignore */ }
+          throw new Error(detail);
+        }
         if (data?.error) throw new Error(data.error);
         const reply = String(data?.reply || '').trim();
         if (!reply) throw new Error('Empty reply');
         aiMsgs = [...aiMsgs, { role: 'assistant', content: reply }];
-      } catch (err) {
-        aiMsgs = [...aiMsgs, {
-          role: 'assistant',
-          content: `Sorry — ${err?.message || 'NexAI is unavailable right now.'}`,
-        }];
-      } finally {
+        saveAiMsgs();
         aiBusy = false;
         renderAi();
+      } catch (err) {
+        aiMsgs = aiMsgs.slice(0, -1);
+        aiBusy = false;
+        renderAi(text);
+        const msgEl = $('ai-msg');
+        if (msgEl) setMsg(msgEl, friendlyNexAiError(err?.message), false);
       }
     }
 
     function render() {
       if (tab === 'home') renderHome();
-      if (tab === 'inbox') renderInbox();
-      if (tab === 'ai') renderAi();
-      if (tab === 'party') renderParty();
-      if (tab === 'events') renderEvents();
+      else if (tab === 'inbox') renderInbox();
+      else if (tab === 'ai') {
+        if (!$('ai-log')) renderAi();
+      }
+      else if (tab === 'party') renderParty();
+      else if (tab === 'events') renderEvents();
     }
 
     async function boot() {
@@ -435,6 +499,7 @@
         return;
       }
       uid = session.user.id;
+      loadAiMsgs();
       setAuthed(true);
       try {
         await sb.rpc('register_companion_device', {
@@ -554,10 +619,14 @@
         await sendAi();
         return;
       }
+      const prompt = t.getAttribute('data-ai-prompt');
+      if (prompt) {
+        await sendAi(prompt);
+        return;
+      }
       if (t.id === 'ai-clear') {
-        aiMsgs = [
-          { role: 'assistant', content: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself." },
-        ];
+        aiMsgs = [{ role: 'assistant', content: AI_WELCOME }];
+        saveAiMsgs();
         renderAi();
       }
     });

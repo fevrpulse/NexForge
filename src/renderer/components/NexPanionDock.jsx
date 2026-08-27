@@ -5,8 +5,14 @@ import { askNexPanion, NEXPANION_ID } from '../lib/nexpanion.js';
 const WELCOME = {
   id: 'nexpanion-welcome',
   role: 'assistant',
-  body: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, ranked climb, comps, and NexForge itself.",
+  body: "Hey — I'm NexAI. Ask me anything. I'm especially sharp on gaming tips, warmups, comps, and NexForge itself.",
 };
+
+const SUGGESTIONS = [
+  'Give me a 10-minute warmup',
+  'How do I start a party?',
+  'Tips after a losing streak',
+];
 
 function timeLabel(iso) {
   const d = new Date(iso);
@@ -62,13 +68,20 @@ export default function NexPanionDock() {
   }, [msgs, myId, ready]);
 
   useEffect(() => {
-    if (!open) return undefined;
+    if (!user || guestMode) return undefined;
     const onKey = (e) => {
-      if (e.key === 'Escape') setOpen(false);
+      if (e.key === 'Escape' && open) {
+        setOpen(false);
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && String(e.key).toLowerCase() === 'a') {
+        e.preventDefault();
+        setOpen((v) => !v);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
+  }, [open, user, guestMode]);
 
   useEffect(() => {
     if (open && scrollRef.current) {
@@ -80,8 +93,8 @@ export default function NexPanionDock() {
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  async function send() {
-    const body = draft.trim();
+  async function send(text) {
+    const body = String(text ?? draft).trim();
     if (!body || sending) return;
     setSending(true);
     setDraft('');
@@ -111,6 +124,8 @@ export default function NexPanionDock() {
         },
       ]);
     } catch (err) {
+      setMsgs((prev) => prev.filter((m) => m.id !== userMsg.id));
+      setDraft(body);
       showToast(err?.message || 'NexAI failed to reply.', 'error');
       await reportCloudError(err);
     } finally {
@@ -120,6 +135,8 @@ export default function NexPanionDock() {
 
   if (!user || guestMode) return null;
 
+  const showSuggestions = !sending && msgs.every((m) => m.id === 'nexpanion-welcome' || m.role !== 'user');
+
   return (
     <div className={`np-dock ${open ? 'open' : ''}`}>
       {open && (
@@ -128,7 +145,7 @@ export default function NexPanionDock() {
             <div className="np-head-mark" aria-hidden>AI</div>
             <div className="np-head-copy">
               <div className="np-head-title">NexAI</div>
-              <div className="np-head-sub">Gaming tips · ranked · the app</div>
+              <div className="np-head-sub">Gaming tips · Ctrl+Shift+A</div>
             </div>
             <button
               type="button"
@@ -165,6 +182,20 @@ export default function NexPanionDock() {
               </div>
             )}
           </div>
+          {showSuggestions && (
+            <div className="np-suggestions">
+              {SUGGESTIONS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  className="np-chip"
+                  onClick={() => send(prompt)}
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="np-composer">
             <input
               ref={inputRef}
@@ -179,7 +210,7 @@ export default function NexPanionDock() {
               type="button"
               className="action-btn primary"
               disabled={sending || !draft.trim()}
-              onClick={send}
+              onClick={() => send()}
             >
               Send
             </button>
@@ -191,7 +222,7 @@ export default function NexPanionDock() {
         <button
           type="button"
           className={`np-fab ${open ? 'active' : ''}`}
-          title={open ? 'Close NexAI' : 'Open NexAI'}
+          title={open ? 'Close NexAI' : 'Open NexAI (Ctrl+Shift+A)'}
           aria-label={open ? 'Close NexAI' : 'Open NexAI'}
           onClick={() => setOpen((v) => !v)}
         >

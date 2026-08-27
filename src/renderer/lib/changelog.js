@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.5.0',
+    highlights: [
+      'NexAI starter prompts plus Ctrl+Shift+A to open or close the dock',
+      'NexAI errors stay user-facing — no key or provider internals',
+      'Companion drops MMR, remembers NexAI chat, and keeps your draft across refreshes',
+      'Connect Discord / Riot / Epic only shows when that OAuth app is actually set up',
+    ],
+  },
+  {
     version: '4.2.3',
     highlights: [
       'Dashboard is quieter — friend activity, session lists, and season pass are gone',

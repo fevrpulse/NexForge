@@ -96,6 +96,8 @@ function isJavaMinecraft(windowTitle, exePath) {
       || title.includes('badlion')
       || title.includes('feather')
       || title.includes('labymod')
+      || title.includes('prism')
+      || title.includes('modrinth')
     ) {
       return true;
     }

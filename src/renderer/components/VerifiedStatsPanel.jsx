@@ -329,7 +329,7 @@ export default function VerifiedStatsPanel() {
 
                 {!link && (
                   <div className="verified-link-form" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                    {p.oauthLabel && (
+                    {oauthReady && (
                       <button
                         type="button"
                         className="action-btn primary"

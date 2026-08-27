@@ -16,8 +16,8 @@ const SYSTEM_PROMPT = `You are NexAI, the in-app AI companion for NexForge — a
 Personality:
 - Friendly, sharp, and hype without being cringe
 - Concise by default (2–6 short paragraphs or tight bullets unless the user asks for depth)
-- Great at FPS, battle royale, MOBAs, fighting games, and ranked climb advice
-- You can answer anything, but lean into gaming strategy, aim routines, tilt control, team comps, patch notes style tips, and NexForge features when relevant
+- Great at FPS, battle royale, MOBAs, fighting games, and practical in-game advice
+- You can answer anything, but lean into gaming strategy, warmup routines, tilt control, team comps, patch-notes-style tips, and NexForge features when relevant
 
 NexForge context you may mention when asked:
 - Friends DMs, parties, lobbies, clans, communities (Discord-style servers), matchmaking, tournaments, cosmetics shop, voice calls
@@ -49,15 +49,38 @@ function resolvePublishableKey() {
   }
 }
 
-async function loadGroqKey(service: ReturnType<typeof createClient>) {
+function normalizeSecret(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  let s = value.trim();
+  if (!s) return null;
+  if (
+    (s.startsWith('"') && s.endsWith('"')) ||
+    (s.startsWith("'") && s.endsWith("'"))
+  ) {
+    s = s.slice(1, -1).trim();
+  }
+  if (/^bearer\s+/i.test(s)) s = s.replace(/^bearer\s+/i, "").trim();
+  return s || null;
+}
+
+async function loadGroqKeys(service: ReturnType<typeof createClient>): Promise<string[]> {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  const add = (value: unknown) => {
+    const next = normalizeSecret(value);
+    if (next && !seen.has(next)) {
+      seen.add(next);
+      keys.push(next);
+    }
+  };
+
   const { data, error } = await service.rpc("_internal_get_app_secret", {
     p_name: "groq_api_key",
   });
-  if (!error && typeof data === "string" && data) return data;
-  const fromEnv = Deno.env.get("GROQ_API_KEY");
-  if (fromEnv) return fromEnv;
   if (error) throw error;
-  return null;
+  add(data);
+  add(Deno.env.get("GROQ_API_KEY"));
+  return keys;
 }
 
 Deno.serve(async (req) => {
@@ -122,15 +145,15 @@ Deno.serve(async (req) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  let groqKey: string | null = null;
+  let groqKeys: string[] = [];
   try {
-    groqKey = await loadGroqKey(service);
+    groqKeys = await loadGroqKeys(service);
   } catch (err) {
     console.error("Failed loading Groq key", err);
-    return json({ error: "Could not load AI credentials" }, 503);
+    return json({ error: "NexAI is temporarily unavailable. Try again in a bit." }, 503);
   }
-  if (!groqKey) {
-    return json({ error: "Groq is not configured" }, 503);
+  if (!groqKeys.length) {
+    return json({ error: "NexAI is temporarily unavailable. Try again in a bit." }, 503);
   }
 
   const messages = [
@@ -139,33 +162,41 @@ Deno.serve(async (req) => {
     { role: "user", content: message },
   ];
 
-  let groqRes: Response;
+  let groqRes: Response | null = null;
+  let groqJson: { error?: { message?: string }; choices?: Array<{ message?: { content?: string } }> } = {};
   try {
-    groqRes = await fetch(GROQ_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${groqKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: GROQ_MODEL,
-        messages,
-        temperature: 0.7,
-        max_tokens: 1024,
-      }),
-    });
+    for (const groqKey of groqKeys) {
+      groqRes = await fetch(GROQ_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${groqKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
+          messages,
+          temperature: 0.7,
+          max_tokens: 1024,
+        }),
+      });
+      groqJson = await groqRes.json().catch(() => ({}));
+      if (groqRes.ok) break;
+      const authFail = groqRes.status === 401 || groqRes.status === 403;
+      console.error("Groq error", groqRes.status, groqJson);
+      if (authFail && groqKey !== groqKeys[groqKeys.length - 1]) continue;
+      break;
+    }
   } catch (err) {
     console.error("Groq fetch failed", err);
-    return json({ error: "Could not reach Groq" }, 502);
+    return json({ error: "Could not reach NexAI" }, 502);
   }
 
-  const groqJson = await groqRes.json().catch(() => ({}));
-  if (!groqRes.ok) {
-    console.error("Groq error", groqRes.status, groqJson);
-    const detail = typeof groqJson?.error?.message === "string"
-      ? groqJson.error.message
-      : "Groq request failed";
-    return json({ error: detail }, 502);
+  if (!groqRes || !groqRes.ok) {
+    const status = groqRes?.status || 502;
+    if (status === 401 || status === 403) {
+      return json({ error: "NexAI is temporarily unavailable. Try again in a bit." }, 502);
+    }
+    return json({ error: "NexAI request failed" }, 502);
   }
 
   const reply = groqJson?.choices?.[0]?.message?.content;

@@ -102,8 +102,8 @@ function serves only a static confirmation page.
 - Public open queues + mutual duel result confirmation (player-hosted lobbies — NexForge does not host game servers)
 - Shooter K/D/A reporting on duels and tracked sessions
 - Session RAM / CPU / GPU / probe ping summaries (Windows process tracking)
-- Friends with online / now-playing presence, custom status, pins, typing, chat search, direct messages with replies + photos + emoji reactions + deletion, duel challenges from chat, Do Not Disturb, overlay hotkey (Ctrl+Shift+O), and an in-game message overlay
+- Friends with online / now-playing presence, custom status, pins, typing, chat search, direct messages with replies + photos + emoji reactions + deletion, duel challenges from chat, Do Not Disturb, overlay hotkey (Ctrl+Shift+O), NexAI dock (Ctrl+Shift+A), and an in-game message overlay
 - Per-session RAM / CPU / GPU / ping graphs and side-by-side session compare in Analytics
-- Friend activity feed on the Dashboard
+- Linked accounts on your profile, NexAI starter prompts, and a phone companion for chat and lobby codes
 - Cash / in-app tournaments with host-only payout fields
 - Community-promoted custom games, guest browse mode, and first-run main-game onboarding
