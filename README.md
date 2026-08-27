@@ -32,6 +32,8 @@ npm run release        # vite build + publish to GitHub Releases (needs GH_TOKEN
 
 Or push a version tag (`v1.2.0`) to trigger `.github/workflows/release.yml`.
 
+Do not run `npm run release` **and** push the same version tag — two installers of the same version get different checksums, and auto-update fails with `sha512 checksum mismatch`. Pick one: local `npm run release`, or tag-triggered CI.
+
 `package.json` `"version"` must match the tag (without the leading `v`). GitHub publish uses `releaseType: release` (stable, not draft/prerelease).
 
 ## Supabase
