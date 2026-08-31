@@ -2,7 +2,6 @@ import React from 'react';
 import { useNexForge, GUEST_LOCKED_SCREENS } from '../context/NexForgeContext.jsx';
 import SafeNavIcon from './SafeNavIcon.jsx';
 import PlayerAvatar, { GamerTag, displayTag } from './PlayerAvatar.jsx';
-import { COMPANION_URL } from '../lib/companion.js';
 
 const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Dashboard' },
@@ -20,10 +19,14 @@ const SECONDARY_NAV = [
   { id: 'squad', label: 'Squad Finder' },
 ];
 
+const SYSTEM_NAV = [
+  { id: 'settings', label: 'Settings' },
+];
+
 export default function Sidebar() {
   const {
     screen, setScreen, profile, guestMode, signOut, appVersion,
-    checkForUpdates, unreadTotal, dndEnabled, setDndEnabled,
+    unreadTotal,
   } = useNexForge();
   const tag = displayTag(profile) || profile?.gamer_tag || 'Player';
   const rank = guestMode ? 'No account' : (profile?.main_game || profile?.platform || 'PC');
@@ -62,6 +65,8 @@ export default function Sidebar() {
         {PRIMARY_NAV.map(renderNavItem)}
         <div className="sb-section-label">Social &amp; more</div>
         {SECONDARY_NAV.map(renderNavItem)}
+        <div className="sb-section-label">System</div>
+        {SYSTEM_NAV.map(renderNavItem)}
       </nav>
       <div className="sb-bottom">
         <div className="user-pill">
@@ -77,35 +82,6 @@ export default function Sidebar() {
         </div>
         <button type="button" className="signout-btn" onClick={signOut}>
           {guestMode ? 'Exit Guest' : 'Sign out'}
-        </button>
-        {!guestMode && (
-          <button
-            type="button"
-            className="sb-update-btn"
-            onClick={() => {
-              if (window.nexforge?.openExternalUrl) {
-                window.nexforge.openExternalUrl(COMPANION_URL);
-              } else {
-                window.open(COMPANION_URL, '_blank', 'noopener,noreferrer');
-              }
-            }}
-            title="Open the mobile/web companion for chat, party, lobby codes, and check-in"
-          >
-            Open Companion
-          </button>
-        )}
-        {!guestMode && (
-          <button
-            type="button"
-            className={`sb-update-btn ${dndEnabled ? 'dnd-on' : ''}`}
-            onClick={() => setDndEnabled(!dndEnabled)}
-            title="Mute message sounds and in-game overlay toasts"
-          >
-            {dndEnabled ? 'Do Not Disturb · On' : 'Do Not Disturb'}
-          </button>
-        )}
-        <button type="button" className="sb-update-btn" onClick={checkForUpdates}>
-          Check for updates
         </button>
       </div>
     </aside>

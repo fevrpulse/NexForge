@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NexForge Clip Buffer</title>
+</head>
+<body>
+<script>
+(function () {
+  const api = window.clipRecorder;
+  if (!api) return;
+
+  let recorder = null;
+  let stream = null;
+  let chunks = [];
+  let seconds = 20;
+  let saving = false;
+
+  function mimeType() {
+    const types = [
+      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8',
+      'video/webm',
+    ];
+    return types.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+  }
+
+  function stopTracks() {
+    try { recorder?.stop(); } catch { /* ignore */ }
+    recorder = null;
+    (stream?.getTracks() || []).forEach((t) => {
+      try { t.stop(); } catch { /* ignore */ }
+    });
+    stream = null;
+    chunks = [];
+  }
+
+  async function start(payload) {
+    stopTracks();
+    seconds = Math.max(8, Math.min(45, Number(payload?.seconds) || 20));
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 15, width: 1280, height: 720 },
+        audio: true,
+      });
+    } catch (err) {
+      api.error(err?.message || 'Screen capture was blocked');
+      return;
+    }
+    const opts = { videoBitsPerSecond: 2500000 };
+    const mime = mimeType();
+    if (mime) opts.mimeType = mime;
+    try {
+      recorder = new MediaRecorder(stream, opts);
+    } catch (err) {
+      api.error(err?.message || 'Could not start clip recorder');
+      stopTracks();
+      return;
+    }
+    chunks = [];
+    recorder.ondataavailable = (ev) => {
+      if (ev.data && ev.data.size) {
+        chunks.push(ev.data);
+        const keep = seconds + 2;
+        if (chunks.length > keep) chunks = chunks.slice(-keep);
+      }
+      api.ready({
+        buffering: chunks.length < 3,
+        readySeconds: Math.min(seconds, chunks.length),
+        seconds,
+      });
+    };
+    recorder.onerror = (ev) => {
+      api.error(ev?.error?.message || 'Clip recorder error');
+    };
+    recorder.start(1000);
+    api.ready({ buffering: true, readySeconds: 0, seconds });
+  }
+
+  async function save(payload) {
+    if (saving) return;
+    if (!chunks.length) {
+      api.error('Clip buffer is still filling — play a few more seconds');
+      return;
+    }
+    saving = true;
+    try {
+      const blob = new Blob(chunks, { type: chunks[0]?.type || 'video/webm' });
+      const buf = await blob.arrayBuffer();
+      await api.write({
+        bytes: buf,
+        game: payload?.game || '',
+        label: payload?.label || 'clip',
+      });
+    } catch (err) {
+      api.error(err?.message || 'Could not save clip');
+    } finally {
+      saving = false;
+    }
+  }
+
+  api.onStart(start);
+  api.onStop(stopTracks);
+  api.onSave(save);
+})();
+</script>
+</body>
+</html>

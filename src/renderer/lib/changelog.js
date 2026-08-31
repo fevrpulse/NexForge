@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.6.0',
+    highlights: [
+      'Lime-and-olive identity is back — no more rainbow per-screen colors',
+      'Settings tab for overlay, notifications, account, updates, and companion',
+      'Daily coins button reads Claimed after you take them',
+      'In-game overlay HUD: messages, calls, NexAI, and a rolling clip buffer — keybinds are customizable',
+    ],
+  },
+  {
     version: '4.5.1',
     highlights: [
       'The UI has real color now — each screen has its own accent',

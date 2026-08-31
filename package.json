@@ -1,6 +1,6 @@
 {
   "name": "nexforge-desktop",
-  "version": "4.5.1",
+  "version": "4.6.0",
   "description": "NexForge Desktop",
   "main": "main.js",
   "author": "fevrpulse",
@@ -31,6 +31,9 @@
       "game-tracker.js",
       "overlay.html",
       "overlay-preload.js",
+      "overlay-system.js",
+      "clip-recorder.html",
+      "clip-recorder-preload.js",
       "auth.html",
       "auth-success.html",
       "build/icon.png",

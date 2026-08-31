@@ -17,6 +17,7 @@ export function VoiceCallProvider({ children }) {
     setScreen,
     openFriendChat,
     dndEnabled,
+    overlayEnabled,
   } = useNexForge();
   const [call, setCall] = useState({
     state: 'idle',
@@ -36,6 +37,8 @@ export function VoiceCallProvider({ children }) {
   });
   const [peerProfile, setPeerProfile] = useState(null);
   const [peerProfiles, setPeerProfiles] = useState({});
+  const overlayEnabledRef = useRef(overlayEnabled);
+  useEffect(() => { overlayEnabledRef.current = overlayEnabled; }, [overlayEnabled]);
   const ctrlRef = useRef(null);
   const ringAudioRef = useRef(null);
 
@@ -136,15 +139,26 @@ export function VoiceCallProvider({ children }) {
         }
         if (next.state === 'ringing' && next.mode !== 'channel') {
           playRingtone();
-          try {
-            window.nexforge?.showMainWindow?.();
+          (async () => {
+            let sender = 'Incoming call';
+            try {
+              if (next.peerId) {
+                const { data } = await sb.from('profiles').select('gamer_tag').eq('id', next.peerId).maybeSingle();
+                if (data?.gamer_tag) sender = data.gamer_tag;
+              }
+            } catch { /* tag is best-effort */ }
+            if (!overlayEnabledRef.current) {
+              window.nexforge?.showMainWindow?.();
+            }
             window.nexforge?.overlayNotify?.({
               kind: 'call',
-              sender: 'Incoming call',
-              body: 'Open NexForge to Accept or Decline',
+              sender,
+              body: overlayEnabledRef.current
+                ? 'Press your overlay keybind to open the HUD, or accept in NexForge'
+                : 'Open NexForge to Accept or Decline',
               force: true,
             });
-          } catch { /* ignore */ }
+          })();
         }
         if (next.state === 'connecting' || next.state === 'connected' || next.state === 'calling') {
           stopRingtone();

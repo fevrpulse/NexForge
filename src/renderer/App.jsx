@@ -18,21 +18,23 @@ import Friends from './screens/Friends.jsx';
 import Shop from './screens/Shop.jsx';
 import Clans from './screens/Clans.jsx';
 import Communities from './screens/Communities.jsx';
+import Settings from './screens/Settings.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
 
 const SCREEN_META = {
-  dashboard: { title: 'Dashboard', badge: 'LIVE', tone: 'lime' },
-  matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH', tone: 'orange' },
-  tournaments: { title: 'Tournaments', badge: 'OPEN', tone: 'gold' },
-  friends: { title: 'Friends', badge: 'SOCIAL', tone: 'blue' },
-  communities: { title: 'Communities', badge: 'LOUNGES', tone: 'cyan' },
-  clans: { title: 'Clans', badge: 'CREW', tone: 'purple' },
-  shop: { title: 'Cosmetics Shop', badge: 'FORGE', tone: 'magenta' },
-  profile: { title: 'My Profile', badge: 'MY ACCOUNT', tone: 'lime' },
-  analytics: { title: 'Analytics', badge: 'STATS', tone: 'cyan' },
-  squad: { title: 'Squad Finder', badge: 'FIND TEAM', tone: 'coral' },
+  dashboard: { title: 'Dashboard', badge: 'LIVE' },
+  matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
+  tournaments: { title: 'Tournaments', badge: 'OPEN' },
+  friends: { title: 'Friends', badge: 'SOCIAL' },
+  communities: { title: 'Communities', badge: 'LOUNGES' },
+  clans: { title: 'Clans', badge: 'CREW' },
+  shop: { title: 'Cosmetics Shop', badge: 'FORGE' },
+  profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
+  analytics: { title: 'Analytics', badge: 'STATS' },
+  squad: { title: 'Squad Finder', badge: 'FIND TEAM' },
+  settings: { title: 'Settings', badge: 'SYSTEM' },
 };
 
 const SCREEN_COMPONENTS = {
@@ -46,6 +48,7 @@ const SCREEN_COMPONENTS = {
   profile: Profile,
   analytics: Analytics,
   squad: Squad,
+  settings: Settings,
 };
 
 function AppShell() {
@@ -103,7 +106,7 @@ function AppShell() {
               {appVersion && (
                 <span className="badge badge-muted" title="App version">v{appVersion}</span>
               )}
-              <span className={`badge badge-tone-${meta.tone || 'lime'}`}>{meta.badge}</span>
+              <span className="badge badge-neon">{meta.badge}</span>
             </div>
           </div>
           <div className="content">

@@ -5,24 +5,42 @@
   <title>NexForge Overlay</title>
   <style>
     :root {
-      --bg: rgba(10, 12, 8, 0.92);
-      --border: rgba(201, 255, 0, 0.35);
-      --neon: #C9FF00;
-      --text: #F2F5EC;
+      --bg: rgba(8, 12, 8, 0.92);
+      --panel: rgba(10, 16, 10, 0.94);
+      --border: rgba(201, 255, 0, 0.32);
+      --neon: #D2FF2A;
+      --hud: #6CFFF0;
+      --text: #F3F7EC;
       --muted: #9aa08d;
+      --red: #FF4A32;
+      --call: #FF8A3D;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { background: transparent; overflow: hidden; }
-    body {
+    html, body {
+      background: transparent;
+      overflow: hidden;
+      width: 100%;
+      height: 100%;
       font-family: 'Segoe UI', system-ui, sans-serif;
-      padding: 10px;
+      color: var(--text);
+      user-select: none;
+    }
+    body.hud-on {
+      background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(0,0,0,.28), transparent 70%);
+    }
+    #toasts {
+      position: fixed;
+      top: 18px;
+      right: 18px;
       display: flex;
       flex-direction: column;
       gap: 8px;
       align-items: flex-end;
+      z-index: 40;
+      pointer-events: none;
     }
     .toast {
-      width: 330px;
+      width: 340px;
       background: var(--bg);
       border: 1px solid var(--border);
       border-left: 3px solid var(--neon);
@@ -33,9 +51,12 @@
       align-items: center;
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
       animation: slide-in 0.22s ease-out;
-      transition: opacity 0.35s, transform 0.35s;
     }
-    .toast.leaving { opacity: 0; transform: translateX(24px); }
+    .toast.call { border-left-color: var(--call); }
+    .toast.clip { border-left-color: var(--hud); }
+    .toast.party { border-left-color: #4B8CFF; }
+    .toast.lobby { border-left-color: #FF9652; }
+    .toast.leaving { opacity: 0; transform: translateX(24px); transition: opacity .35s, transform .35s; }
     @keyframes slide-in {
       from { opacity: 0; transform: translateX(36px); }
       to { opacity: 1; transform: translateX(0); }
@@ -44,115 +65,344 @@
       width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
       background: rgba(201, 255, 0, 0.14); color: var(--neon);
       display: flex; align-items: center; justify-content: center;
-      font-size: 12px; font-weight: 800; letter-spacing: 0.5px;
+      font-size: 12px; font-weight: 800;
     }
+    .toast.call .avatar { background: rgba(255, 138, 61, .18); color: var(--call); }
     .info { flex: 1; min-width: 0; }
     .brand {
       font-size: 8.5px; font-weight: 700; letter-spacing: 1.6px;
       color: var(--neon); text-transform: uppercase; margin-bottom: 2px;
       font-family: Consolas, monospace;
     }
-    .sender { font-size: 13.5px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 7px; }
+    .sender { font-size: 13.5px; font-weight: 700; display: flex; align-items: center; gap: 7px; }
     .unread {
       margin-left: auto; background: var(--neon); color: #111;
-      font-size: 10px; font-weight: 800; border-radius: 999px;
-      padding: 1px 7px; font-family: Consolas, monospace;
+      font-size: 10px; font-weight: 800; border-radius: 999px; padding: 1px 7px;
+      font-family: Consolas, monospace;
     }
     .body {
       font-size: 12px; color: var(--muted); margin-top: 1px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .body .photo { color: var(--neon); }
+    #hud { display: none; position: fixed; inset: 0; z-index: 10; }
+    body.hud-on #hud { display: block; }
+    .hud-bar {
+      position: absolute; left: 50%; top: 16px; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 14px;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 999px; padding: 8px 14px 8px 16px;
+      box-shadow: 0 10px 32px rgba(0,0,0,.45);
+    }
+    .hud-bar b { color: var(--neon); letter-spacing: .12em; font-size: 11px; }
+    .hud-bar span { font-size: 12px; color: var(--muted); }
+    .hud-bar button, .panel button, .ai-send {
+      border: 1px solid var(--border); background: rgba(210,255,42,.12);
+      color: var(--neon); font-weight: 700; border-radius: 999px;
+      padding: 6px 12px; cursor: pointer; font-family: inherit;
+    }
+    .hud-bar button:hover, .panel button:hover, .ai-send:hover { background: var(--neon); color: #081008; }
+    .panel {
+      position: absolute;
+      width: 320px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      box-shadow: 0 16px 40px rgba(0,0,0,.45);
+      overflow: hidden;
+    }
+    .panel-h {
+      cursor: grab;
+      padding: 10px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(201,255,0,.12);
+      font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+      color: var(--neon); font-weight: 800;
+    }
+    .panel-h:active { cursor: grabbing; }
+    .panel-b { padding: 12px; font-size: 13px; }
+    .muted { color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .clip-status { font-family: Consolas, monospace; font-size: 11px; color: var(--hud); margin: 8px 0 12px; }
+    .clip-btn {
+      width: 100%; padding: 10px !important; border-radius: 12px !important;
+      font-size: 14px !important;
+    }
+    #ai-log {
+      height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
+      margin-bottom: 8px;
+    }
+    .ai-msg {
+      font-size: 12px; line-height: 1.45; padding: 8px 10px; border-radius: 10px;
+      background: rgba(255,255,255,.04); color: var(--text);
+    }
+    .ai-msg.me { background: rgba(210,255,42,.14); color: var(--neon); }
+    .ai-row { display: flex; gap: 6px; }
+    .ai-row input {
+      flex: 1; border-radius: 10px; border: 1px solid var(--border);
+      background: rgba(0,0,0,.35); color: var(--text); padding: 8px 10px;
+      font-family: inherit;
+    }
+    .feed-item { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .feed-item:last-child { border-bottom: none; }
+    .feed-k { font-size: 10px; letter-spacing: .12em; color: var(--neon); text-transform: uppercase; }
   </style>
 </head>
 <body>
+  <div id="toasts"></div>
+  <div id="hud">
+    <div class="hud-bar">
+      <b>NEXFORGE HUD</b>
+      <span id="hud-hint">Drag panels · same keybind to close</span>
+      <button type="button" id="hud-close">Close</button>
+    </div>
+    <div class="panel" id="panel-session" data-id="session">
+      <div class="panel-h">Session</div>
+      <div class="panel-b">
+        <div id="session-game" style="font-weight:800;font-size:16px">No game tracked</div>
+        <div class="muted" id="session-sub">Launch a supported game to light this up.</div>
+      </div>
+    </div>
+    <div class="panel" id="panel-clip" data-id="clip">
+      <div class="panel-h">Clip</div>
+      <div class="panel-b">
+        <div class="muted">Save the last seconds of gameplay — kills, clutches, anything worth keeping.</div>
+        <div class="clip-status" id="clip-status">Buffer starting…</div>
+        <button type="button" class="clip-btn" id="clip-btn">Clip highlight</button>
+        <div class="muted" id="clip-last" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="panel" id="panel-nexai" data-id="nexai" style="width:360px">
+      <div class="panel-h">NexAI</div>
+      <div class="panel-b">
+        <div id="ai-log"></div>
+        <div class="ai-row">
+          <input id="ai-input" maxlength="400" placeholder="Ask NexAI…" />
+          <button type="button" class="ai-send" id="ai-send">Send</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel" id="panel-feed" data-id="feed">
+      <div class="panel-h">Alerts</div>
+      <div class="panel-b" id="feed-list">
+        <div class="muted">Calls and messages show here while you play.</div>
+      </div>
+    </div>
+  </div>
   <script>
+    const api = window.nexforgeOverlay;
     const MAX_TOASTS = 4;
-    const TOAST_MS = 6500;
+    const TOAST_MS = 7000;
+    const LAYOUT_KEY = 'nf-overlay-layout-v1';
+    const DEFAULT_LAYOUT = {
+      session: { x: 24, y: 72 },
+      clip: { x: 24, y: 210 },
+      nexai: { x: 24, y: 400 },
+      feed: { x: -380, y: 72 },
+    };
+
     let liveCount = 0;
+    let aiBusy = false;
+    let aiReq = 0;
+    let signedIn = false;
+    let feed = [];
+    let prefs = { hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8' } };
 
     function initials(name) {
       return String(name || '?').slice(0, 2).toUpperCase();
     }
 
+    function kindLabel(kind) {
+      if (kind === 'call') return 'Incoming Call';
+      if (kind === 'party') return 'Party';
+      if (kind === 'lobby') return 'Lobby';
+      if (kind === 'clip') return 'Clip';
+      if (kind === 'duel') return 'Duel';
+      return 'Message';
+    }
+
+    function addFeed(msg) {
+      feed.unshift({
+        kind: msg.kind || 'message',
+        sender: msg.sender || 'Friend',
+        body: msg.body || (msg.image ? 'Sent a photo' : ''),
+      });
+      feed = feed.slice(0, 8);
+      const box = document.getElementById('feed-list');
+      box.innerHTML = feed.map((f) => (
+        `<div class="feed-item"><div class="feed-k">${kindLabel(f.kind)}</div><div>${escapeHtml(f.sender)}</div><div class="muted">${escapeHtml(f.body)}</div></div>`
+      )).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[c]));
+    }
+
     function addToast(msg) {
-      while (document.querySelectorAll('.toast').length >= MAX_TOASTS) {
-        const oldest = document.querySelector('.toast');
-        oldest.remove();
-        liveCount--;
+      const host = document.getElementById('toasts');
+      while (host.querySelectorAll('.toast').length >= MAX_TOASTS) {
+        host.querySelector('.toast').remove();
+        liveCount = Math.max(0, liveCount - 1);
       }
-
-      const el = document.createElement('div');
-      el.className = 'toast';
-
-      const av = document.createElement('div');
-      av.className = 'avatar';
-      av.textContent = initials(msg.sender);
-
-      const info = document.createElement('div');
-      info.className = 'info';
-
-      const brand = document.createElement('div');
-      brand.className = 'brand';
       const kind = String(msg.kind || 'message').toLowerCase();
-      brand.textContent = kind === 'party'
-        ? 'NexForge Party'
-        : kind === 'lobby'
-          ? 'NexForge Lobby'
-          : kind === 'duel'
-            ? 'NexForge Duel'
-            : 'NexForge Message';
-
-      if (kind === 'party') el.style.borderLeftColor = '#3B7EFF';
-      if (kind === 'lobby') el.style.borderLeftColor = '#FF8C42';
-      if (kind === 'duel') el.style.borderLeftColor = '#C9FF00';
-
-      const sender = document.createElement('div');
-      sender.className = 'sender';
-      sender.appendChild(document.createTextNode(msg.sender || 'Friend'));
-      if (msg.unread > 0) {
-        const badge = document.createElement('span');
-        badge.className = 'unread';
-        badge.textContent = msg.unread > 99 ? '99+' : String(msg.unread);
-        sender.appendChild(badge);
-      }
-
-      const body = document.createElement('div');
-      body.className = 'body';
-      if (msg.body) {
-        body.textContent = msg.body;
-      } else if (msg.image) {
-        const p = document.createElement('span');
-        p.className = 'photo';
-        p.textContent = '📷 Sent a photo';
-        body.appendChild(p);
-      }
-      if (msg.body && msg.image) {
-        body.textContent = `📷 ${msg.body}`;
-      }
-
-      info.appendChild(brand);
-      info.appendChild(sender);
-      info.appendChild(body);
-      el.appendChild(av);
-      el.appendChild(info);
-      document.body.appendChild(el);
-      liveCount++;
-
+      const el = document.createElement('div');
+      el.className = 'toast ' + kind;
+      el.innerHTML = `
+        <div class="avatar">${escapeHtml(initials(msg.sender))}</div>
+        <div class="info">
+          <div class="brand">NexForge ${escapeHtml(kindLabel(kind))}</div>
+          <div class="sender">${escapeHtml(msg.sender || 'Friend')}${msg.unread > 0 ? `<span class="unread">${msg.unread > 99 ? '99+' : msg.unread}</span>` : ''}</div>
+          <div class="body">${msg.image && msg.body ? '📷 ' : ''}${escapeHtml(msg.body || (msg.image ? 'Sent a photo' : ''))}</div>
+        </div>`;
+      host.appendChild(el);
+      liveCount += 1;
+      addFeed(msg);
       setTimeout(() => {
         el.classList.add('leaving');
         setTimeout(() => {
           el.remove();
-          liveCount--;
+          liveCount -= 1;
           if (liveCount <= 0) {
             liveCount = 0;
-            window.nexforgeOverlay?.empty();
+            api?.empty();
           }
         }, 380);
       }, TOAST_MS);
     }
 
-    window.nexforgeOverlay?.onMessage(addToast);
+    function loadLayout() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
+        return raw && typeof raw === 'object' ? { ...DEFAULT_LAYOUT, ...raw } : { ...DEFAULT_LAYOUT };
+      } catch {
+        return { ...DEFAULT_LAYOUT };
+      }
+    }
+
+    function saveLayout(layout) {
+      try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* ignore */ }
+    }
+
+    function placePanels() {
+      const layout = loadLayout();
+      document.querySelectorAll('.panel').forEach((el) => {
+        const id = el.dataset.id;
+        const pos = layout[id] || DEFAULT_LAYOUT[id];
+        let x = pos.x;
+        let y = pos.y;
+        if (x < 0) x = window.innerWidth + x;
+        el.style.left = Math.max(8, Math.min(window.innerWidth - 80, x)) + 'px';
+        el.style.top = Math.max(56, Math.min(window.innerHeight - 80, y)) + 'px';
+      });
+    }
+
+    function enableDrag(el) {
+      const handle = el.querySelector('.panel-h');
+      let sx = 0;
+      let sy = 0;
+      let ox = 0;
+      let oy = 0;
+      handle.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        sx = e.clientX;
+        sy = e.clientY;
+        ox = el.offsetLeft;
+        oy = el.offsetTop;
+        const move = (ev) => {
+          el.style.left = Math.max(8, ox + ev.clientX - sx) + 'px';
+          el.style.top = Math.max(56, oy + ev.clientY - sy) + 'px';
+        };
+        const up = () => {
+          window.removeEventListener('mousemove', move);
+          window.removeEventListener('mouseup', up);
+          const layout = loadLayout();
+          layout[el.dataset.id] = { x: el.offsetLeft, y: el.offsetTop };
+          saveLayout(layout);
+        };
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', up);
+      });
+    }
+
+    function addAi(role, text) {
+      const log = document.getElementById('ai-log');
+      const div = document.createElement('div');
+      div.className = 'ai-msg' + (role === 'me' ? ' me' : '');
+      div.textContent = text;
+      log.appendChild(div);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function sendAi() {
+      const input = document.getElementById('ai-input');
+      const text = input.value.trim();
+      if (!text || aiBusy) return;
+      if (!signedIn) {
+        addAi('ai', 'Sign in to NexForge to use NexAI on the overlay.');
+        return;
+      }
+      input.value = '';
+      addAi('me', text);
+      aiBusy = true;
+      const requestId = ++aiReq;
+      api.askAi({ requestId, message: text });
+    }
+
+    function formatAcc(acc) {
+      return String(acc || '').replace(/CommandOrControl/g, 'Ctrl').replace(/\+/g, ' + ');
+    }
+
+    document.getElementById('hud-close').onclick = () => api.closeHud();
+    document.getElementById('clip-btn').onclick = () => api.clipNow();
+    document.getElementById('ai-send').onclick = sendAi;
+    document.getElementById('ai-input').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendAi();
+    });
+    document.querySelectorAll('.panel').forEach(enableDrag);
+    placePanels();
+    window.addEventListener('resize', placePanels);
+
+    api?.onMessage(addToast);
+    api?.onHud((payload) => {
+      document.body.classList.toggle('hud-on', !!payload?.open);
+      if (payload?.prefs) prefs = payload.prefs;
+      document.getElementById('hud-hint').textContent =
+        'Drag panels · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes · ' + formatAcc(prefs.hotkeys?.clip) + ' clips';
+      if (payload?.clipStatus) {
+        const s = payload.clipStatus;
+        document.getElementById('clip-status').textContent = s.buffering
+          ? 'Buffering… ' + (s.readySeconds || 0) + 's'
+          : 'Ready · last ' + (s.seconds || 20) + 's';
+      }
+      if (payload?.lastClipPath) {
+        document.getElementById('clip-last').textContent = payload.lastClipPath.split(/[/\\]/).pop();
+      }
+      if (payload?.open) placePanels();
+    });
+    api?.onState((state) => {
+      signedIn = !!state?.signedIn;
+      document.getElementById('session-game').textContent = state?.game || 'No game tracked';
+      document.getElementById('session-sub').textContent = state?.game
+        ? (state.unread ? state.unread + ' unread messages' : 'Live session')
+        : 'Launch a supported game to light this up.';
+    });
+    api?.onAiReply((payload) => {
+      aiBusy = false;
+      if (payload?.error) addAi('ai', payload.error);
+      else addAi('ai', payload?.reply || '…');
+    });
+    api?.onClipStatus((s) => {
+      if (!s) return;
+      document.getElementById('clip-status').textContent = s.buffering
+        ? 'Buffering… ' + (s.readySeconds || 0) + 's'
+        : 'Ready · last ' + (s.seconds || 20) + 's';
+    });
+    api?.onClipSaved((payload) => {
+      if (payload?.path) document.getElementById('clip-last').textContent = String(payload.path).split(/[/\\]/).pop();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && document.body.classList.contains('hud-on')) api.closeHud();
+    });
   </script>
 </body>
 </html>

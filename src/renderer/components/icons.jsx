@@ -111,6 +111,13 @@ const NAV_ICONS = {
       <rect x="13.5" y="13.5" width="7" height="7" rx="1.5" />
     </>
   ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M12 3.2v1.8M12 19v1.8M3.2 12h1.8M19 12h1.8M5.6 5.6l1.3 1.3M17.1 17.1l1.3 1.3M18.4 5.6l-1.3 1.3M6.9 17.1l-1.3 1.3" />
+      <path d="M12 6.6A5.4 5.4 0 1 1 6.6 12" />
+    </>
+  ),
 };
 
 const GAME_ICONS = {

@@ -4,6 +4,7 @@ const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
 const { GameTracker } = require('./game-tracker');
+const { createOverlaySystem } = require('./overlay-system');
 
 // Packaged builds stamp the .exe as NexForge; set these so app.getName() / process
 // title match even when running unpackaged.
@@ -31,7 +32,7 @@ const UPDATE_INSTALL_DELAY_MS = 2500;
 const GENERIC_UPDATE_FEED = 'https://github.com/fevrpulse/NexForge/releases/latest/download';
 
 let mainWindow = null;
-let overlayWindow = null;
+let overlaySystem = null;
 let checkoutWindow = null;
 let tray = null;
 let isQuitting = false;
@@ -248,74 +249,15 @@ function getAuthFile(name) {
   return path.join(__dirname, name);
 }
 
-const OVERLAY_WIDTH = 360;
-const OVERLAY_HEIGHT = 380;
-
-function positionOverlay(win) {
-  const area = screen.getPrimaryDisplay().workArea;
-  win.setBounds({
-    x: area.x + area.width - OVERLAY_WIDTH - 8,
-    y: area.y + 8,
-    width: OVERLAY_WIDTH,
-    height: OVERLAY_HEIGHT,
+/** Overlay HUD + clip buffer (created in app.whenReady). */
+function ensureOverlaySystem() {
+  if (overlaySystem) return overlaySystem;
+  overlaySystem = createOverlaySystem({
+    getMainWindow: () => mainWindow,
+    sendToRenderer,
   });
-}
-
-/**
- * Transparent, click-through, always-on-top window used for in-game message
- * toasts. Draws over borderless/windowed-fullscreen games (exclusive
- * fullscreen bypasses the desktop compositor and cannot be drawn over).
- */
-function getOverlayWindow() {
-  if (overlayWindow && !overlayWindow.isDestroyed()) return overlayWindow;
-
-  overlayWindow = new BrowserWindow({
-    width: OVERLAY_WIDTH,
-    height: OVERLAY_HEIGHT,
-    show: false,
-    transparent: true,
-    frame: false,
-    resizable: false,
-    movable: false,
-    minimizable: false,
-    maximizable: false,
-    closable: true,
-    focusable: false,
-    skipTaskbar: true,
-    hasShadow: false,
-    title: 'NexForge Overlay',
-    webPreferences: {
-      preload: path.join(__dirname, 'overlay-preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-    },
-  });
-  overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-  overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  overlayWindow.setIgnoreMouseEvents(true);
-  overlayWindow.setMenu(null);
-  positionOverlay(overlayWindow);
-  overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
-  overlayWindow.on('closed', () => { overlayWindow = null; });
-  return overlayWindow;
-}
-
-function showOverlayMessage(payload) {
-  const win = getOverlayWindow();
-  const deliver = () => {
-    if (!win || win.isDestroyed()) return;
-    win.webContents.send('overlay-message', payload);
-    if (!win.isVisible()) {
-      positionOverlay(win);
-      win.showInactive();
-    }
-  };
-  if (win.webContents.isLoading()) {
-    win.webContents.once('did-finish-load', deliver);
-  } else {
-    deliver();
-  }
+  overlaySystem.setupIpc();
+  return overlaySystem;
 }
 
 function deliverAuthTokens(tokens) {
@@ -520,8 +462,7 @@ function createWindow() {
   // The hidden overlay must not keep the app alive after the main window closes.
   mainWindow.on('closed', () => {
     mainWindow = null;
-    if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.destroy();
-    overlayWindow = null;
+    overlaySystem?.destroyWindows();
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -704,28 +645,6 @@ ipcMain.handle('show-main-window', () => {
   return { ok: true };
 });
 
-ipcMain.handle('overlay-notify', (_event, payload) => {
-  if (!payload || typeof payload !== 'object') return { ok: false, reason: 'bad-payload' };
-  const force = !!payload.force;
-  // No point drawing the overlay while the user is already looking at the app
-  // (unless they hit the overlay hotkey).
-  if (!force && mainWindow && !mainWindow.isDestroyed() && mainWindow.isFocused()) {
-    return { ok: false, reason: 'app-focused' };
-  }
-  showOverlayMessage({
-    kind: String(payload.kind || 'message').slice(0, 24),
-    sender: String(payload.sender || 'Friend').slice(0, 40),
-    body: String(payload.body || '').slice(0, 120),
-    image: !!payload.image,
-    unread: Math.max(0, Number(payload.unread) || 0),
-  });
-  return { ok: true };
-});
-
-ipcMain.on('overlay-empty', () => {
-  if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.hide();
-});
-
 app.whenReady().then(async () => {
   Menu.setApplicationMenu(null);
 
@@ -751,30 +670,31 @@ app.whenReady().then(async () => {
   try {
     const { desktopCapturer } = require('electron');
     session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-      const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
-      callback({ video: sources[0], audio: 'loopback' });
+      const screens = await desktopCapturer.getSources({ types: ['screen'] });
+      const source = screens[0] || (await desktopCapturer.getSources({ types: ['window'] }))[0];
+      if (!source) {
+        callback({});
+        return;
+      }
+      callback({ video: source, audio: 'loopback' });
     });
   } catch (err) {
     console.warn('Display media handler unavailable:', err);
   }
 
   await startAuthServer();
+  ensureOverlaySystem();
   createWindow();
   setupTray();
   setupGameTracker();
   setupAutoUpdater();
+  overlaySystem.registerHotkeys();
+  setTimeout(() => overlaySystem?.syncClipBuffer(), 1800);
   const presenceTimer = setInterval(() => sendToRenderer('presence-tick'), 45000);
   if (presenceTimer.unref) presenceTimer.unref();
   if (process.platform === 'win32') {
     gameTracker.start();
   }
-
-  // Ctrl+Shift+O — peek unread messages on the in-game overlay.
-  globalShortcut.register('CommandOrControl+Shift+O', () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('overlay-hotkey');
-    }
-  });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -789,6 +709,8 @@ app.on('will-quit', () => {
     tray.destroy();
     tray = null;
   }
+  overlaySystem?.destroy();
+  overlaySystem = null;
   globalShortcut.unregisterAll();
   gameTracker.stop();
   if (authServer) {

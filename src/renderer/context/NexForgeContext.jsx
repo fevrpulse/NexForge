@@ -8,6 +8,7 @@ import {
   clearLocalAuthSession,
 } from '../lib/cloud.js';
 import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.js';
+import { askNexPanion } from '../lib/nexpanion.js';
 
 const NexForgeContext = createContext(null);
 
@@ -76,6 +77,8 @@ export function NexForgeProvider({ children }) {
   const [appVersion, setAppVersion] = useState(null);
   const [appPlatform, setAppPlatform] = useState(typeof navigator !== 'undefined' ? navigator.platform : '');
   const [liveSession, setLiveSession] = useState(null);
+  const liveSessionRef = useRef(null);
+  useEffect(() => { liveSessionRef.current = liveSession; }, [liveSession]);
   // Bumped whenever a finished session is saved so screens can refetch history.
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
   const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
@@ -96,6 +99,63 @@ export function NexForgeProvider({ children }) {
     const next = !!on;
     setDndEnabledState(next);
     try { localStorage.setItem('nexforge_dnd', next ? '1' : '0'); } catch { /* ignore */ }
+  }, []);
+
+  const [overlayEnabled, setOverlayEnabledState] = useState(() => {
+    try { return localStorage.getItem('nexforge_overlay') !== '0'; } catch { return true; }
+  });
+  const overlayRef = useRef(overlayEnabled);
+  useEffect(() => { overlayRef.current = overlayEnabled; }, [overlayEnabled]);
+
+  const setOverlayEnabled = useCallback((on) => {
+    const next = !!on;
+    setOverlayEnabledState(next);
+    try { localStorage.setItem('nexforge_overlay', next ? '1' : '0'); } catch { /* ignore */ }
+    window.nexforge?.getOverlayPrefs?.()
+      .then((p) => window.nexforge.setOverlayPrefs({
+        overlayEnabled: next,
+        clipEnabled: p?.clipEnabled !== false,
+        clipSeconds: p?.clipSeconds || 20,
+        hotkeys: p?.hotkeys,
+      }))
+      .catch(() => {});
+  }, []);
+
+  const [clipEnabled, setClipEnabledState] = useState(true);
+  const [clipSeconds, setClipSecondsState] = useState(20);
+  const [overlayHotkeys, setOverlayHotkeys] = useState({
+    overlay: 'CommandOrControl+Shift+O',
+    clip: 'CommandOrControl+F8',
+  });
+  const [lastClipPath, setLastClipPath] = useState(null);
+  const [clipStatus, setClipStatus] = useState({ buffering: true, readySeconds: 0, seconds: 20 });
+
+  const applyOverlayPrefs = useCallback(async (patch) => {
+    const current = await window.nexforge?.getOverlayPrefs?.().catch(() => null);
+    const next = {
+      overlayEnabled: patch.overlayEnabled ?? current?.overlayEnabled ?? overlayRef.current,
+      clipEnabled: patch.clipEnabled ?? current?.clipEnabled ?? true,
+      clipSeconds: patch.clipSeconds ?? current?.clipSeconds ?? 20,
+      hotkeys: patch.hotkeys || current?.hotkeys || overlayHotkeys,
+    };
+    const saved = await window.nexforge?.setOverlayPrefs?.(next);
+    const prefs = saved || next;
+    setClipEnabledState(prefs.clipEnabled !== false);
+    setClipSecondsState(prefs.clipSeconds || 20);
+    if (prefs.hotkeys) setOverlayHotkeys(prefs.hotkeys);
+    if (typeof prefs.overlayEnabled === 'boolean') {
+      setOverlayEnabledState(prefs.overlayEnabled);
+      try { localStorage.setItem('nexforge_overlay', prefs.overlayEnabled ? '1' : '0'); } catch { /* ignore */ }
+    }
+    return prefs;
+  }, [overlayHotkeys]);
+
+  const setClipEnabled = useCallback((on) => applyOverlayPrefs({ clipEnabled: !!on }), [applyOverlayPrefs]);
+  const setClipSeconds = useCallback((n) => applyOverlayPrefs({ clipSeconds: n }), [applyOverlayPrefs]);
+  const setOverlayHotkey = useCallback(async (action, accelerator) => {
+    const res = await window.nexforge?.setOverlayHotkey?.({ action, accelerator });
+    if (res?.prefs?.hotkeys) setOverlayHotkeys(res.prefs.hotkeys);
+    return res;
   }, []);
 
   const userRef = useRef(null);
@@ -352,6 +412,17 @@ export function NexForgeProvider({ children }) {
         const info = await window.nexforge?.getAppInfo?.();
         if (info?.version && mounted) setAppVersion(info.version);
         if (info?.platform && mounted) setAppPlatform(info.platform);
+        const overlayPrefs = await window.nexforge?.getOverlayPrefs?.();
+        if (overlayPrefs && mounted) {
+          if (typeof overlayPrefs.overlayEnabled === 'boolean') {
+            setOverlayEnabledState(overlayPrefs.overlayEnabled);
+          }
+          setClipEnabledState(overlayPrefs.clipEnabled !== false);
+          setClipSecondsState(overlayPrefs.clipSeconds || 20);
+          if (overlayPrefs.hotkeys) setOverlayHotkeys(overlayPrefs.hotkeys);
+          if (overlayPrefs.lastClipPath) setLastClipPath(overlayPrefs.lastClipPath);
+          if (overlayPrefs.clipStatus) setClipStatus(overlayPrefs.clipStatus);
+        }
       } catch (_) {
         /* unpackaged / missing preload */
       }
@@ -527,7 +598,7 @@ export function NexForgeProvider({ children }) {
           for (const p of profs || []) tagCache[p.id] = p.gamer_tag;
         }
         if (cancelled) return;
-        if (dndRef.current) {
+        if (dndRef.current || !overlayRef.current) {
           refreshUnread();
           return;
         }
@@ -555,35 +626,69 @@ export function NexForgeProvider({ children }) {
     };
   }, [gameActive, user, refreshUnread]);
 
-  // Ctrl+Shift+O — force an overlay peek with the current unread total.
+  // Overlay HUD keybind — sync session state so NexAI / clip / session widgets stay current.
   useEffect(() => {
     const nf = window.nexforge;
     if (!nf?.onOverlayHotkey) return undefined;
-    return nf.onOverlayHotkey(async () => {
-      if (dndRef.current) {
-        showToast('Do Not Disturb is on — unmute to see overlay toasts.', 'error');
-        return;
-      }
-      let count = Object.values(unreadBySender).reduce((s, n) => s + n, 0);
-      const u = userRef.current;
-      if (u) {
-        try {
-          const { count: c } = await sb
-            .from('messages')
-            .select('id', { count: 'exact', head: true })
-            .eq('recipient_id', u.id)
-            .is('read_at', null);
-          if (typeof c === 'number') count = c;
-        } catch { /* use cached total */ }
-      }
-      nf.overlayNotify({
-        force: true,
-        sender: 'NexForge',
-        body: count > 0 ? `You have ${count} unread message${count === 1 ? '' : 's'}` : 'No unread messages',
-        unread: count,
+    const offHotkey = nf.onOverlayHotkey((payload) => {
+      nf.overlaySyncState?.({
+        open: !!payload?.open,
+        signedIn: !!userRef.current,
+        game: liveSessionRef.current?.game || null,
+        unread: Object.values(unreadBySenderRef.current || {}).reduce((s, n) => s + n, 0),
       });
     });
-  }, [showToast, unreadBySender]);
+    const offBlocked = nf.onOverlayHotkeyBlocked?.(() => {
+      showToast('Turn on the in-game overlay in Settings first.', 'error');
+    });
+    const offClipSaved = nf.onOverlayClipSaved?.((payload) => {
+      if (payload?.path) {
+        setLastClipPath(payload.path);
+        showToast('Clip saved to NexForge Clips', 'success');
+      }
+    });
+    const offClipErr = nf.onOverlayClipError?.((message) => {
+      showToast(message || 'Clip failed', 'error');
+    });
+    const offClipStatus = nf.onOverlayClipStatus?.((status) => {
+      if (status) setClipStatus(status);
+    });
+    return () => {
+      offHotkey?.();
+      offBlocked?.();
+      offClipSaved?.();
+      offClipErr?.();
+      offClipStatus?.();
+    };
+  }, [showToast]);
+
+  useEffect(() => {
+    const nf = window.nexforge;
+    if (!nf?.onOverlayAiAsk) return undefined;
+    return nf.onOverlayAiAsk(async (payload) => {
+      if (!userRef.current) {
+        nf.overlayAiReply({ requestId: payload?.requestId, error: 'Sign in to use NexAI on the overlay.' });
+        return;
+      }
+      try {
+        const reply = await askNexPanion(payload?.message || '', payload?.history || []);
+        nf.overlayAiReply({ requestId: payload?.requestId, reply });
+      } catch (err) {
+        nf.overlayAiReply({
+          requestId: payload?.requestId,
+          error: err?.message || 'NexAI is unavailable',
+        });
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    window.nexforge?.overlaySyncState?.({
+      signedIn: !!user,
+      game: liveSession?.game || null,
+      unread: unreadTotal,
+    });
+  }, [user, liveSession?.game, unreadTotal]);
 
   // Game session tracking lives here (always mounted) so finished sessions are
   // saved even when the Analytics screen is closed.
@@ -998,7 +1103,7 @@ export function NexForgeProvider({ children }) {
       const key = `invite:${party.id}`;
       if (overlaySeenRef.current.partyInviteKey !== key) {
         overlaySeenRef.current.partyInviteKey = key;
-        if (!dndRef.current) {
+        if (!dndRef.current && overlayRef.current) {
           const host = (party.members || []).find((m) => m.role === 'host');
           nf.overlayNotify({
             kind: 'party',
@@ -1022,7 +1127,7 @@ export function NexForgeProvider({ children }) {
         const key = `${data.id}:${data.lobby_code}`;
         if (overlaySeenRef.current.lobbyCodeKey === key) return;
         overlaySeenRef.current.lobbyCodeKey = key;
-        if (dndRef.current) return;
+        if (dndRef.current || !overlayRef.current) return;
         nf.overlayNotify({
           kind: 'lobby',
           sender: data.game || 'Lobby',
@@ -1072,6 +1177,16 @@ export function NexForgeProvider({ children }) {
     refreshUnread,
     dndEnabled,
     setDndEnabled,
+    overlayEnabled,
+    setOverlayEnabled,
+    clipEnabled,
+    setClipEnabled,
+    clipSeconds,
+    setClipSeconds,
+    overlayHotkeys,
+    setOverlayHotkey,
+    lastClipPath,
+    clipStatus,
     communityGames,
     gameCatalog: gameCatalog.length ? gameCatalog : GAME_CATALOG,
     knownGames: knownGames.length ? knownGames : KNOWN_MAIN_GAMES,
