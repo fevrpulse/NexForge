@@ -19,25 +19,33 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      # One build, one publish. Building separately first meant electron-builder
-      # ran twice on a tag: the first run had no GH_TOKEN yet still tried to
-      # publish (its default policy is onTagOrDraft) and failed the job, and a
-      # second build would anyway produce a different sha512 than the first.
-      - name: Build and publish Windows release
+
+      # Build without electron-builder's publisher. Its own upload step kept
+      # failing this job on tag builds, and running it a second time to publish
+      # would produce an installer whose sha512 no longer matched latest.yml.
+      - name: Build Windows installer
+        run: npm run build
+
+      # latest.yml already carries the hash the auto-updater verifies, so
+      # uploading the build output as-is keeps updates working.
+      - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $tag = $env:GITHUB_REF_NAME
-          $hasYml = $false
           try {
             $rel = gh release view $tag --json assets | ConvertFrom-Json
-            $hasYml = @($rel.assets.name) -contains 'latest.yml'
+            if (@($rel.assets.name) -contains 'latest.yml') {
+              Write-Output "Skipping: latest.yml is already published for $tag."
+              exit 0
+            }
           } catch {
-            Write-Output "No GitHub release for $tag yet"
+            Write-Output "No GitHub release for $tag yet; creating one."
           }
-          if ($hasYml) {
-            Write-Output 'Skipping: latest.yml already published for this tag.'
-            exit 0
-          }
-          npm run build:renderer
-          npx --no-install electron-builder --win --publish always -c.forceCodeSigning=false
+          $assets = Get-ChildItem dist -File |
+            Where-Object { $_.Name -eq 'latest.yml' -or $_.Extension -eq '.exe' } |
+            ForEach-Object { $_.FullName }
+          if (-not $assets) { throw 'No installer artifacts found in dist.' }
+          Write-Output "Uploading $($assets.Count) asset(s)."
+          gh release create $tag $assets --title "NexForge $tag" --notes "NexForge $tag"
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
