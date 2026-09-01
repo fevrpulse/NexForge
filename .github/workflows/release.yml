@@ -19,9 +19,11 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - name: Build Windows installer
-        run: npm run build
-      - name: Publish Windows release
+      # One build, one publish. Building separately first meant electron-builder
+      # ran twice on a tag: the first run had no GH_TOKEN yet still tried to
+      # publish (its default policy is onTagOrDraft) and failed the job, and a
+      # second build would anyway produce a different sha512 than the first.
+      - name: Build and publish Windows release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -34,7 +36,8 @@ jobs:
             Write-Output "No GitHub release for $tag yet"
           }
           if ($hasYml) {
-            Write-Output 'Skipping publish: latest.yml already exists (avoids sha512 mismatch from a second build).'
+            Write-Output 'Skipping: latest.yml already published for this tag.'
             exit 0
           }
+          npm run build:renderer
           npx --no-install electron-builder --win --publish always -c.forceCodeSigning=false
