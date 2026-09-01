@@ -20,11 +20,13 @@ jobs:
           cache: npm
       - run: npm ci
 
-      # Build without electron-builder's publisher. Its own upload step kept
-      # failing this job on tag builds, and running it a second time to publish
-      # would produce an installer whose sha512 no longer matched latest.yml.
+      # --publish never is required: electron-builder defaults to onTagOrDraft,
+      # so on a tag build it tries to upload by itself and fails the job. Its
+      # uploader is not used here; the gh step below publishes the output.
       - name: Build Windows installer
-        run: npm run build
+        run: |
+          npm run build:renderer
+          npx --no-install electron-builder --win --publish never -c.forceCodeSigning=false
 
       # latest.yml already carries the hash the auto-updater verifies, so
       # uploading the build output as-is keeps updates working.
