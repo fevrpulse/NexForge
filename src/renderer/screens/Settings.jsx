@@ -3,6 +3,9 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { COMPANION_URL } from '../lib/companion.js';
 import { CHANGELOG } from '../lib/changelog.js';
 import { eventToAccelerator, formatAccelerator } from '../lib/hotkeys.js';
+import { getPreference, setPreference, activeTier, resetProbe, TIER_LABELS, TIER_HINTS } from '../lib/fx.js';
+
+const FX_OPTIONS = ['auto', 'high', 'balanced', 'low'];
 
 const TABS = [
   { id: 'general', label: 'General' },
@@ -84,6 +87,8 @@ export default function Settings() {
   } = useNexForge();
   const [tab, setTab] = useState('general');
   const [listening, setListening] = useState(null);
+  const [fxPref, setFxPref] = useState(() => getPreference());
+  const [fxActive, setFxActive] = useState(() => activeTier());
   const latest = CHANGELOG[0];
   const tag = profile?.gamer_tag || (guestMode ? 'Guest' : 'Player');
 
@@ -101,13 +106,18 @@ export default function Settings() {
       e.stopPropagation();
       setOverlayHotkey(listening, acc).then((res) => {
         setListening(null);
+        const labels = { clip: 'Clip', overlay: 'Overlay', nexai: 'NexAI' };
         if (res?.ok === false) {
-          showToast(res.reason === 'could-not-register'
-            ? 'Windows would not register that keybind. Try another combo.'
-            : 'Could not save that keybind.', 'error');
+          const reasons = {
+            'could-not-register': 'Windows would not register that keybind. Try another combo.',
+            conflict: 'That combo is already used by another NexForge keybind.',
+          };
+          showToast(reasons[res.reason] || 'Could not save that keybind.', 'error');
           return;
         }
-        showToast(`${listening === 'clip' ? 'Clip' : 'Overlay'} keybind set to ${formatAccelerator(acc)}`, 'success');
+        // Report what actually got saved, not what was requested.
+        const saved = res?.accelerator || acc;
+        showToast(`${labels[listening] || 'Keybind'} set to ${formatAccelerator(saved)}`, 'success');
       });
     }
     window.addEventListener('keydown', onKey, true);
@@ -116,6 +126,20 @@ export default function Settings() {
 
   function startListen(action) {
     setListening(action);
+  }
+
+  function chooseFx(pref) {
+    // Re-running auto-detect should be free to reconsider, so clear the probe.
+    resetProbe();
+    const tier = setPreference(pref);
+    setFxPref(pref);
+    setFxActive(tier);
+    showToast(
+      pref === 'auto'
+        ? `Visual effects on Auto — using ${TIER_LABELS[tier]}`
+        : `Visual effects set to ${TIER_LABELS[pref]}`,
+      'success'
+    );
   }
 
   return (
@@ -173,18 +197,45 @@ export default function Settings() {
           </div>
 
           <div className="card" style={{ marginTop: 14 }}>
+            <div className="card-title">Performance</div>
+            <div className="row" style={{ borderBottom: 'none', paddingBottom: 4 }}>
+              <div>
+                <div className="row-title">Visual effects</div>
+                <div className="row-sub">
+                  {fxPref === 'auto'
+                    ? `Auto — running ${TIER_LABELS[fxActive]} on this machine`
+                    : TIER_HINTS[fxPref]}
+                </div>
+              </div>
+            </div>
+            <div className="fx-picker">
+              {FX_OPTIONS.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  className={`fx-opt ${fxPref === opt ? 'active' : ''}`}
+                  onClick={() => chooseFx(opt)}
+                >
+                  <span className="fx-opt-name">{TIER_LABELS[opt]}</span>
+                  <span className="fx-opt-hint">{TIER_HINTS[opt]}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="card" style={{ marginTop: 14 }}>
             <div className="card-title">Shortcuts</div>
             <div className="row">
               <div>
-                <div className="row-title">NexAI dock</div>
-                <div className="row-sub">Open or close NexAI inside the app</div>
+                <div className="row-title">NexAI</div>
+                <div className="row-sub">In a game this is NexAI only. Inside the app it opens the dock</div>
               </div>
-              <span className="settings-kbd">Ctrl + Shift + A</span>
+              <span className="settings-kbd">{formatAccelerator(overlayHotkeys?.nexai)}</span>
             </div>
             <div className="row">
               <div>
                 <div className="row-title">Overlay HUD</div>
-                <div className="row-sub">Open, edit, and close the in-game overlay</div>
+                <div className="row-sub">Full HUD inside the app. In a game this also opens NexAI only</div>
               </div>
               <span className="settings-kbd">{formatAccelerator(overlayHotkeys?.overlay)}</span>
             </div>
@@ -222,10 +273,17 @@ export default function Settings() {
             />
             <KeybindRow
               label="Open & edit overlay"
-              hint="Opens the HUD so you can drag panels, talk to NexAI, and clip. Press it again to close."
+              hint="Inside NexForge this opens the full HUD so you can drag panels. In a game it opens NexAI only."
               value={overlayHotkeys?.overlay}
               listening={listening === 'overlay'}
               onListen={() => startListen('overlay')}
+            />
+            <KeybindRow
+              label="NexAI"
+              hint="Over a game this shows only NexAI. Inside the app it opens or closes the dock."
+              value={overlayHotkeys?.nexai}
+              listening={listening === 'nexai'}
+              onListen={() => startListen('nexai')}
             />
           </div>
 

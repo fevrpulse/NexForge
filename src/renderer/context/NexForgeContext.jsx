@@ -125,6 +125,7 @@ export function NexForgeProvider({ children }) {
   const [clipSeconds, setClipSecondsState] = useState(20);
   const [overlayHotkeys, setOverlayHotkeys] = useState({
     overlay: 'CommandOrControl+Shift+O',
+    nexai: 'CommandOrControl+Shift+A',
     clip: 'CommandOrControl+F8',
   });
   const [lastClipPath, setLastClipPath] = useState(null);

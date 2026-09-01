@@ -7,7 +7,11 @@ const corsHeaders = {
 };
 
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GROQ_MODEL = "openai/gpt-oss-120b";
+const GROQ_MODELS = [
+  Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "qwen/qwen3.6-27b",
+].filter((model, index, all) => model && all.indexOf(model) === index);
 const MAX_HISTORY = 16;
 const MAX_MESSAGE_LEN = 2000;
 
@@ -164,27 +168,35 @@ Deno.serve(async (req) => {
 
   let groqRes: Response | null = null;
   let groqJson: { error?: { message?: string }; choices?: Array<{ message?: { content?: string } }> } = {};
+  let usedModel = GROQ_MODELS[0];
   try {
-    for (const groqKey of groqKeys) {
-      groqRes = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${groqKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages,
-          temperature: 0.7,
-          max_tokens: 1024,
-        }),
-      });
-      groqJson = await groqRes.json().catch(() => ({}));
-      if (groqRes.ok) break;
-      const authFail = groqRes.status === 401 || groqRes.status === 403;
-      console.error("Groq error", groqRes.status, groqJson);
-      if (authFail && groqKey !== groqKeys[groqKeys.length - 1]) continue;
-      break;
+    outer: for (const groqKey of groqKeys) {
+      for (const model of GROQ_MODELS) {
+        groqRes = await fetch(GROQ_URL, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${groqKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages,
+            temperature: 0.7,
+            max_tokens: 2048,
+          }),
+        });
+        groqJson = await groqRes.json().catch(() => ({}));
+        if (groqRes.ok) {
+          usedModel = model;
+          break outer;
+        }
+        const authFail = groqRes.status === 401 || groqRes.status === 403;
+        const missingModel = groqRes.status === 404;
+        console.error("Groq error", groqRes.status, model, groqJson);
+        if (authFail) break;
+        if (missingModel) continue;
+        break;
+      }
     }
   } catch (err) {
     console.error("Groq fetch failed", err);
@@ -206,7 +218,7 @@ Deno.serve(async (req) => {
 
   return json({
     reply: reply.trim(),
-    model: GROQ_MODEL,
+    model: usedModel,
     assistant: "NexAI",
   });
 });

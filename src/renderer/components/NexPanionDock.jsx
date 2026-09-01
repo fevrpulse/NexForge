@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { askNexPanion, NEXPANION_ID } from '../lib/nexpanion.js';
+import { formatAccelerator } from '../lib/hotkeys.js';
 
 const WELCOME = {
   id: 'nexpanion-welcome',
@@ -20,7 +21,7 @@ function timeLabel(iso) {
 }
 
 export default function NexPanionDock() {
-  const { user, guestMode, showToast, reportCloudError } = useNexForge();
+  const { user, guestMode, showToast, reportCloudError, overlayHotkeys } = useNexForge();
   const myId = user?.id;
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([WELCOME]);
@@ -74,6 +75,7 @@ export default function NexPanionDock() {
         setOpen(false);
         return;
       }
+      if (window.nexforge?.onNexAiHotkey) return;
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && String(e.key).toLowerCase() === 'a') {
         e.preventDefault();
         setOpen((v) => !v);
@@ -82,6 +84,12 @@ export default function NexPanionDock() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open, user, guestMode]);
+
+  useEffect(() => {
+    if (!user || guestMode) return undefined;
+    const off = window.nexforge?.onNexAiHotkey?.(() => setOpen((v) => !v));
+    return () => off?.();
+  }, [user, guestMode]);
 
   useEffect(() => {
     if (open && scrollRef.current) {
@@ -145,7 +153,7 @@ export default function NexPanionDock() {
             <div className="np-head-mark" aria-hidden>AI</div>
             <div className="np-head-copy">
               <div className="np-head-title">NexAI</div>
-              <div className="np-head-sub">Gaming tips · Ctrl+Shift+A</div>
+              <div className="np-head-sub">Gaming tips · {formatAccelerator(overlayHotkeys?.nexai)}</div>
             </div>
             <button
               type="button"
@@ -222,7 +230,7 @@ export default function NexPanionDock() {
         <button
           type="button"
           className={`np-fab ${open ? 'active' : ''}`}
-          title={open ? 'Close NexAI' : 'Open NexAI (Ctrl+Shift+A)'}
+          title={open ? 'Close NexAI' : `Open NexAI (${formatAccelerator(overlayHotkeys?.nexai)})`}
           aria-label={open ? 'Close NexAI' : 'Open NexAI'}
           onClick={() => setOpen((v) => !v)}
         >

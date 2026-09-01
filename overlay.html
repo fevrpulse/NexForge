@@ -28,6 +28,42 @@
     body.hud-on {
       background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(0,0,0,.28), transparent 70%);
     }
+    body.hud-on.nexai-only { background: transparent; }
+    body.nexai-only .hud-bar,
+    body.nexai-only #panel-session,
+    body.nexai-only #panel-clip,
+    body.nexai-only #panel-feed { display: none !important; }
+    body.nexai-only #panel-nexai {
+      box-shadow: 0 18px 48px rgba(0,0,0,.55);
+    }
+    .panel-h .panel-x {
+      display: none;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      font-weight: 800;
+      border-radius: 999px;
+      width: 22px; height: 22px;
+      cursor: pointer;
+      font-family: inherit;
+      line-height: 1;
+    }
+    body.nexai-only .panel-h .panel-x { display: inline-flex; align-items: center; justify-content: center; }
+    .panel-h .panel-clear { margin-left: auto; margin-right: 6px; font-size: 12px; }
+    .ai-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+    .ai-chips.hidden { display: none; }
+    .ai-chip {
+      background: rgba(201,255,0,.07);
+      border: 1px solid rgba(201,255,0,.22);
+      color: var(--muted2);
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-family: inherit;
+      font-size: 10px;
+      cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s;
+    }
+    .ai-chip:hover { border-color: var(--neon); color: var(--neon); background: rgba(201,255,0,.14); }
     #toasts {
       position: fixed;
       top: 18px;
@@ -171,9 +207,14 @@
       </div>
     </div>
     <div class="panel" id="panel-nexai" data-id="nexai" style="width:360px">
-      <div class="panel-h">NexAI</div>
+      <div class="panel-h">NexAI <button type="button" class="panel-x panel-clear" id="nexai-clear" aria-label="Clear conversation" title="Clear conversation">⌫</button><button type="button" class="panel-x" id="nexai-close" aria-label="Close">×</button></div>
       <div class="panel-b">
         <div id="ai-log"></div>
+        <div class="ai-chips" id="ai-chips">
+          <button type="button" class="ai-chip">How do I improve my aim?</button>
+          <button type="button" class="ai-chip">Warm-up routine</button>
+          <button type="button" class="ai-chip">Help me stop tilting</button>
+        </div>
         <div class="ai-row">
           <input id="ai-input" maxlength="400" placeholder="Ask NexAI…" />
           <button type="button" class="ai-send" id="ai-send">Send</button>
@@ -203,6 +244,28 @@
     let aiBusy = false;
     let aiReq = 0;
     let signedIn = false;
+    // The overlay had no memory: every question started a fresh conversation.
+    const AI_HISTORY_KEY = 'nf-overlay-ai-history';
+    const AI_HISTORY_MAX = 16;
+    let aiHistory = [];
+    try {
+      const saved = JSON.parse(localStorage.getItem(AI_HISTORY_KEY) || '[]');
+      if (Array.isArray(saved)) aiHistory = saved.slice(-AI_HISTORY_MAX);
+    } catch { aiHistory = []; }
+
+    function persistAiHistory() {
+      try {
+        localStorage.setItem(AI_HISTORY_KEY, JSON.stringify(aiHistory.slice(-AI_HISTORY_MAX)));
+      } catch { /* storage full or blocked */ }
+    }
+
+    function clearAiHistory() {
+      aiHistory = [];
+      persistAiHistory();
+      const log = document.getElementById('ai-log');
+      if (log) log.innerHTML = '';
+      syncAiChips();
+    }
     let feed = [];
     let prefs = { hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8' } };
 
@@ -324,6 +387,11 @@
       });
     }
 
+    function syncAiChips() {
+      const chips = document.getElementById('ai-chips');
+      if (chips) chips.classList.toggle('hidden', aiHistory.length > 0);
+    }
+
     function addAi(role, text) {
       const log = document.getElementById('ai-log');
       const div = document.createElement('div');
@@ -345,7 +413,12 @@
       addAi('me', text);
       aiBusy = true;
       const requestId = ++aiReq;
-      api.askAi({ requestId, message: text });
+      // Send prior turns so follow-up questions actually make sense.
+      const history = aiHistory.slice(-AI_HISTORY_MAX);
+      aiHistory.push({ role: 'user', content: text });
+      persistAiHistory();
+      syncAiChips();
+      api.askAi({ requestId, message: text, history });
     }
 
     function formatAcc(acc) {
@@ -353,6 +426,19 @@
     }
 
     document.getElementById('hud-close').onclick = () => api.closeHud();
+    document.getElementById('nexai-close').onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      api.closeHud();
+    };
+    document.getElementById('nexai-close').onmousedown = (e) => e.stopPropagation();
+    document.getElementById('nexai-clear').onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      clearAiHistory();
+      document.getElementById('ai-input')?.focus();
+    };
+    document.getElementById('nexai-clear').onmousedown = (e) => e.stopPropagation();
     document.getElementById('clip-btn').onclick = () => api.clipNow();
     document.getElementById('ai-send').onclick = sendAi;
     document.getElementById('ai-input').addEventListener('keydown', (e) => {
@@ -362,9 +448,34 @@
     placePanels();
     window.addEventListener('resize', placePanels);
 
+    document.querySelectorAll('.ai-chip').forEach((chip) => {
+      chip.onmousedown = (e) => e.stopPropagation();
+      chip.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const input = document.getElementById('ai-input');
+        input.value = chip.textContent;
+        sendAi();
+      };
+    });
+
+    // Escape is the reflex for dismissing an in-game panel.
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      api.closeHud();
+    });
+
+    // Replay the stored conversation so reopening keeps context on screen.
+    for (const turn of aiHistory) addAi(turn.role === 'user' ? 'me' : 'ai', turn.content);
+    syncAiChips();
+
     api?.onMessage(addToast);
     api?.onHud((payload) => {
-      document.body.classList.toggle('hud-on', !!payload?.open);
+      const open = !!payload?.open;
+      const mode = payload?.mode === 'nexai' ? 'nexai' : 'full';
+      document.body.classList.toggle('hud-on', open);
+      document.body.classList.toggle('nexai-only', open && mode === 'nexai');
       if (payload?.prefs) prefs = payload.prefs;
       document.getElementById('hud-hint').textContent =
         'Drag panels · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes · ' + formatAcc(prefs.hotkeys?.clip) + ' clips';
@@ -377,7 +488,17 @@
       if (payload?.lastClipPath) {
         document.getElementById('clip-last').textContent = payload.lastClipPath.split(/[/\\]/).pop();
       }
-      if (payload?.open) placePanels();
+      if (open) {
+        placePanels();
+        if (mode === 'nexai') {
+          requestAnimationFrame(() => document.getElementById('ai-input')?.focus());
+        }
+      } else {
+        // Closing while a reply was in flight used to leave the composer
+        // disabled forever. Bumping the id also drops the late reply.
+        aiBusy = false;
+        aiReq += 1;
+      }
     });
     api?.onState((state) => {
       signedIn = !!state?.signedIn;
@@ -387,9 +508,17 @@
         : 'Launch a supported game to light this up.';
     });
     api?.onAiReply((payload) => {
+      // Ignore replies to requests the user already dismissed.
+      if (payload?.requestId && payload.requestId !== aiReq) return;
       aiBusy = false;
-      if (payload?.error) addAi('ai', payload.error);
-      else addAi('ai', payload?.reply || '…');
+      if (payload?.error) {
+        addAi('ai', payload.error);
+        return;
+      }
+      const reply = payload?.reply || '…';
+      addAi('ai', reply);
+      aiHistory.push({ role: 'assistant', content: reply });
+      persistAiHistory();
     });
     api?.onClipStatus((s) => {
       if (!s) return;

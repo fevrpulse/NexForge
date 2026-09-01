@@ -22,6 +22,7 @@ import Settings from './screens/Settings.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
+import { probeFrameRate, TIER_LABELS } from './lib/fx.js';
 
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
@@ -52,7 +53,18 @@ const SCREEN_COMPONENTS = {
 };
 
 function AppShell() {
-  const { loading, user, guestMode, screen, cloudOffline, cloudReason, probeCloud, createAccount, appVersion } = useNexForge();
+  const { loading, user, guestMode, screen, cloudOffline, cloudReason, probeCloud, createAccount, appVersion, showToast } = useNexForge();
+
+  const toastRef = React.useRef(showToast);
+  toastRef.current = showToast;
+  React.useEffect(
+    () =>
+      probeFrameRate({
+        onDowngrade: (tier) =>
+          toastRef.current?.(`Visual effects set to ${TIER_LABELS[tier]} to keep things smooth`, 'success'),
+      }),
+    []
+  );
 
   if (loading) {
     return (

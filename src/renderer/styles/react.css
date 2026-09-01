@@ -1622,3 +1622,46 @@
   .loading-ring,.np-orbit{display:none}
 }
 
+/* ── REFINEMENT LAYER ─────────────────────────────────────────
+   Loaded last so it settles shared treatments across screens. */
+
+/* Full-area empty states read as a deliberate slot, not a gap. */
+.tourney-empty,
+.hw-chart-empty,
+.comm-empty-note.center{
+  font-family:var(--mono);color:var(--muted2);text-align:center;line-height:1.7;
+  background:
+    radial-gradient(ellipse 70% 90% at 50% 0%, rgba(210,255,42,.05), transparent 72%),
+    rgba(255,255,255,.014);
+  border:1px dashed rgba(210,255,42,.18);
+  border-radius:var(--radius);
+}
+.tourney-empty{font-size:13px;padding:44px 24px;margin-bottom:16px}
+.hw-chart-empty{font-size:12px;padding:34px 16px}
+.comm-empty-note.center{padding:34px 16px}
+.friends-empty,.coach-empty,.verified-empty,.bracket-empty,.party-panel-empty{
+  color:var(--muted2);line-height:1.65;
+}
+
+/* Keyboard focus was invisible; outline avoids clobbering box-shadows. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible{
+  outline:2px solid rgba(210,255,42,.55);
+  outline-offset:2px;
+  border-radius:8px;
+}
+
+/* Scrollbars were only styled on .content. */
+*{scrollbar-width:thin;scrollbar-color:rgba(210,255,42,.26) transparent}
+*::-webkit-scrollbar{width:8px;height:8px}
+*::-webkit-scrollbar-track{background:transparent}
+*::-webkit-scrollbar-thumb{
+  background:rgba(210,255,42,.2);border-radius:999px;
+  border:2px solid transparent;background-clip:padding-box;
+}
+*::-webkit-scrollbar-thumb:hover{background:rgba(210,255,42,.38);background-clip:padding-box}
+

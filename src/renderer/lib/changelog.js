@@ -4,6 +4,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.7.0',
+    highlights: [
+      'Visual effects now match your hardware — pick Auto, High, Balanced, or Low in Settings',
+      'Low mode drops every background animation and blur so weak GPUs stay smooth',
+      'Sharper look: deeper cards, cleaner background, and readable secondary text',
+      'NexAI on the overlay remembers the conversation, has starter prompts, and takes typing',
+      'Escape closes the in-game NexAI panel',
+      'A keybind that Windows rejects no longer wipes your working shortcut',
+    ],
+  },
+  {
     version: '4.6.0',
     highlights: [
       'Lime-and-olive identity is back — no more rainbow per-screen colors',

@@ -8,9 +8,27 @@ const DEFAULT_PREFS = {
   clipSeconds: 20,
   hotkeys: {
     overlay: 'CommandOrControl+Shift+O',
+    nexai: 'CommandOrControl+Shift+A',
     clip: 'CommandOrControl+F8',
   },
 };
+
+function resolveHotkeys(hotkeys) {
+  const next = {
+    overlay: String(hotkeys?.overlay || DEFAULT_PREFS.hotkeys.overlay),
+    nexai: String(hotkeys?.nexai || DEFAULT_PREFS.hotkeys.nexai),
+    clip: String(hotkeys?.clip || DEFAULT_PREFS.hotkeys.clip),
+  };
+  if (next.nexai === next.overlay) next.nexai = DEFAULT_PREFS.hotkeys.nexai;
+  if (next.nexai === next.overlay) next.nexai = 'CommandOrControl+Shift+N';
+  if (next.clip === next.overlay || next.clip === next.nexai) {
+    next.clip = DEFAULT_PREFS.hotkeys.clip;
+  }
+  if (next.clip === next.overlay || next.clip === next.nexai) {
+    next.clip = 'CommandOrControl+F9';
+  }
+  return next;
+}
 
 function prefsPath() {
   return path.join(app.getPath('userData'), 'overlay-prefs.json');
@@ -23,10 +41,7 @@ function loadPrefs() {
       overlayEnabled: raw.overlayEnabled !== false,
       clipEnabled: raw.clipEnabled !== false,
       clipSeconds: Math.max(8, Math.min(45, Number(raw.clipSeconds) || 20)),
-      hotkeys: {
-        overlay: String(raw.hotkeys?.overlay || DEFAULT_PREFS.hotkeys.overlay),
-        clip: String(raw.hotkeys?.clip || DEFAULT_PREFS.hotkeys.clip),
-      },
+      hotkeys: resolveHotkeys(raw.hotkeys),
     };
   } catch {
     return { ...DEFAULT_PREFS, hotkeys: { ...DEFAULT_PREFS.hotkeys } };
@@ -57,8 +72,11 @@ function safeName(value) {
 
 function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   let overlayWindow = null;
+  let overlayReady = false;
+  let pendingReady = null;
   let clipWindow = null;
   let hudOpen = false;
+  let hudMode = null;
   let toastLive = false;
   let prefs = loadPrefs();
   let lastClipPath = null;
@@ -125,9 +143,18 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     setClickThrough(true);
     overlayWindow.setMenu(null);
     overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
+    overlayWindow.webContents.on('did-finish-load', () => {
+      overlayReady = true;
+      const queued = pendingReady;
+      pendingReady = null;
+      if (queued) for (const fn of queued.values()) fn();
+    });
     overlayWindow.on('closed', () => {
       overlayWindow = null;
+      overlayReady = false;
+      pendingReady = null;
       hudOpen = false;
+      hudMode = null;
       toastLive = false;
     });
     overlayWindow.on('blur', () => {
@@ -138,18 +165,25 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     return overlayWindow;
   }
 
+  // Keyed so each concern keeps only its newest callback: queuing one
+  // 'did-finish-load' listener per call let rapid hotkey toggles replay stale
+  // state on first paint, but they still must not cancel each other out.
+  function whenOverlayReady(key, fn) {
+    if (overlayReady && overlayWindow && !overlayWindow.isDestroyed()) {
+      fn();
+      return;
+    }
+    pendingReady = pendingReady || new Map();
+    pendingReady.set(key, fn);
+  }
+
   function showOverlay() {
     const win = getOverlayWindow();
-    const deliver = () => {
+    whenOverlayReady('show', () => {
       if (!win || win.isDestroyed()) return;
       positionOverlay(win);
       if (!win.isVisible()) win.showInactive();
-    };
-    if (win.webContents.isLoading()) {
-      win.webContents.once('did-finish-load', deliver);
-    } else {
-      deliver();
-    }
+    });
     return win;
   }
 
@@ -163,31 +197,35 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   function showOverlayMessage(payload) {
     if (!prefs.overlayEnabled && payload?.kind !== 'clip') return { ok: false, reason: 'disabled' };
     const win = showOverlay();
-    const deliver = () => {
+    whenOverlayReady('message', () => {
       if (!win || win.isDestroyed()) return;
       toastLive = true;
       win.webContents.send('overlay-message', payload);
-    };
-    if (win.webContents.isLoading()) {
-      win.webContents.once('did-finish-load', deliver);
-    } else {
-      deliver();
-    }
+    });
     return { ok: true };
   }
 
-  function setHudOpen(open) {
+  function isMainFocused() {
+    const main = getMainWindow?.();
+    return !!(main && !main.isDestroyed() && main.isVisible() && main.isFocused());
+  }
+
+  function setHudOpen(open, mode = 'full') {
     hudOpen = !!open;
+    hudMode = hudOpen ? (mode === 'nexai' ? 'nexai' : 'full') : null;
     const win = showOverlay();
-    const apply = () => {
+    whenOverlayReady('hud', () => {
       if (!win || win.isDestroyed()) return;
       sendOverlay('overlay-hud', {
         open: hudOpen,
+        mode: hudMode,
         prefs,
         lastClipPath,
         clipStatus,
       });
       if (hudOpen) {
+        // Both modes must accept input: a click-through window cannot hold
+        // keyboard focus, so NexAI could not be typed into. The hotkey closes it.
         setClickThrough(false);
         win.show();
         win.focus();
@@ -195,13 +233,8 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
         setClickThrough(true);
         hideIfIdle();
       }
-    };
-    if (win.webContents.isLoading()) {
-      win.webContents.once('did-finish-load', apply);
-    } else {
-      apply();
-    }
-    sendToRenderer('overlay-hotkey', { open: hudOpen });
+    });
+    sendToRenderer('overlay-hotkey', { open: hudOpen, mode: hudMode });
   }
 
   function toggleHud() {
@@ -209,7 +242,31 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       sendToRenderer('overlay-hotkey-blocked', { reason: 'disabled' });
       return;
     }
-    setHudOpen(!hudOpen);
+    if (hudOpen) {
+      setHudOpen(false);
+      return;
+    }
+    setHudOpen(true, isMainFocused() ? 'full' : 'nexai');
+  }
+
+  function toggleNexAi() {
+    if (hudOpen) {
+      const wasNexAi = hudMode === 'nexai';
+      setHudOpen(false);
+      // Closing the full HUD shouldn't swallow the press; in-app this key
+      // still owns the dock.
+      if (!wasNexAi && isMainFocused()) sendToRenderer('nexai-hotkey');
+      return;
+    }
+    if (isMainFocused()) {
+      sendToRenderer('nexai-hotkey');
+      return;
+    }
+    if (!prefs.overlayEnabled) {
+      sendToRenderer('overlay-hotkey-blocked', { reason: 'disabled' });
+      return;
+    }
+    setHudOpen(true, 'nexai');
   }
 
   function getClipWindow() {
@@ -272,17 +329,20 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
 
   function registerHotkeys() {
     globalShortcut.unregisterAll();
-    const overlayAcc = prefs.hotkeys.overlay || DEFAULT_PREFS.hotkeys.overlay;
-    const clipAcc = prefs.hotkeys.clip || DEFAULT_PREFS.hotkeys.clip;
-    try {
-      globalShortcut.register(overlayAcc, () => toggleHud());
-    } catch (err) {
-      console.warn('Overlay hotkey failed:', overlayAcc, err);
-    }
-    try {
-      globalShortcut.register(clipAcc, () => saveClip('highlight'));
-    } catch (err) {
-      console.warn('Clip hotkey failed:', clipAcc, err);
+    const binds = [
+      ['Overlay', prefs.hotkeys.overlay || DEFAULT_PREFS.hotkeys.overlay, () => toggleHud()],
+      ['NexAI', prefs.hotkeys.nexai || DEFAULT_PREFS.hotkeys.nexai, () => toggleNexAi()],
+      ['Clip', prefs.hotkeys.clip || DEFAULT_PREFS.hotkeys.clip, () => saveClip('highlight')],
+    ];
+    for (const [label, acc, handler] of binds) {
+      let ok = false;
+      try {
+        ok = globalShortcut.register(acc, handler);
+      } catch (err) {
+        console.warn(`${label} hotkey threw:`, acc, err);
+      }
+      // register() signals failure by returning false, not by throwing.
+      if (!ok) console.warn(`${label} hotkey unavailable:`, acc);
     }
   }
 
@@ -291,17 +351,8 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       overlayEnabled: next.overlayEnabled !== false,
       clipEnabled: next.clipEnabled !== false,
       clipSeconds: Math.max(8, Math.min(45, Number(next.clipSeconds) || 20)),
-      hotkeys: {
-        overlay: String(next.hotkeys?.overlay || prefs.hotkeys.overlay),
-        clip: String(next.hotkeys?.clip || prefs.hotkeys.clip),
-      },
+      hotkeys: resolveHotkeys({ ...prefs.hotkeys, ...(next.hotkeys || {}) }),
     };
-    if (prefs.hotkeys.overlay === prefs.hotkeys.clip) {
-      prefs.hotkeys.clip = DEFAULT_PREFS.hotkeys.clip;
-      if (prefs.hotkeys.overlay === prefs.hotkeys.clip) {
-        prefs.hotkeys.clip = 'CommandOrControl+F9';
-      }
-    }
     savePrefs(prefs);
     registerHotkeys();
     syncClipBuffer();
@@ -358,20 +409,38 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     ipcMain.handle('set-overlay-prefs', (_event, next) => applyPrefs(next || {}));
 
     ipcMain.handle('set-overlay-hotkey', (_event, { action, accelerator } = {}) => {
-      if (action !== 'overlay' && action !== 'clip') {
+      if (action !== 'overlay' && action !== 'clip' && action !== 'nexai') {
         return { ok: false, reason: 'bad-action' };
       }
       const acc = String(accelerator || '').trim();
       if (!acc) return { ok: false, reason: 'empty' };
-      const next = {
-        ...prefs,
-        hotkeys: { ...prefs.hotkeys, [action]: acc },
-      };
-      applyPrefs(next);
-      if (!globalShortcut.isRegistered(acc)) {
+
+      // Reject a combo already owned by another action instead of letting
+      // resolveHotkeys silently remap it and reporting success.
+      const resolved = resolveHotkeys({ ...prefs.hotkeys, [action]: acc });
+      if (resolved[action] !== acc) {
+        return { ok: false, reason: 'conflict', prefs };
+      }
+
+      // Probe first. register() returns false rather than throwing, so the old
+      // code saved unusable combos and left the user with no working binding.
+      const previous = prefs;
+      globalShortcut.unregisterAll();
+      let usable = false;
+      try {
+        usable = globalShortcut.register(acc, () => {});
+      } catch {
+        usable = false;
+      }
+      globalShortcut.unregisterAll();
+
+      if (!usable) {
+        applyPrefs(previous);
         return { ok: false, reason: 'could-not-register', prefs };
       }
-      return { ok: true, prefs };
+
+      applyPrefs({ ...prefs, hotkeys: { ...prefs.hotkeys, [action]: acc } });
+      return { ok: true, prefs, accelerator: prefs.hotkeys[action] };
     });
 
     ipcMain.handle('open-clips-folder', async () => {
@@ -443,6 +512,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     if (overlayWindow && !overlayWindow.isDestroyed()) overlayWindow.destroy();
     overlayWindow = null;
     hudOpen = false;
+    hudMode = null;
     toastLive = false;
   }
 

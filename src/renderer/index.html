@@ -7,6 +7,24 @@
     <link rel="icon" type="image/png" href="./icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <script>
+      // Runs before first paint so heavy effects never flash on then off.
+      (function () {
+        var tier;
+        try { tier = localStorage.getItem('nf-fx-tier'); } catch (e) {}
+        if (tier !== 'high' && tier !== 'balanced' && tier !== 'low') {
+          // Reduced-motion is deliberately not consulted here: it means "less
+          // movement", not "weaker GPU", and the reduced-motion media queries
+          // already stop the animation. Tier is about rendering cost only.
+          var cores = navigator.hardwareConcurrency || 4;
+          var mem = navigator.deviceMemory || 4;
+          tier = (cores <= 2 || mem <= 2) ? 'low'
+               : (cores >= 8 && mem >= 8) ? 'high'
+               : 'balanced';
+        }
+        document.documentElement.setAttribute('data-fx', tier);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

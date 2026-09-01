@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('nexforge', {
   overlayNotify: (payload) => ipcRenderer.invoke('overlay-notify', payload),
   showMainWindow: () => ipcRenderer.invoke('show-main-window'),
   onOverlayHotkey: (callback) => subscribe('overlay-hotkey', callback),
+  onNexAiHotkey: (callback) => subscribe('nexai-hotkey', callback),
   onOverlayHotkeyBlocked: (callback) => subscribe('overlay-hotkey-blocked', callback),
   onOverlayAiAsk: (callback) => subscribe('overlay-ai-ask', callback),
   overlayAiReply: (payload) => ipcRenderer.send('overlay-ai-reply', payload),

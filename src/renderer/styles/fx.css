@@ -1,0 +1,234 @@
+/* ============================================================
+   FX LAYER
+   Loaded last. Two jobs:
+   1. Visual upgrades that stay on the compositor (transform /
+      opacity only) so they cost the GPU almost nothing.
+   2. Tier gating via <html data-fx="high|balanced|low">, set
+      before first paint by the boot script in index.html.
+
+   Rule of thumb used throughout: never animate box-shadow,
+   filter, or background-position over a large area — those
+   repaint every frame. Sweeps and glows animate transform or
+   opacity on a pre-painted layer instead.
+   ============================================================ */
+
+/* ── Depth ────────────────────────────────────────────────── */
+
+.topbar-title{text-shadow:0 0 24px rgba(210,255,42,.16)}
+
+.stat-val.neon{
+  background:linear-gradient(180deg,#EAFFA6,var(--neon) 62%,#A8D613);
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  text-shadow:none;
+  filter:drop-shadow(0 0 14px rgba(210,255,42,.3));
+}
+
+/* Tactical grid behind content. Static image, so it costs one
+   paint and never animates. */
+.main{position:relative}
+.main::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background-image:
+    linear-gradient(rgba(210,255,42,.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(210,255,42,.022) 1px, transparent 1px);
+  background-size:54px 54px;
+  -webkit-mask-image:radial-gradient(ellipse 85% 65% at 50% 0%, #000 8%, transparent 76%);
+  mask-image:radial-gradient(ellipse 85% 65% at 50% 0%, #000 8%, transparent 76%);
+}
+.topbar,.content{position:relative;z-index:1}
+
+/* ── Signature flourishes ─────────────────────────────────── */
+
+/* Wordmark shimmer. Repaint area is a few hundred px², so animating
+   background-position here is fine where it would not be at full width. */
+.sb-brand > div span{
+  background:linear-gradient(100deg, var(--neon) 22%, #FBFFD6 46%, var(--neon) 70%);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;
+  text-shadow:none;
+  animation:fx-shimmer 5.5s ease-in-out infinite;
+}
+@keyframes fx-shimmer{
+  0%,100%{background-position:120% 0}
+  50%{background-position:-20% 0}
+}
+
+/* Energy ring on the current-screen icon. Masked to a ring and rotated,
+   so it is one small composited layer. */
+.topbar-icon{position:relative;isolation:isolate}
+.topbar-icon::before{
+  content:"";position:absolute;inset:-3px;border-radius:12px;z-index:-1;
+  background:conic-gradient(from 0deg, transparent 0%, rgba(210,255,42,.9) 16%, transparent 36%);
+  -webkit-mask:radial-gradient(circle, transparent 56%, #000 62%);
+  mask:radial-gradient(circle, transparent 56%, #000 62%);
+  animation:fx-spin 4.5s linear infinite;
+}
+@keyframes fx-spin{to{transform:rotate(1turn)}}
+
+/* Hover kept the gradient instead of flattening to a solid fill. */
+.action-btn.primary:hover{
+  background:linear-gradient(180deg,#F2FF8F 0%, #DCFF4A 52%, #C2EC00 100%);
+  box-shadow:0 4px 0 rgba(0,0,0,.15), 0 14px 26px rgba(210,255,42,.3);
+}
+
+/* ── Sheen sweeps (hover only, transform only) ────────────── */
+
+.stat-card::after{
+  content:"";position:absolute;top:-20%;bottom:-20%;left:0;width:40%;
+  background:linear-gradient(100deg, transparent, rgba(255,255,255,.075), transparent);
+  transform:translate3d(-200%,0,0) skewX(-14deg);
+  transition:transform .7s var(--ease);
+  pointer-events:none;
+}
+.stat-card:hover::after{transform:translate3d(340%,0,0) skewX(-14deg)}
+
+/* ── Cards ────────────────────────────────────────────────── */
+
+.card:hover{transform:translateY(-2px)}
+/* Big container cards shouldn't float when you cross them. */
+.card.chat-panel:hover,.card.friends-list:hover,.card.comm-shell:hover{transform:none}
+
+/* ── Nav ──────────────────────────────────────────────────── */
+
+.nav-item{position:relative}
+.nav-item.active::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:linear-gradient(90deg, rgba(210,255,42,.14), transparent 62%);
+}
+
+/* ── Entrance stagger (one-shot) ──────────────────────────── */
+
+.content > *:nth-child(1){animation-delay:0ms}
+.content > *:nth-child(2){animation-delay:40ms}
+.content > *:nth-child(3){animation-delay:80ms}
+.content > *:nth-child(4){animation-delay:120ms}
+.content > *:nth-child(5){animation-delay:160ms}
+
+/* ── Settings: effect tier picker ─────────────────────────── */
+
+.fx-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.fx-opt{
+  display:flex;flex-direction:column;gap:3px;text-align:left;
+  padding:11px 12px;border-radius:11px;cursor:pointer;
+  background:rgba(0,0,0,.24);border:1px solid var(--border);
+  transition:border-color .16s var(--ease),background .16s var(--ease),color .16s var(--ease);
+}
+.fx-opt:hover{border-color:rgba(210,255,42,.34);background:rgba(210,255,42,.05)}
+.fx-opt.active{border-color:var(--neon);background:var(--neon2)}
+.fx-opt-name{font-family:var(--font);font-size:13px;font-weight:700;color:var(--text)}
+.fx-opt.active .fx-opt-name{color:var(--neon)}
+.fx-opt-hint{font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.4}
+@media (max-width:900px){.fx-picker{grid-template-columns:repeat(2,1fr)}}
+
+/* ============================================================
+   TIER: BALANCED  (default for mid-range machines)
+   Drops the two genuinely costly things — large backdrop blurs
+   and infinite box-shadow animations — and keeps the rest.
+   ============================================================ */
+
+:root[data-fx="balanced"] .topbar{
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  background:rgba(7,11,7,.96);
+}
+:root[data-fx="balanced"] .auth-box,
+:root[data-fx="balanced"] .np-panel,
+:root[data-fx="balanced"] .modal-box{
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+}
+:root[data-fx="balanced"] .badge-neon,
+:root[data-fx="balanced"] .np-fab,
+:root[data-fx="balanced"] .frame-animated.frame-pulse,
+:root[data-fx="balanced"] .frame-animated.frame-gold,
+:root[data-fx="balanced"] .frame-animated.frame-void{
+  animation:none;
+}
+
+
+/* ============================================================
+   TIER: LOW  (integrated graphics / old hardware)
+   Static presentation. Keeps only motion that reports state:
+   spinners, loading bar, typing dots.
+   ============================================================ */
+
+:root[data-fx="low"] *,
+:root[data-fx="low"] *::before,
+:root[data-fx="low"] *::after{
+  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
+}
+:root[data-fx="low"] .topbar{background:rgba(7,11,7,.985)}
+
+/* Full-screen decorative layers are the main cost on weak GPUs. */
+:root[data-fx="low"] body::before,
+:root[data-fx="low"] body::after,
+:root[data-fx="low"] .app::before,
+:root[data-fx="low"] .main::before,
+:root[data-fx="low"] .ui-atmosphere,
+:root[data-fx="low"] .click-fx-layer,
+:root[data-fx="low"] .ui-grain,
+:root[data-fx="low"] .hud-frame,
+:root[data-fx="low"] .np-orbit,
+:root[data-fx="low"] .auth-glow{
+  display:none!important;
+}
+
+:root[data-fx="low"] .badge-neon,
+:root[data-fx="low"] .topbar::after,
+:root[data-fx="low"] .action-btn.primary::after,
+:root[data-fx="low"] .sb-live-pip,
+:root[data-fx="low"] .dot,
+:root[data-fx="low"] .np-fab,
+:root[data-fx="low"] .hud-scan,
+:root[data-fx="low"] .comm-float,
+:root[data-fx="low"] .frame-animated.frame-pulse,
+:root[data-fx="low"] .frame-animated.frame-spin,
+:root[data-fx="low"] .frame-animated.frame-gold,
+:root[data-fx="low"] .frame-animated.frame-void,
+:root[data-fx="low"] .voice-pulse,
+:root[data-fx="low"] .sb-brand > div span,
+:root[data-fx="low"] .topbar-icon::before{
+  animation:none!important;
+}
+:root[data-fx="low"] .topbar-icon::before{display:none}
+:root[data-fx="low"] .sb-brand > div span{
+  background:none;-webkit-text-fill-color:var(--neon);color:var(--neon);
+}
+
+/* Entrance animations just add jank when frames are scarce. */
+:root[data-fx="low"] .content > *,
+:root[data-fx="low"] .np-msg,
+:root[data-fx="low"] .comm-msg,
+:root[data-fx="low"] .chat-bubble-row{
+  animation:none!important;
+}
+
+/* Sweeps and lifts off; colour-only hover feedback stays. */
+:root[data-fx="low"] .stat-card::after{display:none}
+:root[data-fx="low"] .card:hover,
+:root[data-fx="low"] .stat-card:hover{transform:none}
+
+/* Large blurred shadows are fill-rate heavy; flatten them. */
+:root[data-fx="low"] .card,
+:root[data-fx="low"] .stat-card{
+  box-shadow:0 1px 0 rgba(255,255,255,.04);
+}
+:root[data-fx="low"] .card:hover,
+:root[data-fx="low"] .stat-card:hover{
+  box-shadow:0 1px 0 rgba(255,255,255,.06);
+  border-color:rgba(210,255,42,.3);
+}
+:root[data-fx="low"] *{transition-duration:.1s!important}
+
+
+/* ============================================================
+   TIER: HIGH  — extra flourish only strong machines pay for.
+   ============================================================ */
+
+:root[data-fx="high"] .stat-card:hover{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07), var(--shadow-md),
+             0 0 34px rgba(210,255,42,.16);
+}
+:root[data-fx="high"] .card-title::before{
+  box-shadow:0 0 12px rgba(210,255,42,.5);
+}
