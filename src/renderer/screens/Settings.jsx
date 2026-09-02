@@ -94,9 +94,15 @@ export default function Settings() {
 
   useEffect(() => {
     if (!listening) return undefined;
+    // Holding a combo repeats keydown, and setListening only detaches this
+    // listener on the next render — so the capture is closed out here and now
+    // rather than waiting for the round trip to come back.
+    let captured = false;
     function onKey(e) {
+      if (captured || e.repeat) return;
       if (e.key === 'Escape') {
         e.preventDefault();
+        captured = true;
         setListening(null);
         return;
       }
@@ -104,8 +110,10 @@ export default function Settings() {
       if (!acc) return;
       e.preventDefault();
       e.stopPropagation();
-      setOverlayHotkey(listening, acc).then((res) => {
-        setListening(null);
+      captured = true;
+      const action = listening;
+      setListening(null);
+      setOverlayHotkey(action, acc).then((res) => {
         const labels = { clip: 'Clip', overlay: 'Overlay', nexai: 'NexAI' };
         if (res?.ok === false) {
           const reasons = {
@@ -117,7 +125,7 @@ export default function Settings() {
         }
         // Report what actually got saved, not what was requested.
         const saved = res?.accelerator || acc;
-        showToast(`${labels[listening] || 'Keybind'} set to ${formatAccelerator(saved)}`, 'success');
+        showToast(`${labels[action] || 'Keybind'} set to ${formatAccelerator(saved)}`, 'success');
       });
     }
     window.addEventListener('keydown', onKey, true);
@@ -299,9 +307,11 @@ export default function Settings() {
               <div>
                 <div className="row-title">Buffer length</div>
                 <div className="row-sub">
-                  {clipStatus?.buffering
-                    ? `Filling… ${clipStatus.readySeconds || 0}s`
-                    : `Ready · last ${clipSeconds}s`}
+                  {clipStatus?.enabled === false
+                    ? 'Off'
+                    : clipStatus?.buffering
+                      ? `Filling… ${clipStatus.readySeconds || 0}s`
+                      : `Ready · last ${clipSeconds}s`}
                 </div>
               </div>
               <select

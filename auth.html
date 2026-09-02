@@ -207,14 +207,21 @@
     }
 
     async function ensureProfile(user) {
-      const { data: existing } = await sb
+      const { data: existing, error } = await sb
         .from('profiles')
         .select('id,onboarding_done')
         .eq('id', user.id)
         .maybeSingle();
+      // A read that failed says nothing about whether a profile exists. Falling
+      // through to the create path below would reset an existing account's
+      // gamer tag, platform and main game, so stop here instead. The app
+      // decides onboarding from the profile row itself, not from this flag.
+      if (error) return false;
       if (existing) {
         return existing.onboarding_done === false;
       }
+      // ignoreDuplicates so this can only ever create a profile, never
+      // overwrite one that was missed above (RLS, race with the signup trigger).
       await sb.from('profiles').upsert({
         id: user.id,
         gamer_tag: gamerTagFromUser(user),
@@ -222,7 +229,7 @@
         main_game: 'Valorant',
         main_game_description: null,
         onboarding_done: false,
-      }, { onConflict: 'id' });
+      }, { onConflict: 'id', ignoreDuplicates: true });
       return true;
     }
 

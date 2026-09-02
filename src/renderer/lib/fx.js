@@ -4,8 +4,20 @@
 
 const KEY = 'nf-fx-tier';
 const PROBED = 'nf-fx-probed';
+// What Auto settled on. Read by the boot script in index.html when the user has
+// made no explicit choice, so a measured downgrade survives a restart instead of
+// being recomputed back up to the tier the machine could not sustain.
+const AUTO = 'nf-fx-auto-tier';
 
 export const TIERS = ['high', 'balanced', 'low'];
+
+function persist(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* storage blocked */
+  }
+}
 
 export const TIER_LABELS = {
   auto: 'Auto',
@@ -90,13 +102,13 @@ export function probeFrameRate({ onDowngrade } = {}) {
   document.addEventListener('visibilitychange', abort);
 
   const finish = (fps) => {
-    try {
-      localStorage.setItem(PROBED, String(Math.round(fps)));
-    } catch {
-      /* storage blocked */
-    }
+    persist(PROBED, String(Math.round(fps)));
     if (fps >= MIN_FPS) return;
     const next = current === 'high' ? 'balanced' : 'low';
+    // Record the tier as well as the fps: the probe only runs once per install,
+    // so without this the next launch recomputes the expensive tier and never
+    // re-measures, pinning a weak GPU to effects it cannot render.
+    persist(AUTO, next);
     document.documentElement.setAttribute('data-fx', next);
     onDowngrade?.(next, Math.round(fps));
   };
@@ -131,6 +143,7 @@ export function probeFrameRate({ onDowngrade } = {}) {
 export function resetProbe() {
   try {
     localStorage.removeItem(PROBED);
+    localStorage.removeItem(AUTO);
   } catch {
     /* storage blocked */
   }

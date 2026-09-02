@@ -129,7 +129,7 @@ export function NexForgeProvider({ children }) {
     clip: 'CommandOrControl+F8',
   });
   const [lastClipPath, setLastClipPath] = useState(null);
-  const [clipStatus, setClipStatus] = useState({ buffering: true, readySeconds: 0, seconds: 20 });
+  const [clipStatus, setClipStatus] = useState({ enabled: true, buffering: true, readySeconds: 0, seconds: 20 });
 
   const applyOverlayPrefs = useCallback(async (patch) => {
     const current = await window.nexforge?.getOverlayPrefs?.().catch(() => null);
@@ -281,7 +281,10 @@ export function NexForgeProvider({ children }) {
       main_game_description: null,
       onboarding_done: false,
     };
-    const { error } = await sb.from('profiles').upsert(identity, { onConflict: 'id' });
+    // ignoreDuplicates: the select above returns no data on a transient failure
+    // too, and a plain upsert would reset a real profile's tag/platform/game.
+    // An existing row is left alone and re-read below instead.
+    const { error } = await sb.from('profiles').upsert(identity, { onConflict: 'id', ignoreDuplicates: true });
     if (error) {
       // Trigger may have created the row already — try a plain select again.
       const { data: again } = await sb.from('profiles').select('*').eq('id', authUser.id).single();
@@ -713,6 +716,8 @@ export function NexForgeProvider({ children }) {
       const u = userRef.current;
       if (!u) {
         showToast(`${summary.game} session ended — sign in to save sessions`, 'error');
+        // A quit can be waiting on this write; nothing to save means go ahead.
+        nf.notifyGameSessionSaved?.();
         return;
       }
       try {
@@ -753,6 +758,8 @@ export function NexForgeProvider({ children }) {
         await reportCloudError(err);
       } finally {
         setSessionSaveTick((t) => t + 1);
+        // Releases a quit that is being held open for this write.
+        nf.notifyGameSessionSaved?.();
       }
     });
     const offCancelled = nf.onGameSessionCancelled((payload) => {

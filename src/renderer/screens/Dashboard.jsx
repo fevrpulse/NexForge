@@ -25,13 +25,20 @@ export default function Dashboard() {
       <LiveSessionBanner />
       <div className={`dash-hero ${guestMode ? 'guest' : ''}`}>
         <div className="dash-hero-copy">
-          <p className="dash-kicker">Command deck</p>
+          <div className="dash-hero-meta">
+            <p className="dash-kicker">Command deck</p>
+            <div className="dash-chips">
+              <span className="dash-chip live">Live</span>
+              <span className={`dash-chip ${guestMode ? 'warn' : 'ok'}`}>{guestMode ? 'Guest' : 'Signed in'}</span>
+            </div>
+          </div>
           <h2 className="dash-welcome">{guestMode ? 'Drop in as guest.' : 'Welcome back.'}</h2>
           <p className="dash-lede">
             {guestMode
               ? 'Browse the forge. Create an account to keep chat and cosmetics.'
               : 'Crew and hardware on one floor. Queue up or jump into a lounge.'}
           </p>
+          <div className="dash-hero-hex" aria-hidden="true" />
         </div>
         {!guestMode && (
           <div className={`loadout-showcase banner-${bannerStyleKey(profile.equipped_banner)}`}>
@@ -73,16 +80,19 @@ export default function Dashboard() {
 
       <div className="dash-actions">
         <button type="button" className="dash-tile tile-match" onClick={() => setScreen('matchmaking')}>
+          <span className="dash-tile-idx">01</span>
           <span className="dash-tile-kicker">Play</span>
           <span className="dash-tile-title">Find a Match</span>
           <span className="dash-tile-sub">Queues, lobbies, and ready-up</span>
         </button>
         <button type="button" className="dash-tile tile-tourney" onClick={() => setScreen('tournaments')}>
+          <span className="dash-tile-idx">02</span>
           <span className="dash-tile-kicker">Compete</span>
           <span className="dash-tile-title">Tournaments</span>
           <span className="dash-tile-sub">Brackets, check-in, prizes</span>
         </button>
         <button type="button" className="dash-tile tile-analytics" onClick={() => setScreen('analytics')}>
+          <span className="dash-tile-idx">03</span>
           <span className="dash-tile-kicker">Hardware</span>
           <span className="dash-tile-title">Analytics</span>
           <span className="dash-tile-sub">RAM, CPU, GPU, and Wi‑Fi</span>
@@ -99,12 +109,14 @@ export default function Dashboard() {
               }
             }}
           >
+            <span className="dash-tile-idx">04</span>
             <span className="dash-tile-kicker">Phone</span>
             <span className="dash-tile-title">Companion</span>
             <span className="dash-tile-sub">Chat and lobby codes on the go</span>
           </button>
         ) : (
           <button type="button" className="dash-tile tile-shop" onClick={() => setScreen('shop')}>
+            <span className="dash-tile-idx">04</span>
             <span className="dash-tile-kicker">Style</span>
             <span className="dash-tile-title">Shop</span>
             <span className="dash-tile-sub">Frames, banners, nameplates</span>

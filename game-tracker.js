@@ -179,9 +179,16 @@ class GameTracker extends EventEmitter {
       clearInterval(this._timer);
       this._timer = null;
     }
+    // A session in progress is finalized, not cancelled: stopping the tracker
+    // (app quit, tracking turned off) does not un-play the hours already
+    // logged. The duration gate below still discards genuinely short sessions.
     if (this._session) {
-      this._endSession(false);
+      this._endSession();
     }
+  }
+
+  hasActiveSession() {
+    return !!this._session;
   }
 
   setPingProbeHost(host) {
@@ -230,7 +237,7 @@ class GameTracker extends EventEmitter {
     try {
       const found = await this._findGameProcess();
       if (!found) {
-        if (this._session) this._endSession(true);
+        if (this._session) this._endSession();
         this._cpuPrev = null;
         this._lastGpuPct = null;
         this._lastIo = { diskPct: null, wifiPct: null };
@@ -238,7 +245,7 @@ class GameTracker extends EventEmitter {
       }
 
       if (!this._session || this._session.pid !== found.pid || this._session.game !== found.game) {
-        if (this._session) this._endSession(true);
+        if (this._session) this._endSession();
         this._startSession(found);
       }
 
@@ -277,14 +284,14 @@ class GameTracker extends EventEmitter {
     this.emit('started', this._publicSession(this._session));
   }
 
-  _endSession(emitFeedback) {
+  _endSession() {
     const s = this._session;
     this._session = null;
     this._cpuPrev = null;
     if (!s) return;
 
     const durationSec = Math.max(0, Math.round((Date.now() - s.startedAtMs) / 1000));
-    if (!emitFeedback || durationSec < MIN_SESSION_SEC) {
+    if (durationSec < MIN_SESSION_SEC) {
       this.emit('cancelled', { game: s.game, durationSec });
       return;
     }

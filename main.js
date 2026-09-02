@@ -3,7 +3,7 @@ const path = require('path');
 const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
-const { GameTracker } = require('./game-tracker');
+const { GameTracker, MIN_SESSION_SEC } = require('./game-tracker');
 const { createOverlaySystem } = require('./overlay-system');
 
 // Packaged builds stamp the .exe as NexForge; set these so app.getName() / process
@@ -26,6 +26,7 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   'www.github.com',
   'fevrpulse.github.io',
 ]);
+const QUIT_SESSION_FLUSH_MS = 4000;
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
 const UPDATE_FIRST_RECHECK_MS = 15 * 1000;
 const UPDATE_INSTALL_DELAY_MS = 2500;
@@ -40,6 +41,8 @@ let authServer = null;
 let pendingAuthTokens = null;
 let authNonce = null;
 let updater = null;
+let quitSessionFlushStarted = false;
+let sessionFlushDone = null;
 const gameTracker = new GameTracker();
 
 // Second launches focus the existing window instead of fighting over the auth port.
@@ -72,6 +75,45 @@ function setupGameTracker() {
   gameTracker.on('sample', (payload) => sendToRenderer('game-session-sample', payload));
   gameTracker.on('ended', (summary) => sendToRenderer('game-session-ended', summary));
   gameTracker.on('cancelled', (payload) => sendToRenderer('game-session-cancelled', payload || {}));
+}
+
+/**
+ * The renderer owns the game_sessions insert, so a session still in progress
+ * has to be finalized while the main window is alive. will-quit is far too
+ * late: the window is gone by then and the summary lands nowhere.
+ */
+function flushGameSessionForQuit() {
+  const active = gameTracker.getActiveSession();
+  if (!active) return Promise.resolve();
+
+  const rendererAlive = !!(
+    mainWindow
+    && !mainWindow.isDestroyed()
+    && !mainWindow.webContents.isDestroyed()
+    && !mainWindow.webContents.isLoading()
+  );
+  // Below the minimum length the tracker discards the session, so there is no
+  // row to write and nothing to wait for.
+  if (!rendererAlive || active.durationSec < MIN_SESSION_SEC) {
+    gameTracker.stop();
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    let settled = false;
+    let timer = null;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      sessionFlushDone = null;
+      resolve();
+    };
+    timer = setTimeout(finish, QUIT_SESSION_FLUSH_MS);
+    sessionFlushDone = finish;
+    // Emits 'ended' -> renderer writes the row -> acks on 'game-session-saved'.
+    gameTracker.stop();
+  });
 }
 
 function setupAutoUpdater() {
@@ -266,7 +308,10 @@ function deliverAuthTokens(tokens) {
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isLoading()) {
     mainWindow.webContents.send('auth-callback', tokens);
     pendingAuthTokens = null;
+    // Closed to tray means hidden, not minimized: without show() the app
+    // signs in invisibly and the user assumes it failed.
     if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
     mainWindow.focus();
   }
 }
@@ -457,6 +502,18 @@ function createWindow() {
     if (!isQuitting) {
       e.preventDefault();
       mainWindow.hide();
+      return;
+    }
+    // Quitting mid-game: hold the close just long enough for the renderer to
+    // save the session, then let the quit carry on. Preventing the close also
+    // cancels the quit, so it has to be restarted once the write lands.
+    if (!quitSessionFlushStarted && gameTracker.hasActiveSession()) {
+      quitSessionFlushStarted = true;
+      e.preventDefault();
+      flushGameSessionForQuit().then(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+        else app.quit();
+      });
     }
   });
   // The hidden overlay must not keep the app alive after the main window closes.
@@ -466,7 +523,9 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isAllowedNavigation(url)) {
+    // isAllowedNavigation() accepts any file: URL, which has no business being
+    // handed to the OS shell — only the vetted https hosts may open externally.
+    if (isAllowedExternalUrl(url)) {
       shell.openExternal(url);
     }
     return { action: 'deny' };
@@ -626,6 +685,12 @@ ipcMain.handle('stop-game-tracking', () => {
 
 ipcMain.handle('get-active-game-session', () => gameTracker.getActiveSession());
 
+// Renderer confirms the finished session has been written (or definitively
+// failed), which releases the quit that is waiting on it.
+ipcMain.on('game-session-saved', () => {
+  sessionFlushDone?.();
+});
+
 ipcMain.handle('set-ping-probe-host', (_event, host) => {
   gameTracker.setPingProbeHost(host);
   return { ok: true, host: host || null };
@@ -670,13 +735,20 @@ app.whenReady().then(async () => {
   try {
     const { desktopCapturer } = require('electron');
     session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
-      const screens = await desktopCapturer.getSources({ types: ['screen'] });
-      const source = screens[0] || (await desktopCapturer.getSources({ types: ['window'] }))[0];
-      if (!source) {
+      // The callback must always run: skipping it leaves the renderer's
+      // getDisplayMedia() promise pending forever with nothing to report.
+      try {
+        const screens = await desktopCapturer.getSources({ types: ['screen'] });
+        const source = screens[0] || (await desktopCapturer.getSources({ types: ['window'] }))[0];
+        if (!source) {
+          callback({});
+          return;
+        }
+        callback({ video: source, audio: 'loopback' });
+      } catch (err) {
+        console.error('Display capture source lookup failed:', err);
         callback({});
-        return;
       }
-      callback({ video: source, audio: 'loopback' });
     });
   } catch (err) {
     console.warn('Display media handler unavailable:', err);

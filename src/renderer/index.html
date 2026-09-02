@@ -10,9 +10,19 @@
     <script>
       // Runs before first paint so heavy effects never flash on then off.
       (function () {
+        function isTier(t) {
+          return t === 'high' || t === 'balanced' || t === 'low';
+        }
         var tier;
+        // An explicit choice always wins.
         try { tier = localStorage.getItem('nf-fx-tier'); } catch (e) {}
-        if (tier !== 'high' && tier !== 'balanced' && tier !== 'low') {
+        if (!isTier(tier)) {
+          // Otherwise reuse the tier Auto measured last time, so a machine that
+          // could not hold a smooth frame rate is not put back on the expensive
+          // tier every launch (the frame-rate probe only runs once per install).
+          try { tier = localStorage.getItem('nf-fx-auto-tier'); } catch (e) {}
+        }
+        if (!isTier(tier)) {
           // Reduced-motion is deliberately not consulted here: it means "less
           // movement", not "weaker GPU", and the reduced-motion media queries
           // already stop the animation. Tier is about rendering cost only.

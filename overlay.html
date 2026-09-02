@@ -240,7 +240,6 @@
       feed: { x: -380, y: 72 },
     };
 
-    let liveCount = 0;
     let aiBusy = false;
     let aiReq = 0;
     let signedIn = false;
@@ -301,11 +300,20 @@
       }[c]));
     }
 
+    function toastCount() {
+      return document.getElementById('toasts')?.querySelectorAll('.toast').length || 0;
+    }
+
+    function clipStatusText(s) {
+      if (!s || s.enabled === false) return 'Clip buffer off';
+      if (s.buffering) return 'Buffering… ' + (s.readySeconds || 0) + 's';
+      return 'Ready · last ' + (s.seconds || 20) + 's';
+    }
+
     function addToast(msg) {
       const host = document.getElementById('toasts');
-      while (host.querySelectorAll('.toast').length >= MAX_TOASTS) {
-        host.querySelector('.toast').remove();
-        liveCount = Math.max(0, liveCount - 1);
+      while (toastCount() >= MAX_TOASTS) {
+        host.querySelector('.toast')?.remove();
       }
       const kind = String(msg.kind || 'message').toLowerCase();
       const el = document.createElement('div');
@@ -318,17 +326,12 @@
           <div class="body">${msg.image && msg.body ? '📷 ' : ''}${escapeHtml(msg.body || (msg.image ? 'Sent a photo' : ''))}</div>
         </div>`;
       host.appendChild(el);
-      liveCount += 1;
       addFeed(msg);
       setTimeout(() => {
         el.classList.add('leaving');
         setTimeout(() => {
           el.remove();
-          liveCount -= 1;
-          if (liveCount <= 0) {
-            liveCount = 0;
-            api?.empty();
-          }
+          if (toastCount() === 0) api?.empty();
         }, 380);
       }, TOAST_MS);
     }
@@ -459,9 +462,9 @@
       };
     });
 
-    // Escape is the reflex for dismissing an in-game panel.
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
+      if (!document.body.classList.contains('hud-on')) return;
       e.preventDefault();
       api.closeHud();
     });
@@ -480,10 +483,7 @@
       document.getElementById('hud-hint').textContent =
         'Drag panels · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes · ' + formatAcc(prefs.hotkeys?.clip) + ' clips';
       if (payload?.clipStatus) {
-        const s = payload.clipStatus;
-        document.getElementById('clip-status').textContent = s.buffering
-          ? 'Buffering… ' + (s.readySeconds || 0) + 's'
-          : 'Ready · last ' + (s.seconds || 20) + 's';
+        document.getElementById('clip-status').textContent = clipStatusText(payload.clipStatus);
       }
       if (payload?.lastClipPath) {
         document.getElementById('clip-last').textContent = payload.lastClipPath.split(/[/\\]/).pop();
@@ -522,15 +522,10 @@
     });
     api?.onClipStatus((s) => {
       if (!s) return;
-      document.getElementById('clip-status').textContent = s.buffering
-        ? 'Buffering… ' + (s.readySeconds || 0) + 's'
-        : 'Ready · last ' + (s.seconds || 20) + 's';
+      document.getElementById('clip-status').textContent = clipStatusText(s);
     });
     api?.onClipSaved((payload) => {
       if (payload?.path) document.getElementById('clip-last').textContent = String(payload.path).split(/[/\\]/).pop();
-    });
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && document.body.classList.contains('hud-on')) api.closeHud();
     });
   </script>
 </body>

@@ -34,51 +34,60 @@ export default function AuthScreen() {
     <div id="auth-screen">
       <div className="auth-grid" />
       <div className="auth-glow" />
-      <div className="auth-box">
-        <div className="auth-kicker">Competitive OS</div>
-        <div className="auth-logo">Nex<span>Forge</span></div>
-        <div className="auth-tagline">// COMPETE · DOMINATE · FORGE YOUR LEGACY</div>
+      <div className="auth-stage">
+        <div className="auth-brand">
+          <span className="auth-brand-hex" aria-hidden="true">N</span>
+          <p className="auth-brand-kicker">Competitive operating system</p>
+          <h1 className="auth-brand-title">Forge the<br />match.</h1>
+          <p className="auth-brand-lede">
+            Overlay, NexAI, tournaments, and hardware intel — one floor for the crew.
+          </p>
+          <ul className="auth-brand-list">
+            <li>In-game overlay that stays out of the way</li>
+            <li>Lobbies, brackets, and ready-up</li>
+            <li>Session hardware tracked while you play</li>
+          </ul>
+        </div>
+        <div className="auth-box">
+          <div className="auth-kicker">Access</div>
+          <div className="auth-logo">Nex<span>Forge</span></div>
+          <div className="auth-tagline">// COMPETE · DOMINATE · FORGE YOUR LEGACY</div>
 
-        <button className="auth-btn" onClick={() => openAuth('login')} disabled={waiting}>
-          Sign in with Browser →
-        </button>
-        <button
-          className="auth-btn ghost"
-          onClick={() => openAuth('signup')}
-          disabled={waiting}
-        >
-          Create Account in Browser
-        </button>
+          <button className="auth-btn" onClick={() => openAuth('login')} disabled={waiting}>
+            Sign in with Browser →
+          </button>
+          <button
+            className="auth-btn ghost"
+            onClick={() => openAuth('signup')}
+            disabled={waiting}
+          >
+            Create Account in Browser
+          </button>
 
-        {waiting && (
-          <div style={{ marginTop: 18, textAlign: 'center' }}>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--neon)' }}>
-              Waiting for browser sign in...
+          {waiting && (
+            <div className="auth-wait">
+              <div className="auth-wait-title">Waiting for browser sign in…</div>
+              <div className="auth-wait-sub">Complete sign in in your browser, then return here.</div>
+              <button
+                className="action-btn ghost"
+                type="button"
+                onClick={() => setWaiting(false)}
+              >
+                Cancel
+              </button>
             </div>
-            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', marginTop: 6 }}>
-              Complete sign in in your browser, then return here.
-            </div>
-            <button
-              className="action-btn ghost"
-              style={{ marginTop: 12, padding: '8px 14px', fontSize: 12 }}
-              onClick={() => setWaiting(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        )}
+          )}
 
-        <div className="auth-or">or</div>
-        <button
-          type="button"
-          className="auth-guest-btn"
-          onClick={enterGuest}
-          disabled={waiting}
-        >
-          Browse as Guest
-        </button>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted)', marginTop: 8, textAlign: 'center' }}>
-          Limited access · No stats saved
+          <div className="auth-or">or</div>
+          <button
+            type="button"
+            className="auth-guest-btn"
+            onClick={enterGuest}
+            disabled={waiting}
+          >
+            Browse as Guest
+          </button>
+          <div className="auth-fineprint">Limited access · No stats saved</div>
         </div>
       </div>
     </div>

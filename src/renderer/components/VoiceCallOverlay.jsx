@@ -39,6 +39,8 @@ export function VoiceCallProvider({ children }) {
   const [peerProfiles, setPeerProfiles] = useState({});
   const overlayEnabledRef = useRef(overlayEnabled);
   useEffect(() => { overlayEnabledRef.current = overlayEnabled; }, [overlayEnabled]);
+  const dndRef = useRef(dndEnabled);
+  useEffect(() => { dndRef.current = dndEnabled; }, [dndEnabled]);
   const ctrlRef = useRef(null);
   const ringAudioRef = useRef(null);
 
@@ -139,26 +141,32 @@ export function VoiceCallProvider({ children }) {
         }
         if (next.state === 'ringing' && next.mode !== 'channel') {
           playRingtone();
-          (async () => {
-            let sender = 'Incoming call';
-            try {
-              if (next.peerId) {
-                const { data } = await sb.from('profiles').select('gamer_tag').eq('id', next.peerId).maybeSingle();
-                if (data?.gamer_tag) sender = data.gamer_tag;
+          // Do Not Disturb is advertised as muting overlay toasts, so it has to
+          // cover force: true (which bypasses main-process suppression) and the
+          // raise-the-app fallback too — neither should be thrown over a
+          // fullscreen game. The in-app call UI still shows the call.
+          if (!dndRef.current) {
+            (async () => {
+              let sender = 'Incoming call';
+              try {
+                if (next.peerId) {
+                  const { data } = await sb.from('profiles').select('gamer_tag').eq('id', next.peerId).maybeSingle();
+                  if (data?.gamer_tag) sender = data.gamer_tag;
+                }
+              } catch { /* tag is best-effort */ }
+              if (!overlayEnabledRef.current) {
+                window.nexforge?.showMainWindow?.();
               }
-            } catch { /* tag is best-effort */ }
-            if (!overlayEnabledRef.current) {
-              window.nexforge?.showMainWindow?.();
-            }
-            window.nexforge?.overlayNotify?.({
-              kind: 'call',
-              sender,
-              body: overlayEnabledRef.current
-                ? 'Press your overlay keybind to open the HUD, or accept in NexForge'
-                : 'Open NexForge to Accept or Decline',
-              force: true,
-            });
-          })();
+              window.nexforge?.overlayNotify?.({
+                kind: 'call',
+                sender,
+                body: overlayEnabledRef.current
+                  ? 'Press your overlay keybind to open the HUD, or accept in NexForge'
+                  : 'Open NexForge to Accept or Decline',
+                force: true,
+              });
+            })();
+          }
         }
         if (next.state === 'connecting' || next.state === 'connected' || next.state === 'calling') {
           stopRingtone();

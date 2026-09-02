@@ -12,9 +12,36 @@
 
   let recorder = null;
   let stream = null;
+  // The first chunk MediaRecorder emits carries the EBML/WebM init segment;
+  // every later chunk is a bare cluster. It is held apart from the rolling
+  // window so wrapping the window can never evict the only copy of the header.
+  let headerBlob = null;
   let chunks = [];
   let seconds = 20;
   let saving = false;
+
+  function clampSeconds(value) {
+    return Math.max(8, Math.min(45, Number(value) || 20));
+  }
+
+  function windowLength() {
+    // One chunk of slack so a save always has at least `seconds` of footage
+    // even though the in-progress chunk has not been delivered yet.
+    return seconds + 2;
+  }
+
+  function bufferedSeconds() {
+    return (headerBlob ? 1 : 0) + chunks.length;
+  }
+
+  function reportStatus() {
+    const buffered = bufferedSeconds();
+    api.ready({
+      buffering: buffered < 3,
+      readySeconds: Math.min(seconds, buffered),
+      seconds,
+    });
+  }
 
   function mimeType() {
     const types = [
@@ -27,18 +54,28 @@
   }
 
   function stopTracks() {
-    try { recorder?.stop(); } catch { /* ignore */ }
+    const dying = recorder;
     recorder = null;
+    if (dying) {
+      // Detach before stopping: stop() delivers one last chunk asynchronously,
+      // and a late bare cluster must never be mistaken for the next header.
+      dying.ondataavailable = null;
+      dying.onerror = null;
+      try { dying.stop(); } catch { /* ignore */ }
+    }
     (stream?.getTracks() || []).forEach((t) => {
       try { t.stop(); } catch { /* ignore */ }
     });
     stream = null;
+    // A header only describes the stream it came from — dropping it here stops
+    // a restart from splicing a stale header onto the next recording.
+    headerBlob = null;
     chunks = [];
   }
 
   async function start(payload) {
     stopTracks();
-    seconds = Math.max(8, Math.min(45, Number(payload?.seconds) || 20));
+    seconds = clampSeconds(payload?.seconds);
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
         video: { frameRate: 15, width: 1280, height: 720 },
@@ -58,35 +95,49 @@
       stopTracks();
       return;
     }
+    const rec = recorder;
+    headerBlob = null;
     chunks = [];
-    recorder.ondataavailable = (ev) => {
+    rec.ondataavailable = (ev) => {
+      if (rec !== recorder) return;
       if (ev.data && ev.data.size) {
-        chunks.push(ev.data);
-        const keep = seconds + 2;
-        if (chunks.length > keep) chunks = chunks.slice(-keep);
+        if (!headerBlob) {
+          headerBlob = ev.data;
+        } else {
+          chunks.push(ev.data);
+          const keep = windowLength();
+          if (chunks.length > keep) chunks = chunks.slice(-keep);
+        }
       }
-      api.ready({
-        buffering: chunks.length < 3,
-        readySeconds: Math.min(seconds, chunks.length),
-        seconds,
-      });
+      reportStatus();
     };
-    recorder.onerror = (ev) => {
+    rec.onerror = (ev) => {
       api.error(ev?.error?.message || 'Clip recorder error');
     };
-    recorder.start(1000);
+    rec.start(1000);
     api.ready({ buffering: true, readySeconds: 0, seconds });
+  }
+
+  /** Retune the window without restarting — a restart would drop the buffer. */
+  function setWindow(payload) {
+    seconds = clampSeconds(payload?.seconds);
+    const keep = windowLength();
+    if (chunks.length > keep) chunks = chunks.slice(-keep);
+    if (recorder) reportStatus();
   }
 
   async function save(payload) {
     if (saving) return;
-    if (!chunks.length) {
+    if (!headerBlob || !chunks.length) {
       api.error('Clip buffer is still filling — play a few more seconds');
       return;
     }
     saving = true;
     try {
-      const blob = new Blob(chunks, { type: chunks[0]?.type || 'video/webm' });
+      // Spread now, synchronously: ondataavailable keeps firing during the
+      // awaits below and must not mutate the parts being written out.
+      const parts = [headerBlob, ...chunks];
+      const blob = new Blob(parts, { type: headerBlob.type || 'video/webm' });
       const buf = await blob.arrayBuffer();
       await api.write({
         bytes: buf,
@@ -103,6 +154,7 @@
   api.onStart(start);
   api.onStop(stopTracks);
   api.onSave(save);
+  api.onWindow?.(setWindow);
 })();
 </script>
 </body>

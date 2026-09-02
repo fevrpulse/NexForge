@@ -59,6 +59,10 @@ export default function Sidebar() {
           </div>
           <span className="sb-live-pip" title="Online" />
         </div>
+        <div className="sb-status">
+          <span className="sb-status-dot" />
+          <span>{guestMode ? 'Guest channel' : 'Forge online'}</span>
+        </div>
       </div>
       <nav className="sb-nav">
         <div className="sb-section-label">Play</div>

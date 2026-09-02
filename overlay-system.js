@@ -81,11 +81,40 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   let prefs = loadPrefs();
   let lastClipPath = null;
   let lastGame = '';
-  let clipStatus = { buffering: true, readySeconds: 0, seconds: prefs.clipSeconds };
+
+  // The overlay window is created lazily on the first hotkey press, long after
+  // the renderer has pushed sign-in state, prefs and clip status. Without the
+  // newest payload per channel kept here, those sends land on no window at all
+  // and the first HUD of each launch shows "No game tracked" and refuses NexAI.
+  const overlayReplay = new Map();
 
   function sendOverlay(channel, payload) {
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     overlayWindow.webContents.send(channel, payload);
+  }
+
+  /** Latest-wins channel state: cached for replay and queued until ready. */
+  function sendOverlayLatest(channel, payload) {
+    overlayReplay.set(channel, payload);
+    whenOverlayReady(`channel:${channel}`, () => sendOverlay(channel, overlayReplay.get(channel)));
+  }
+
+  function idleClipStatus() {
+    return {
+      enabled: prefs.clipEnabled,
+      // Enabled but not yet recording is still "nothing to save".
+      buffering: prefs.clipEnabled,
+      readySeconds: 0,
+      seconds: prefs.clipSeconds,
+    };
+  }
+
+  let clipStatus = idleClipStatus();
+
+  function setClipStatus(next) {
+    clipStatus = next;
+    sendOverlayLatest('overlay-clip-status', clipStatus);
+    sendToRenderer('overlay-clip-status', clipStatus);
   }
 
   function overlayBounds() {
@@ -147,6 +176,11 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       overlayReady = true;
       const queued = pendingReady;
       pendingReady = null;
+      // Replay cached channel state first, so a window recreated after the last
+      // send still paints the current session, prefs and clip status.
+      for (const [channel, payload] of overlayReplay) {
+        if (!queued || !queued.has(`channel:${channel}`)) sendOverlay(channel, payload);
+      }
       if (queued) for (const fn of queued.values()) fn();
     });
     overlayWindow.on('closed', () => {
@@ -306,11 +340,24 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     }
   }
 
+  /** Send only to an existing recorder — never spin one up just to tell it something. */
+  function sendClipIfLive(channel, payload) {
+    if (!clipWindow || clipWindow.isDestroyed()) return;
+    sendClip(channel, payload);
+  }
+
   function syncClipBuffer() {
     if (prefs.clipEnabled) {
       sendClip('clip-recorder-start', { seconds: prefs.clipSeconds });
-    } else if (clipWindow && !clipWindow.isDestroyed()) {
-      sendClip('clip-recorder-stop');
+      setClipStatus({
+        enabled: true,
+        buffering: true,
+        readySeconds: 0,
+        seconds: prefs.clipSeconds,
+      });
+    } else {
+      sendClipIfLive('clip-recorder-stop');
+      setClipStatus(idleClipStatus());
     }
   }
 
@@ -347,6 +394,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   }
 
   function applyPrefs(next) {
+    const previous = prefs;
     prefs = {
       overlayEnabled: next.overlayEnabled !== false,
       clipEnabled: next.clipEnabled !== false,
@@ -355,8 +403,17 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     };
     savePrefs(prefs);
     registerHotkeys();
-    syncClipBuffer();
-    sendOverlay('overlay-prefs', prefs);
+    // Starting the recorder wipes the rolling buffer, so it must only be
+    // touched when the clip settings themselves changed — rebinding a hotkey
+    // or toggling the overlay used to throw away the buffered footage.
+    if (prefs.clipEnabled !== previous.clipEnabled) {
+      syncClipBuffer();
+    } else if (prefs.clipEnabled && prefs.clipSeconds !== previous.clipSeconds) {
+      // A running recorder can retune its window without losing what it holds.
+      sendClipIfLive('clip-recorder-window', { seconds: prefs.clipSeconds });
+      setClipStatus({ ...clipStatus, seconds: prefs.clipSeconds });
+    }
+    sendOverlayLatest('overlay-prefs', prefs);
     if (!prefs.overlayEnabled && hudOpen) setHudOpen(false);
     return prefs;
   }
@@ -450,17 +507,22 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     });
 
     ipcMain.handle('overlay-sync-state', (_event, state) => {
-      if (state && Object.prototype.hasOwnProperty.call(state, 'game')) {
-        lastGame = state.game || '';
+      // Merged so a partial push never blanks a field the HUD already showed.
+      const next = { ...(overlayReplay.get('overlay-state') || {}), ...(state || {}) };
+      if (Object.prototype.hasOwnProperty.call(next, 'game')) {
+        lastGame = next.game || '';
       }
-      sendOverlay('overlay-state', state || {});
+      sendOverlayLatest('overlay-state', next);
       return { ok: true };
     });
 
     ipcMain.on('clip-recorder-ready', (_event, status) => {
-      clipStatus = status || clipStatus;
-      sendOverlay('overlay-clip-status', clipStatus);
-      sendToRenderer('overlay-clip-status', clipStatus);
+      setClipStatus({
+        enabled: true,
+        buffering: !!status?.buffering,
+        readySeconds: Math.max(0, Number(status?.readySeconds) || 0),
+        seconds: Number(status?.seconds) || prefs.clipSeconds,
+      });
     });
 
     ipcMain.on('clip-recorder-error', (_event, message) => {

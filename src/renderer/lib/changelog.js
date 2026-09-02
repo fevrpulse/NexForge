@@ -4,6 +4,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.7.1',
+    highlights: [
+      'Command-deck UI — split sign-in wall, lime active rail, numbered launch pads',
+      'Saved clips stay playable after the buffer wraps',
+      'Closing NexForge mid-game no longer throws away a long session',
+      'A flaky sign-in read can no longer reset your profile',
+      'Overlay NexAI knows you are signed in on the first open of each launch',
+      'Do Not Disturb now also mutes incoming-call overlay toasts',
+    ],
+  },
+  {
     version: '4.7.0',
     highlights: [
       'Visual effects now match your hardware — pick Auto, High, Balanced, or Low in Settings',
