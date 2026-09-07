@@ -29,6 +29,10 @@ alter table public.game_sessions add column if not exists deaths integer;
 alter table public.game_sessions add column if not exists assists integer;
 alter table public.game_sessions add column if not exists avg_gpu_pct numeric;
 alter table public.game_sessions add column if not exists max_gpu_pct numeric;
+alter table public.game_sessions add column if not exists avg_disk_pct numeric;
+alter table public.game_sessions add column if not exists max_disk_pct numeric;
+alter table public.game_sessions add column if not exists avg_wifi_pct numeric;
+alter table public.game_sessions add column if not exists max_wifi_pct numeric;
 
 create index if not exists game_sessions_user_id_ended_at_idx
   on public.game_sessions (user_id, ended_at desc);

@@ -4,6 +4,17 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.8.0',
+    highlights: [
+      'Last session recap on the dashboard, plus live heat, CPU, GPU, disk, Wi‑Fi, and ping',
+      'In-game overlay HUD shows session time, heat, and hardware while you play',
+      'Challenge a friend without listing the queue on public Matchmaking',
+      'AI Coach on Dashboard and Analytics',
+      'Won / Lost prompt after a tracked session — skip with Esc',
+      'Disk and Wi‑Fi track the real adapter; clipping too early no longer wipes the buffer',
+    ],
+  },
+  {
     version: '4.7.1',
     highlights: [
       'Command-deck UI — split sign-in wall, lime active rail, numbered launch pads',

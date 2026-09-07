@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
@@ -13,6 +13,17 @@ export default function MatchResultPrompt() {
     reportCloudError,
   } = useNexForge();
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!pendingMatchLog) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape' || busy) return;
+      e.preventDefault();
+      clearPendingMatchLog();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [pendingMatchLog, busy, clearPendingMatchLog]);
 
   if (!pendingMatchLog) return null;
 
@@ -31,7 +42,13 @@ export default function MatchResultPrompt() {
       showToast(result === 'win' ? 'Win logged' : 'Loss logged', 'success');
       clearPendingMatchLog();
     } catch (err) {
-      showToast(err?.message || 'Could not log result.', 'error');
+      const msg = String(err?.message || '');
+      showToast(
+        /function.*log_match_result|could not find the function|404|not found/i.test(msg)
+          ? 'Win/loss logging is not live on the server yet.'
+          : (err?.message || 'Could not log result.'),
+        'error',
+      );
       await reportCloudError(err);
     } finally {
       setBusy(false);
@@ -45,7 +62,12 @@ export default function MatchResultPrompt() {
         <div className="match-result-prompt-sub">
           {pendingMatchLog.game}
           {pendingMatchLog.durationSec != null ? ` · ${formatDuration(pendingMatchLog.durationSec)}` : ''}
+          {pendingMatchLog.avgCpuPct != null ? ` · CPU ${Number(pendingMatchLog.avgCpuPct).toFixed(0)}%` : ''}
+          {pendingMatchLog.avgGpuPct != null ? ` · GPU ${Number(pendingMatchLog.avgGpuPct).toFixed(0)}%` : ''}
         </div>
+        {pendingMatchLog.tip ? (
+          <div className="match-result-prompt-tip">{pendingMatchLog.tip}</div>
+        ) : null}
       </div>
       <div className="match-result-prompt-actions">
         <button

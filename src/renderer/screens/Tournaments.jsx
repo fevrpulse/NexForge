@@ -156,6 +156,7 @@ export default function Tournaments() {
   const [brackets, setBrackets] = useState({});
   const [checkedIn, setCheckedIn] = useState({});
   const [bracketBusy, setBracketBusy] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   async function loadTournaments() {
     try {
@@ -166,10 +167,11 @@ export default function Tournaments() {
       }
       if (error) throw error;
       setCloudOffline(false);
+      setLoadError(null);
       setTournaments(data || []);
     } catch (err) {
       await reportCloudError(err);
-      setTournaments([]);
+      setLoadError(err?.message || 'Could not load tournaments');
     } finally {
       setLoaded(true);
     }
@@ -182,6 +184,13 @@ export default function Tournaments() {
     return () => window.removeEventListener('focus', onFocus);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!expandedId) return undefined;
+    const id = setInterval(() => { loadBracket(expandedId); }, 5000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedId]);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -686,11 +695,23 @@ export default function Tournaments() {
         <div className="tourney-empty">Loading tournaments...</div>
       ) : filtered.length === 0 ? (
         <div className="tourney-empty">
-          No {filter} tournaments yet.<br /><br />
-          Create one with a cash prize, in-app reward, or both.
+          {loadError
+            ? `Could not load tournaments. ${loadError}`
+            : (
+              <>
+                No {filter} tournaments yet.<br /><br />
+                Create one with a cash prize, in-app reward, or both.
+              </>
+            )}
         </div>
       ) : (
-        filtered.map((t) => {
+        <>
+          {loadError && (
+            <div className="tourney-empty" style={{ marginBottom: 12, color: 'var(--red)' }}>
+              Could not refresh tournaments. {loadError}
+            </div>
+          )}
+          {filtered.map((t) => {
           const status = tournamentStatus(t);
           const filled = (t.registrations || []).length;
           const slots = t.max_slots || 16;
@@ -863,7 +884,8 @@ export default function Tournaments() {
               )}
             </div>
           );
-        })
+        })}
+        </>
       )}
     </div>
   );

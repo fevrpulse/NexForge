@@ -344,9 +344,9 @@ export default function Settings() {
                 type="button"
                 className="action-btn primary"
                 onClick={() => window.nexforge?.clipNow?.()}
-                disabled={!clipEnabled}
+                disabled={!clipEnabled || !!clipStatus?.buffering}
               >
-                Clip now
+                {!clipEnabled ? 'Clips off' : clipStatus?.buffering ? 'Buffering…' : 'Clip now'}
               </button>
               <button
                 type="button"

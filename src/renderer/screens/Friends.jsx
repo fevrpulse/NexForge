@@ -6,6 +6,7 @@ import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
 import { LinkedAccountChips } from '../components/VerifiedStatsPanel.jsx';
 import { useVoiceCall } from '../components/VoiceCallOverlay.jsx';
+import { friendQueueServer } from '../lib/duels.js';
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
 
 function avatarColor(id) {
@@ -230,6 +231,7 @@ export default function Friends() {
   const [friendTyping, setFriendTyping] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [chatError, setChatError] = useState(null);
 
   const scrollRef = useRef(null);
   const stickToBottomRef = useRef(true);
@@ -240,7 +242,7 @@ export default function Friends() {
   const imageUrlsRef = useRef(imageUrls);
   useEffect(() => { imageUrlsRef.current = imageUrls; }, [imageUrls]);
 
-  const loadFriendships = useCallback(async () => {
+  const loadFriendships = useCallback(async ({ notifyError = false } = {}) => {
     if (!myId) return;
     try {
       const [{ data, error }, { data: pins, error: pinErr }] = await Promise.all([
@@ -251,16 +253,21 @@ export default function Friends() {
         sb.from('friend_pins').select('friend_id').eq('user_id', myId),
       ]);
       if (error) throw error;
-      if (pinErr) throw pinErr;
       const list = data || [];
       setRows(list);
-      setPinnedIds(new Set((pins || []).map((p) => p.friend_id)));
+      if (!pinErr) {
+        setPinnedIds(new Set((pins || []).map((p) => p.friend_id)));
+      }
       const otherIds = [...new Set(list.map((r) => (r.requester_id === myId ? r.addressee_id : r.requester_id)))];
       if (otherIds.length) {
-        const { data: profs, error: pErr } = await sb
-          .from('profiles')
-          .select('id,gamer_tag,display_name,mmr,main_game,platform,last_seen_at,playing_game,custom_status,avatar_path,equipped_frame,equipped_banner,equipped_nameplate,clan_tag')
-          .in('id', otherIds);
+        const fullSelect = 'id,gamer_tag,display_name,mmr,main_game,platform,last_seen_at,playing_game,custom_status,avatar_path,equipped_frame,equipped_banner,equipped_nameplate,clan_tag';
+        let { data: profs, error: pErr } = await sb.from('profiles').select(fullSelect).in('id', otherIds);
+        if (pErr) {
+          ({ data: profs, error: pErr } = await sb
+            .from('profiles')
+            .select('id,gamer_tag,display_name,mmr,main_game,platform,avatar_path')
+            .in('id', otherIds));
+        }
         if (pErr) throw pErr;
         setProfiles((prev) => {
           const next = { ...prev };
@@ -270,7 +277,7 @@ export default function Friends() {
       }
     } catch (err) {
       await reportCloudError(err);
-      showToast(err?.message || 'Could not load friends.', 'error');
+      if (notifyError) showToast(err?.message || 'Could not load friends.', 'error');
     }
   }, [myId, reportCloudError, showToast]);
 
@@ -283,7 +290,7 @@ export default function Friends() {
     }
   }, [myId]);
 
-  const loadConversation = useCallback(async (friendId, { markRead = false } = {}) => {
+  const loadConversation = useCallback(async (friendId, { markRead = false, notifyError = false } = {}) => {
     if (!myId || !friendId) return;
     try {
       const { data, error } = await sb
@@ -293,8 +300,8 @@ export default function Friends() {
         .order('created_at', { ascending: false })
         .limit(200);
       if (error) throw error;
-      // Ignore responses that arrive after switching to another chat.
       if (selectedRef.current !== friendId) return;
+      setChatError(null);
       const incoming = (data || []).slice().reverse();
       setHasMore((data || []).length >= 200);
       // Keep just-sent rows if an in-flight poll started before the insert landed.
@@ -350,10 +357,13 @@ export default function Friends() {
         refreshUnread();
       }
     } catch (err) {
-      if (selectedRef.current === friendId) setMessages([]);
+      if (selectedRef.current === friendId) {
+        setChatError(err?.message || 'Could not load messages.');
+        if (notifyError) showToast(err?.message || 'Could not load messages.', 'error');
+      }
       await reportCloudError(err);
     }
-  }, [myId, refreshUnread, reportCloudError]);
+  }, [myId, refreshUnread, reportCloudError, showToast]);
 
   async function loadOlderMessages() {
     if (!myId || !selectedId || loadingOlder || !hasMore) return;
@@ -386,8 +396,8 @@ export default function Friends() {
   }
 
   useEffect(() => {
-    loadFriendships();
-    const id = setInterval(loadFriendships, 8000);
+    loadFriendships({ notifyError: true });
+    const id = setInterval(() => { loadFriendships({ notifyError: false }); }, 8000);
     return () => clearInterval(id);
   }, [loadFriendships]);
 
@@ -413,7 +423,8 @@ export default function Friends() {
     }
     setMessages(null);
     setHasMore(false);
-    loadConversation(selectedId, { markRead: true });
+    setChatError(null);
+    loadConversation(selectedId, { markRead: true, notifyError: true });
     const id = setInterval(() => {
       const hasUnread = (unreadBySenderRef.current[selectedRef.current] || 0) > 0;
       loadConversation(selectedRef.current, { markRead: hasUnread });
@@ -568,7 +579,13 @@ export default function Friends() {
         setPinnedIds((prev) => new Set(prev).add(friendId));
       }
     } catch (err) {
-      showToast(err?.message || 'Pin update failed.', 'error');
+      const msg = String(err?.message || '');
+      showToast(
+        /friend_pins|schema cache|does not exist/i.test(msg)
+          ? 'Pins aren’t live on the server yet.'
+          : (err?.message || 'Pin update failed.'),
+        'error',
+      );
       await reportCloudError(err);
     }
   }
@@ -819,23 +836,38 @@ export default function Friends() {
     const game = target?.main_game || profile?.main_game || 'Valorant';
     setChallenging(true);
     try {
+      const { data: openRows, error: openErr } = await sb
+        .from('duels')
+        .select('id')
+        .eq('host_id', myId)
+        .eq('status', 'open')
+        .limit(1);
+      if (openErr) throw openErr;
+      if (openRows?.length) {
+        showToast('Cancel your open Matchmaking queue before sending another challenge.', 'error');
+        return;
+      }
       const { error: duelErr } = await sb.from('duels').insert({
         host_id: myId,
         host_tag: profile?.gamer_tag || 'Player',
         host_mmr: profile?.mmr || 1200,
         game,
         mode: 'Friend Challenge',
-        details: `Challenge for ${target?.gamer_tag || 'a friend'} — accept from Matchmaking!`,
+        details: `Only ${target?.gamer_tag || 'your friend'} can accept this.`,
+        server: friendQueueServer(selectedId),
         status: 'open',
       });
       if (duelErr) throw duelErr;
-      const body = `⚔️ I challenged you to a ${game} duel! Open Matchmaking and accept my "Friend Challenge" queue.`;
+      const body = `⚔️ I challenged you to a ${game} duel. Open Matchmaking — this Friend Challenge is only for you.`;
       const { data, error } = await sb
         .from('messages')
         .insert({ sender_id: myId, recipient_id: selectedId, body })
         .select('id,sender_id,recipient_id,body,reply_to_id,image_path,created_at')
         .single();
-      if (error) throw error;
+      if (error) {
+        showToast('Challenge posted in Matchmaking, but the DM failed to send.', 'error');
+        return;
+      }
       setMessages((prev) => {
         const list = prev || [];
         return list.some((m) => m.id === data.id) ? list : [...list, data];
@@ -1165,8 +1197,10 @@ export default function Friends() {
                 stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
               }}
             >
-              {messages === null ? (
+              {messages === null && !chatError ? (
                 <div className="friends-empty">Loading…</div>
+              ) : chatError && !(messages && messages.length) ? (
+                <div className="friends-empty">{chatError}</div>
               ) : displayedMessages.length === 0 ? (
                 <div className="friends-empty">
                   {msgSearch.trim() ? 'No messages match your search.' : 'No messages yet — say hi!'}

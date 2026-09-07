@@ -2,16 +2,22 @@ import React from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 
 export default function ToastStack() {
-  const { toasts } = useNexForge();
+  const { toasts, dismissToast } = useNexForge();
 
   if (!toasts.length) return null;
 
   return (
     <div className="toast-stack">
       {toasts.map((t) => (
-        <div key={t.id} className={`toast-item ${t.type}`}>
+        <button
+          key={t.id}
+          type="button"
+          className={`toast-item ${t.type}`}
+          onClick={() => dismissToast?.(t.id)}
+          title="Dismiss"
+        >
           {t.msg}
-        </div>
+        </button>
       ))}
     </div>
   );

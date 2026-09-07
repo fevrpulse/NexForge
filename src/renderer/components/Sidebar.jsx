@@ -26,7 +26,7 @@ const SYSTEM_NAV = [
 export default function Sidebar() {
   const {
     screen, setScreen, profile, guestMode, signOut, appVersion,
-    unreadTotal,
+    unreadTotal, liveSession,
   } = useNexForge();
   const tag = displayTag(profile) || profile?.gamer_tag || 'Player';
   const rank = guestMode ? 'No account' : (profile?.main_game || profile?.platform || 'PC');
@@ -59,9 +59,9 @@ export default function Sidebar() {
           </div>
           <span className="sb-live-pip" title="Online" />
         </div>
-        <div className="sb-status">
-          <span className="sb-status-dot" />
-          <span>{guestMode ? 'Guest channel' : 'Forge online'}</span>
+        <div className={`sb-status ${liveSession ? 'tracking' : ''}`}>
+          <span className={`sb-status-dot ${liveSession ? 'tracking' : ''}`} />
+          <span>{liveSession ? `Tracking ${liveSession.game}` : guestMode ? 'Guest channel' : 'Forge online'}</span>
         </div>
       </div>
       <nav className="sb-nav">

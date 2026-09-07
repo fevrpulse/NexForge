@@ -25,6 +25,16 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   'github.com',
   'www.github.com',
   'fevrpulse.github.io',
+  'accounts.google.com',
+  'discord.com',
+  'www.discord.com',
+  'discordapp.com',
+  'steamcommunity.com',
+  'www.steamcommunity.com',
+  'auth.riotgames.com',
+  'www.epicgames.com',
+  'epicgames.com',
+  'accounts.epicgames.com',
 ]);
 const QUIT_SESSION_FLUSH_MS = 4000;
 const UPDATE_CHECK_INTERVAL_MS = 15 * 60 * 1000;
@@ -734,7 +744,7 @@ app.whenReady().then(async () => {
   ));
   try {
     const { desktopCapturer } = require('electron');
-    session.defaultSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    session.defaultSession.setDisplayMediaRequestHandler(async (request, callback) => {
       // The callback must always run: skipping it leaves the renderer's
       // getDisplayMedia() promise pending forever with nothing to report.
       try {
@@ -744,7 +754,11 @@ app.whenReady().then(async () => {
           callback({});
           return;
         }
-        callback({ video: source, audio: 'loopback' });
+        // Loopback is what makes game audio land in clips. If the recorder
+        // asked for video only (after a loopback failure), do not force it —
+        // forcing audio: 'loopback' made the whole capture reject.
+        const wantsAudio = request?.audioRequested !== false;
+        callback(wantsAudio ? { video: source, audio: 'loopback' } : { video: source });
       } catch (err) {
         console.error('Display capture source lookup failed:', err);
         callback({});

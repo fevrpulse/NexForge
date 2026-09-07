@@ -90,6 +90,7 @@
     }
     .toast.call { border-left-color: var(--call); }
     .toast.clip { border-left-color: var(--hud); }
+    .toast.heat { border-left-color: #FF8C42; }
     .toast.party { border-left-color: #4B8CFF; }
     .toast.lobby { border-left-color: #FF9652; }
     .toast.leaving { opacity: 0; transform: translateX(24px); transition: opacity .35s, transform .35s; }
@@ -162,6 +163,7 @@
       width: 100%; padding: 10px !important; border-radius: 12px !important;
       font-size: 14px !important;
     }
+    .clip-btn:disabled { opacity: .5; cursor: not-allowed; }
     #ai-log {
       height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
       margin-bottom: 8px;
@@ -277,6 +279,7 @@
       if (kind === 'party') return 'Party';
       if (kind === 'lobby') return 'Lobby';
       if (kind === 'clip') return 'Clip';
+      if (kind === 'heat') return 'Hardware';
       if (kind === 'duel') return 'Duel';
       return 'Message';
     }
@@ -308,6 +311,17 @@
       if (!s || s.enabled === false) return 'Clip buffer off';
       if (s.buffering) return 'Buffering… ' + (s.readySeconds || 0) + 's';
       return 'Ready · last ' + (s.seconds || 20) + 's';
+    }
+
+    function applyClipUi(s) {
+      const status = document.getElementById('clip-status');
+      const btn = document.getElementById('clip-btn');
+      if (status) status.textContent = clipStatusText(s);
+      if (!btn) return;
+      const off = !s || s.enabled === false;
+      const buffering = !!s?.buffering;
+      btn.disabled = off || buffering;
+      btn.textContent = off ? 'Clips off' : buffering ? 'Buffering…' : 'Clip highlight';
     }
 
     function addToast(msg) {
@@ -482,9 +496,7 @@
       if (payload?.prefs) prefs = payload.prefs;
       document.getElementById('hud-hint').textContent =
         'Drag panels · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes · ' + formatAcc(prefs.hotkeys?.clip) + ' clips';
-      if (payload?.clipStatus) {
-        document.getElementById('clip-status').textContent = clipStatusText(payload.clipStatus);
-      }
+      if (payload?.clipStatus) applyClipUi(payload.clipStatus);
       if (payload?.lastClipPath) {
         document.getElementById('clip-last').textContent = payload.lastClipPath.split(/[/\\]/).pop();
       }
@@ -503,9 +515,25 @@
     api?.onState((state) => {
       signedIn = !!state?.signedIn;
       document.getElementById('session-game').textContent = state?.game || 'No game tracked';
-      document.getElementById('session-sub').textContent = state?.game
-        ? (state.unread ? state.unread + ' unread messages' : 'Live session')
-        : 'Launch a supported game to light this up.';
+      if (state?.game) {
+        const bits = [];
+        const dur = Number(state.durationSec);
+        if (Number.isFinite(dur) && dur > 0) {
+          const m = Math.floor(dur / 60);
+          const s = Math.floor(dur % 60);
+          bits.push(m + 'm ' + String(s).padStart(2, '0') + 's');
+        } else {
+          bits.push('Live session');
+        }
+        if (state.heat) bits.push(state.heat);
+        if (state.cpuPct != null) bits.push('CPU ' + Math.round(Number(state.cpuPct)) + '%');
+        if (state.gpuPct != null) bits.push('GPU ' + Math.round(Number(state.gpuPct)) + '%');
+        if (state.pingMs != null) bits.push(Math.round(Number(state.pingMs)) + 'ms');
+        if (state.unread) bits.push(state.unread + ' unread');
+        document.getElementById('session-sub').textContent = bits.join(' · ');
+      } else {
+        document.getElementById('session-sub').textContent = 'Launch a supported game to light this up.';
+      }
     });
     api?.onAiReply((payload) => {
       // Ignore replies to requests the user already dismissed.
@@ -522,7 +550,7 @@
     });
     api?.onClipStatus((s) => {
       if (!s) return;
-      document.getElementById('clip-status').textContent = clipStatusText(s);
+      applyClipUi(s);
     });
     api?.onClipSaved((payload) => {
       if (payload?.path) document.getElementById('clip-last').textContent = String(payload.path).split(/[/\\]/).pop();

@@ -76,14 +76,16 @@
   async function start(payload) {
     stopTracks();
     seconds = clampSeconds(payload?.seconds);
+    const video = { frameRate: 15, width: 1280, height: 720 };
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: 15, width: 1280, height: 720 },
-        audio: true,
-      });
-    } catch (err) {
-      api.error(err?.message || 'Screen capture was blocked');
-      return;
+      stream = await navigator.mediaDevices.getDisplayMedia({ video, audio: true });
+    } catch {
+      try {
+        stream = await navigator.mediaDevices.getDisplayMedia({ video, audio: false });
+      } catch (err) {
+        api.error(err?.message || 'Screen capture was blocked');
+        return;
+      }
     }
     const opts = { videoBitsPerSecond: 2500000 };
     const mime = mimeType();
@@ -114,6 +116,13 @@
     rec.onerror = (ev) => {
       api.error(ev?.error?.message || 'Clip recorder error');
     };
+    (stream.getVideoTracks() || []).forEach((track) => {
+      track.addEventListener('ended', () => {
+        if (rec !== recorder) return;
+        api.error('Screen capture ended');
+        stopTracks();
+      });
+    });
     rec.start(1000);
     api.ready({ buffering: true, readySeconds: 0, seconds });
   }

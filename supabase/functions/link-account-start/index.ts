@@ -120,7 +120,9 @@ Deno.serve(async (req) => {
   }
   if (!capabilities[provider]) {
     return json({
-      error: `${provider} OAuth is not configured yet. You can still enter a handle.`,
+      error: provider === "steam"
+        ? "Steam sign-in is not available right now. Verify with a public Steam About code instead."
+        : `Connect ${provider} needs a ${provider} app on the server. Typing a handle is not enough to prove you own it.`,
       code: "oauth_not_configured",
       capabilities,
     });

@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { formatDuration } from '../lib/format.js';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
+import CoachPanel from '../components/CoachPanel.jsx';
 
 const HW_SERIES = [
   { key: 'ramMb', avgKey: 'avg_ram_mb', label: 'RAM', unit: ' MB', color: '#3B7EFF', kind: 'ram' },
@@ -15,6 +16,26 @@ const HW_SERIES = [
 function mean(values) {
   if (!values.length) return null;
   return values.reduce((a, b) => a + b, 0) / values.length;
+}
+
+function numericOrNull(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function meanFromSamples(samples, key) {
+  const vals = (Array.isArray(samples) ? samples : [])
+    .map((row) => numericOrNull(row?.[key]))
+    .filter((n) => n != null);
+  return vals.length ? mean(vals) : null;
+}
+
+/** Use saved averages when the DB has them; otherwise average the sample timeline. */
+function sessionAvg(row, avgKey, sampleKey) {
+  const direct = numericOrNull(row?.[avgKey]);
+  if (direct != null) return direct;
+  return meanFromSamples(row?.samples, sampleKey);
 }
 
 function fmtRam(v) {
@@ -133,7 +154,7 @@ function Sparkline({ label, unit, color, values }) {
 function SessionCharts({ session }) {
   const samples = Array.isArray(session.samples) ? session.samples : [];
   const series = HW_SERIES
-    .map((s) => ({ ...s, values: samples.map((x) => x?.[s.key]).filter((n) => typeof n === 'number') }))
+    .map((s) => ({ ...s, values: samples.map((x) => numericOrNull(x?.[s.key])).filter((n) => n != null) }))
     .filter((s) => s.values.length >= 2);
   if (!series.length) {
     return (
@@ -158,63 +179,72 @@ function SessionCharts({ session }) {
 }
 
 export default function Analytics() {
-  const { user, profile, appPlatform, sessionSaveTick, liveSession } = useNexForge();
+  const { user, profile, appPlatform, sessionSaveTick, liveSession, showToast } = useNexForge();
   const [sessions, setSessions] = useState([]);
   const [expandedSession, setExpandedSession] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const didToastLoadErr = useRef(false);
   const isWindows = String(appPlatform || '').toLowerCase().includes('win');
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) return undefined;
     let active = true;
+    setLoadError(null);
     sb.from('game_sessions')
       .select('*')
       .eq('user_id', user.id)
       .order('ended_at', { ascending: false })
       .limit(40)
       .then(({ data, error }) => {
-        if (active && !error) setSessions((data || []).slice().reverse());
+        if (!active) return;
+        if (error) {
+          setLoadError(error.message || 'Could not load sessions');
+          if (!didToastLoadErr.current) {
+            didToastLoadErr.current = true;
+            showToast(error.message || 'Could not load session history', 'error');
+          }
+          return;
+        }
+        didToastLoadErr.current = false;
+        setSessions((data || []).slice().reverse());
       })
-      .catch(() => {});
+      .catch((err) => {
+        if (!active) return;
+        const msg = err?.message || 'Could not load sessions';
+        setLoadError(msg);
+        if (!didToastLoadErr.current) {
+          didToastLoadErr.current = true;
+          showToast(msg, 'error');
+        }
+      });
     return () => { active = false; };
-  }, [user, sessionSaveTick]);
+  }, [user, sessionSaveTick, showToast]);
 
   const chronological = sessions;
   const newestFirst = useMemo(() => [...sessions].reverse(), [sessions]);
 
   const pctSeries = HW_SERIES.filter((s) => s.kind === 'pct').map((s) => ({
     ...s,
-    values: chronological.map((row) => {
-      const n = Number(row[s.avgKey]);
-      return Number.isFinite(n) ? n : null;
-    }),
+    values: chronological.map((row) => sessionAvg(row, s.avgKey, s.key)),
   }));
   const ramSeries = [{
     ...HW_SERIES[0],
-    values: chronological.map((row) => {
-      const n = Number(row.avg_ram_mb);
-      return Number.isFinite(n) ? n : null;
-    }),
+    values: chronological.map((row) => sessionAvg(row, 'avg_ram_mb', 'ramMb')),
   }];
 
   const lifetimeAvgs = HW_SERIES.map((s) => {
-    const values = chronological.map((row) => Number(row[s.avgKey])).filter((n) => Number.isFinite(n));
+    const values = chronological.map((row) => sessionAvg(row, s.avgKey, s.key)).filter((n) => n != null);
     return { ...s, avg: mean(values) };
   });
 
   const liveSamples = Array.isArray(liveSession?.samples) ? liveSession.samples : [];
   const livePctSeries = HW_SERIES.filter((s) => s.kind === 'pct').map((s) => ({
     ...s,
-    values: liveSamples.map((row) => {
-      const n = Number(row?.[s.key]);
-      return Number.isFinite(n) ? n : null;
-    }),
+    values: liveSamples.map((row) => numericOrNull(row?.[s.key])),
   }));
   const liveRamSeries = [{
     ...HW_SERIES[0],
-    values: liveSamples.map((row) => {
-      const n = Number(row?.ramMb);
-      return Number.isFinite(n) ? n : null;
-    }),
+    values: liveSamples.map((row) => numericOrNull(row?.ramMb)),
   }];
   const hasLivePct = livePctSeries.some((s) => s.values.filter((n) => typeof n === 'number').length >= 2);
   const hasLiveRam = liveRamSeries[0].values.filter((n) => typeof n === 'number').length >= 2;
@@ -232,6 +262,7 @@ export default function Analytics() {
         </div>
       )}
       <LiveSessionBanner />
+      <CoachPanel />
 
       {(hasLivePct || hasLiveRam) && (
         <div className="hw-dash-grid" style={{ marginBottom: 16 }}>
@@ -283,7 +314,11 @@ export default function Analytics() {
 
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-title">Sessions</div>
-        {newestFirst.length === 0 ? (
+        {loadError ? (
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--red)', padding: '16px 0', textAlign: 'center' }}>
+            Could not load session history. {loadError}
+          </div>
+        ) : newestFirst.length === 0 ? (
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '16px 0', textAlign: 'center' }}>
             Play a tracked game to see RAM, CPU, GPU, disk, and Wi‑Fi here
           </div>
@@ -304,9 +339,9 @@ export default function Analytics() {
                       <div className="session-row-meta">{formatDuration(s.duration_sec)} · {when}</div>
                     </div>
                     <div className="session-row-stats">
-                      RAM {fmtRam(s.avg_ram_mb)}<br />
-                      CPU {fmtPct(s.avg_cpu_pct)} · GPU {fmtPct(s.avg_gpu_pct)}<br />
-                      Disk {fmtPct(s.avg_disk_pct)} · Wi‑Fi {fmtPct(s.avg_wifi_pct)}
+                      RAM {fmtRam(sessionAvg(s, 'avg_ram_mb', 'ramMb'))}<br />
+                      CPU {fmtPct(sessionAvg(s, 'avg_cpu_pct', 'cpuPct'))} · GPU {fmtPct(sessionAvg(s, 'avg_gpu_pct', 'gpuPct'))}<br />
+                      Disk {fmtPct(sessionAvg(s, 'avg_disk_pct', 'diskPct'))} · Wi‑Fi {fmtPct(sessionAvg(s, 'avg_wifi_pct', 'wifiPct'))}
                     </div>
                     <span className={`session-row-caret ${expanded ? 'open' : ''}`}>▾</span>
                   </div>

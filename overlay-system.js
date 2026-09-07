@@ -110,6 +110,9 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   }
 
   let clipStatus = idleClipStatus();
+  let clipRestartTimer = null;
+  let lastClipStartAt = 0;
+  let clipFailStreak = 0;
 
   function setClipStatus(next) {
     clipStatus = next;
@@ -347,6 +350,11 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   }
 
   function syncClipBuffer() {
+    lastClipStartAt = Date.now();
+    if (clipRestartTimer) {
+      clearTimeout(clipRestartTimer);
+      clipRestartTimer = null;
+    }
     if (prefs.clipEnabled) {
       sendClip('clip-recorder-start', { seconds: prefs.clipSeconds });
       setClipStatus({
@@ -359,6 +367,28 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       sendClipIfLive('clip-recorder-stop');
       setClipStatus(idleClipStatus());
     }
+  }
+
+  function scheduleClipRestart(reason) {
+    if (!prefs.clipEnabled || clipRestartTimer) return;
+    const msg = String(reason || '');
+    const blocked = /blocked|denied|NotAllowed|Permission/i.test(msg);
+    clipFailStreak += 1;
+    if (blocked && clipFailStreak >= 4) {
+      showOverlayMessage({
+        kind: 'clip',
+        sender: 'Clip',
+        body: 'Screen capture is blocked. Allow it, then toggle Clip buffer in Settings.',
+        force: true,
+      });
+      sendToRenderer('overlay-clip-error', 'Screen capture blocked — toggle Clip buffer in Settings after allowing capture');
+      return;
+    }
+    const wait = Math.min(45000, (blocked ? 7000 : 2500) * clipFailStreak);
+    clipRestartTimer = setTimeout(() => {
+      clipRestartTimer = null;
+      if (prefs.clipEnabled) syncClipBuffer();
+    }, wait);
   }
 
   function saveClip(label) {
@@ -407,6 +437,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     // touched when the clip settings themselves changed — rebinding a hotkey
     // or toggling the overlay used to throw away the buffered footage.
     if (prefs.clipEnabled !== previous.clipEnabled) {
+      clipFailStreak = 0;
       syncClipBuffer();
     } else if (prefs.clipEnabled && prefs.clipSeconds !== previous.clipSeconds) {
       // A running recorder can retune its window without losing what it holds.
@@ -517,6 +548,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     });
 
     ipcMain.on('clip-recorder-ready', (_event, status) => {
+      clipFailStreak = 0;
       setClipStatus({
         enabled: true,
         buffering: !!status?.buffering,
@@ -526,13 +558,20 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     });
 
     ipcMain.on('clip-recorder-error', (_event, message) => {
-      sendToRenderer('overlay-clip-error', String(message || 'Clip buffer failed'));
-      showOverlayMessage({
-        kind: 'clip',
-        sender: 'Clip',
-        body: String(message || 'Clip buffer failed').slice(0, 140),
-        force: true,
-      });
+      const msg = String(message || 'Clip buffer failed');
+      const saveOnly = /still filling|could not save clip|clip was empty/i.test(msg);
+      sendToRenderer('overlay-clip-error', msg);
+      // Don't restart the rolling buffer because the user clipped too early,
+      // and don't overlay-spam every automatic retry.
+      if (saveOnly || clipFailStreak === 0) {
+        showOverlayMessage({
+          kind: 'clip',
+          sender: 'Clip',
+          body: msg.slice(0, 140),
+          force: true,
+        });
+      }
+      if (!saveOnly) scheduleClipRestart(msg);
     });
 
     ipcMain.handle('clip-write', async (_event, payload) => {
@@ -566,6 +605,10 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   }
 
   function destroyWindows() {
+    if (clipRestartTimer) {
+      clearTimeout(clipRestartTimer);
+      clipRestartTimer = null;
+    }
     if (clipWindow && !clipWindow.isDestroyed()) {
       try { clipWindow.webContents.send('clip-recorder-stop'); } catch { /* ignore */ }
       clipWindow.destroy();

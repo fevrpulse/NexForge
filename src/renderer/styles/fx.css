@@ -186,6 +186,15 @@
   width:6px;height:6px;border-radius:50%;background:var(--neon);
   box-shadow:0 0 8px rgba(210,255,42,.8);
 }
+.sb-status-dot.tracking{
+  background:#FF8C42;
+  box-shadow:0 0 10px rgba(255,140,66,.9);
+  animation:sb-track-pulse 1.4s ease-in-out infinite;
+}
+@keyframes sb-track-pulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:.45;transform:scale(1.35)}
+}
 .nav-item{
   border-radius:8px;
   clip-path:polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
@@ -327,6 +336,7 @@
 :root[data-fx="low"] .topbar::after,
 :root[data-fx="low"] .action-btn.primary::after,
 :root[data-fx="low"] .sb-live-pip,
+:root[data-fx="low"] .sb-status-dot.tracking,
 :root[data-fx="low"] .dot,
 :root[data-fx="low"] .np-fab,
 :root[data-fx="low"] .hud-scan,

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { askNexPanion, NEXPANION_ID } from '../lib/nexpanion.js';
 import { formatAccelerator } from '../lib/hotkeys.js';
+import { nexAiSessionNote, withSessionHistory } from '../lib/session.js';
 
 const WELCOME = {
   id: 'nexpanion-welcome',
@@ -21,7 +22,7 @@ function timeLabel(iso) {
 }
 
 export default function NexPanionDock() {
-  const { user, guestMode, showToast, reportCloudError, overlayHotkeys } = useNexForge();
+  const { user, guestMode, showToast, reportCloudError, overlayHotkeys, liveSession, lastSessionRecap } = useNexForge();
   const myId = user?.id;
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([WELCOME]);
@@ -121,7 +122,10 @@ export default function NexPanionDock() {
           role: m.role === 'assistant' ? 'assistant' : 'user',
           content: m.body,
         }));
-      const reply = await askNexPanion(body, history);
+      const reply = await askNexPanion(
+        body,
+        withSessionHistory(history, nexAiSessionNote(liveSession, lastSessionRecap)),
+      );
       setMsgs((prev) => [
         ...prev,
         {

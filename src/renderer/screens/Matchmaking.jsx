@@ -8,6 +8,7 @@ import {
 import { GameIcon, hasGameIcon } from '../components/icons.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
 import LobbyPanel from '../components/LobbyPanel.jsx';
+import { friendQueueTarget, isVisibleOpenQueue, publicServerLabel } from '../lib/duels.js';
 
 const STEP_LABELS = ['1 · Game', '2 · Queue', '3 · Details'];
 
@@ -71,8 +72,11 @@ export default function Matchmaking() {
   const [duoSearching, setDuoSearching] = useState(false);
   const [duoStyle, setDuoStyle] = useState('Any');
   const [duoPlat, setDuoPlat] = useState('Any');
+  const [queueLoadError, setQueueLoadError] = useState(null);
+  const gameTouchedRef = useRef(false);
 
   const pollRef = useRef(null);
+  const queueErrRef = useRef(null);
 
   const refreshDuels = useCallback(async () => {
     try {
@@ -109,7 +113,9 @@ export default function Matchmaking() {
         }
       }
       setCloudOffline(false);
-      setOpenQueues(all.filter((d) => d.status === 'open'));
+      setQueueLoadError(null);
+      queueErrRef.current = null;
+      setOpenQueues(all.filter((d) => d.status === 'open' && isVisibleOpenQueue(d, user?.id)));
       if (user) {
         const { data: mine } = await sb.rpc('get_my_duel');
         if (mine && typeof mine === 'object') {
@@ -123,9 +129,19 @@ export default function Matchmaking() {
         }
       }
     } catch (err) {
+      setQueueLoadError(err?.message || 'Could not refresh queues');
+      if (!queueErrRef.current) {
+        showToast(err?.message || 'Could not refresh open queues.', 'error');
+      }
+      queueErrRef.current = err?.message || 'error';
       await reportCloudError(err);
     }
-  }, [user, setCloudOffline, reportCloudError]);
+  }, [user, setCloudOffline, reportCloudError, showToast]);
+
+  useEffect(() => {
+    if (gameTouchedRef.current) return;
+    if (profile?.main_game) setSelectedGame(profile.main_game);
+  }, [profile?.main_game]);
 
   useEffect(() => {
     refreshDuels();
@@ -141,6 +157,7 @@ export default function Matchmaking() {
   }, [myActiveDuel, user]);
 
   function selectGame(game) {
+    gameTouchedRef.current = true;
     setSelectedGame(game);
     setStep(2);
   }
@@ -237,6 +254,12 @@ export default function Matchmaking() {
       showToast('Cancel your open queue or finish your active duel first.', 'error');
       return;
     }
+    const duel = openQueues.find((d) => d.id === duelId);
+    const intended = friendQueueTarget(duel?.server);
+    if (intended && intended !== user.id) {
+      showToast('That Friend Challenge is for someone else.', 'error');
+      return;
+    }
     try {
       const { data, error } = await sb.rpc('accept_duel', { p_duel_id: duelId });
       if (error) throw error;
@@ -300,7 +323,7 @@ export default function Matchmaking() {
     setDuoResults(null);
     try {
       let query = sb.from('profiles')
-        .select('id,gamer_tag,platform,main_game')
+        .select('id,gamer_tag,platform,main_game,custom_status,main_game_description')
         .eq('main_game', 'Fortnite')
         .neq('id', user?.id || '00000000-0000-0000-0000-000000000000')
         .limit(40);
@@ -308,10 +331,28 @@ export default function Matchmaking() {
       const { data, error } = await query;
       if (error) throw error;
       setCloudOffline(false);
-      setDuoResults((data || []).slice(0, 8));
+      const style = duoStyle;
+      const matchesStyle = (p) => {
+        if (style === 'Any') return true;
+        const blob = `${p.custom_status || ''} ${p.main_game_description || ''}`.toLowerCase();
+        if (blob.includes(style.toLowerCase())) return true;
+        if (style === 'Aggressive') return /aggro|w-?key|push/.test(blob);
+        if (style === 'Passive') return /passive|rat|stealth/.test(blob);
+        if (style === 'Builder') return /build|box|edit/.test(blob);
+        return false;
+      };
+      const rows = (data || []).map((p) => ({ ...p, styleMatch: matchesStyle(p) }));
+      const preferred = rows.filter((p) => p.styleMatch);
+      const rest = rows.filter((p) => !p.styleMatch);
+      setDuoResults({
+        hint: style !== 'Any' && !preferred.length
+          ? 'Nobody listed that play style yet — showing Fortnite players.'
+          : null,
+        players: [...preferred, ...rest].slice(0, 8),
+      });
     } catch (err) {
       await reportCloudError(err);
-      setDuoResults([]);
+      setDuoResults({ hint: err?.message || 'Could not search for duos.', players: [] });
     } finally {
       setDuoSearching(false);
     }
@@ -428,16 +469,22 @@ export default function Matchmaking() {
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', textAlign: 'center', padding: '12px 0' }}>
                       Searching for duo partners...
                     </div>
-                  ) : duoResults && duoResults.length === 0 ? (
+                  ) : duoResults && duoResults.players?.length === 0 ? (
                     <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted2)', textAlign: 'center', padding: '20px 0', lineHeight: 1.5 }}>
-                      No real players found yet. Invite friends to NexForge or open a public duel queue.
+                      {duoResults.hint || 'No real players found yet. Invite friends to NexForge or open a public duel queue.'}
                     </div>
-                  ) : duoResults ? (
-                    duoResults.map((p, i) => {
+                  ) : duoResults?.players ? (
+                    <>
+                      {duoResults.hint && (
+                        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginBottom: 10, lineHeight: 1.45 }}>
+                          {duoResults.hint}
+                        </div>
+                      )}
+                    {duoResults.players.map((p, i) => {
                       const col = colors[i % colors.length];
                       const init = (p.gamer_tag || '?').slice(0, 2).toUpperCase();
                       return (
-                        <div key={p.gamer_tag} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: 'var(--panel)', borderRadius: 10, marginBottom: 8, border: '1px solid var(--border)' }}>
+                        <div key={p.id || p.gamer_tag} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: 'var(--panel)', borderRadius: 10, marginBottom: 8, border: '1px solid var(--border)' }}>
                           <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${col}22`, color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
                             {init}
                           </div>
@@ -447,7 +494,7 @@ export default function Matchmaking() {
                             </div>
                             <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
                               {p.platform || 'PC'}
-                              {duoStyle !== 'Any' ? ` · prefers ${duoStyle}` : ''}
+                              {p.styleMatch && duoStyle !== 'Any' ? ` · ${duoStyle}` : ''}
                             </div>
                           </div>
                           <button className="action-btn ghost" style={{ padding: '5px 12px', fontSize: 11 }}
@@ -463,7 +510,8 @@ export default function Matchmaking() {
                           </button>
                         </div>
                       );
-                    })
+                    })}
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -501,7 +549,7 @@ export default function Matchmaking() {
           <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>{myActiveDuel.mode || 'Duel'} · {myActiveDuel.game}</div>
           <div className="duel-meta" style={{ marginBottom: 14 }}>
             {myActiveDuel.host_tag} vs {myActiveDuel.challenger_tag || '—'}
-            {myActiveDuel.server && <><br />Server {myActiveDuel.server}</>}
+            {publicServerLabel(myActiveDuel.server) && <><br />Server {publicServerLabel(myActiveDuel.server)}</>}
             {myActiveDuel.details && <><br />{myActiveDuel.details}</>}
           </div>
           <div className="field">
@@ -524,7 +572,11 @@ export default function Matchmaking() {
 
       <div className="card">
         <div className="card-title">Open Queues</div>
-        {openQueues.length === 0 ? (
+        {queueLoadError ? (
+          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--red)', padding: '12px 0', textAlign: 'center' }}>
+            Could not refresh queues. {queueLoadError}
+          </div>
+        ) : openQueues.length === 0 ? (
           <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '12px 0', textAlign: 'center' }}>
             No open queues right now — post one and wait for a challenger.
           </div>
@@ -539,7 +591,7 @@ export default function Matchmaking() {
                   <div className="duel-meta">
                     Host {d.host_tag || 'Player'}<br />
                     {d.details && <>{d.details}<br /></>}
-                    {d.server && <>Server {d.server} · </>}{when}
+                    {publicServerLabel(d.server) && <>Server {publicServerLabel(d.server)} · </>}{when}
                   </div>
                 </div>
                 <div className="duel-actions">

@@ -2,3 +2,9 @@ project_id = "nfaxokwpmaxyhnvatrwf"
 
 [functions.link-account-callback]
 verify_jwt = false
+
+[functions.link-account-start]
+verify_jwt = true
+
+[functions.verify-account-link]
+verify_jwt = true

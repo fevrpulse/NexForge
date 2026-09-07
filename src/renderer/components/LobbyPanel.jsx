@@ -16,6 +16,7 @@ export default function LobbyPanel({ game, mode, details }) {
   const [busy, setBusy] = useState(false);
   const [codeDraft, setCodeDraft] = useState('');
   const [tick, setTick] = useState(0);
+  const [lobbyError, setLobbyError] = useState(null);
 
   const me = useMemo(() => {
     if (!lobby?.members || !user) return null;
@@ -35,9 +36,11 @@ export default function LobbyPanel({ game, mode, details }) {
       const { data, error } = await sb.rpc('get_my_lobby');
       if (error) throw error;
       setLobby(data || null);
+      setLobbyError(null);
       if (data?.lobby_code) setCodeDraft(data.lobby_code);
     } catch (err) {
       console.warn('get_my_lobby failed', err);
+      setLobbyError(err?.message || 'Could not refresh lobby');
       await reportCloudError(err);
     }
   }
@@ -110,6 +113,7 @@ export default function LobbyPanel({ game, mode, details }) {
           <div className="card-title" style={{ marginBottom: 4 }}>Match Lobby</div>
           <div className="lobby-panel-sub">
             Auto-match · queues expire after 5 minutes
+            {lobbyError ? ` · ${lobbyError}` : ''}
           </div>
         </div>
       </div>
@@ -163,7 +167,22 @@ export default function LobbyPanel({ game, mode, details }) {
 
           {lobby.lobby_code && (
             <div className="lobby-code-display">
-              Code · <b>{lobby.lobby_code}</b>
+              <span>Code · <b>{lobby.lobby_code}</b></span>
+              <button
+                type="button"
+                className="action-btn ghost"
+                style={{ padding: '4px 10px', fontSize: 11 }}
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(lobby.lobby_code);
+                    showToast('Lobby code copied', 'success');
+                  } catch {
+                    showToast('Could not copy lobby code', 'error');
+                  }
+                }}
+              >
+                Copy
+              </button>
             </div>
           )}
 

@@ -9,6 +9,13 @@ import {
 } from '../lib/cloud.js';
 import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.js';
 import { askNexPanion } from '../lib/nexpanion.js';
+import {
+  hardwareHeat,
+  lastSessionStorageKey,
+  recapFromSummary,
+  nexAiSessionNote,
+  withSessionHistory,
+} from '../lib/session.js';
 
 const NexForgeContext = createContext(null);
 
@@ -38,6 +45,8 @@ const GUEST_PROFILE = {
 };
 
 let toastSeq = 0;
+/** Live DB is missing avg_disk_pct / avg_wifi_pct until v159 is applied. */
+let skipSessionDiskWifiColumns = false;
 
 /** Short synthesized chirp for incoming messages — no audio asset needed. */
 function playMessageChirp() {
@@ -81,6 +90,11 @@ export function NexForgeProvider({ children }) {
   useEffect(() => { liveSessionRef.current = liveSession; }, [liveSession]);
   // Bumped whenever a finished session is saved so screens can refetch history.
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
+  const [pendingMatchLog, setPendingMatchLog] = useState(null);
+  const [lastSessionRecap, setLastSessionRecap] = useState(null);
+  const lastSessionRecapRef = useRef(null);
+  useEffect(() => { lastSessionRecapRef.current = lastSessionRecap; }, [lastSessionRecap]);
+  const heatAlertForRef = useRef(null);
   const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
   const [party, setParty] = useState(null);
   const [clan, setClan] = useState(null);
@@ -161,18 +175,23 @@ export function NexForgeProvider({ children }) {
 
   const userRef = useRef(null);
   useEffect(() => { userRef.current = user; }, [user]);
+  const signingOutRef = useRef(false);
 
   const { catalog: gameCatalog, knownGames } = useMemo(
     () => mergeGameCatalog(communityGames),
     [communityGames],
   );
 
-  const showToast = useCallback((msg, type = 'success') => {
+  const showToast = useCallback((msg, type = 'success', ms = 3200) => {
     const id = ++toastSeq;
     setToasts((prev) => [...prev, { id, msg, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3200);
+    }, Math.max(1800, Number(ms) || 3200));
+  }, []);
+
+  const dismissToast = useCallback((id) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
   const setCloudOffline = useCallback((offline, reason) => {
@@ -320,6 +339,8 @@ export function NexForgeProvider({ children }) {
     setActiveSeason(null);
     setSeasonRating(null);
     setBattlePassXp(null);
+    setPendingMatchLog(null);
+    setPendingFriendChatId(null);
     setProfile(GUEST_PROFILE);
     setScreenState('dashboard');
   }, []);
@@ -328,18 +349,27 @@ export function NexForgeProvider({ children }) {
     if (guestMode) {
       setGuestMode(false);
       setProfile(null);
+      setPendingMatchLog(null);
+      setPendingFriendChatId(null);
       setScreenState('dashboard');
       return;
     }
-    await sb.auth.signOut();
-    setUser(null);
-    setProfile(null);
-    setParty(null);
-    setClan(null);
-    setActiveSeason(null);
-    setSeasonRating(null);
-    setBattlePassXp(null);
-    setScreenState('dashboard');
+    signingOutRef.current = true;
+    try {
+      await sb.auth.signOut();
+    } finally {
+      setUser(null);
+      setProfile(null);
+      setParty(null);
+      setClan(null);
+      setActiveSeason(null);
+      setSeasonRating(null);
+      setBattlePassXp(null);
+      setPendingMatchLog(null);
+      setPendingFriendChatId(null);
+      setScreenState('dashboard');
+      signingOutRef.current = false;
+    }
     showToast('Signed out', 'success');
   }, [guestMode, showToast]);
 
@@ -407,6 +437,26 @@ export function NexForgeProvider({ children }) {
     setPendingFriendChatId(null);
   }, []);
 
+  const clearPendingMatchLog = useCallback(() => setPendingMatchLog(null), []);
+
+  useEffect(() => {
+    if (!user?.id) {
+      setLastSessionRecap(null);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(lastSessionStorageKey(user.id));
+      if (!raw) {
+        setLastSessionRecap(null);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      setLastSessionRecap(parsed && parsed.game ? parsed : null);
+    } catch {
+      setLastSessionRecap(null);
+    }
+  }, [user?.id]);
+
   useEffect(() => {
     let mounted = true;
     let offAuth = null;
@@ -467,6 +517,36 @@ export function NexForgeProvider({ children }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    const { data } = sb.auth.onAuthStateChange((event, session) => {
+      if (event === 'INITIAL_SESSION') return;
+      if (event === 'SIGNED_OUT') {
+        if (signingOutRef.current || !userRef.current) return;
+        setUser(null);
+        setProfile(null);
+        setGuestMode(false);
+        setParty(null);
+        setClan(null);
+        setActiveSeason(null);
+        setSeasonRating(null);
+        setBattlePassXp(null);
+        setPendingMatchLog(null);
+        setPendingFriendChatId(null);
+        setUnreadBySender({});
+        setScreenState('dashboard');
+        showToast('Session ended. Sign in again.', 'error');
+        return;
+      }
+      if (!session?.user) return;
+      setUser(session.user);
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        setGuestMode(false);
+        loadProfileFor(session.user);
+      }
+    });
+    return () => data.subscription.unsubscribe();
+  }, [loadProfileFor, showToast]);
 
   // Auto-retry while offline so a blip or recovered JWT does not stick forever.
   useEffect(() => {
@@ -546,12 +626,15 @@ export function NexForgeProvider({ children }) {
     if (!user) return undefined;
     const beat = async () => {
       try {
-        await sb
+        const { error } = await sb
           .from('profiles')
           .update({ last_seen_at: new Date().toISOString(), playing_game: playingGame })
           .eq('id', user.id);
-      } catch {
-        /* presence is best-effort */
+        if (error && !/playing_game|last_seen_at|schema cache|column/i.test(String(error.message || ''))) {
+          await reportCloudError(error);
+        }
+      } catch (err) {
+        await reportCloudError(err);
       }
     };
     beat();
@@ -561,7 +644,7 @@ export function NexForgeProvider({ children }) {
       clearInterval(id);
       offTick?.();
     };
-  }, [user, playingGame]);
+  }, [user, playingGame, reportCloudError]);
 
   const unreadBySenderRef = useRef(unreadBySender);
   useEffect(() => { unreadBySenderRef.current = unreadBySender; }, [unreadBySender]);
@@ -675,7 +758,13 @@ export function NexForgeProvider({ children }) {
         return;
       }
       try {
-        const reply = await askNexPanion(payload?.message || '', payload?.history || []);
+        const reply = await askNexPanion(
+          payload?.message || '',
+          withSessionHistory(
+            payload?.history || [],
+            nexAiSessionNote(liveSessionRef.current, lastSessionRecapRef.current),
+          ),
+        );
         nf.overlayAiReply({ requestId: payload?.requestId, reply });
       } catch (err) {
         nf.overlayAiReply({
@@ -691,8 +780,32 @@ export function NexForgeProvider({ children }) {
       signedIn: !!user,
       game: liveSession?.game || null,
       unread: unreadTotal,
+      durationSec: liveSession?.durationSec || 0,
+      cpuPct: liveSession?.live?.cpuPct ?? liveSession?.averages?.cpuPct ?? null,
+      gpuPct: liveSession?.live?.gpuPct ?? liveSession?.averages?.gpuPct ?? null,
+      pingMs: liveSession?.live?.pingMs ?? null,
+      heat: liveSession ? hardwareHeat(liveSession.live || {}, liveSession.averages || {}).label : null,
     });
-  }, [user, liveSession?.game, unreadTotal]);
+  }, [user, liveSession, unreadTotal]);
+
+  useEffect(() => {
+    if (!liveSession?.game) {
+      heatAlertForRef.current = null;
+      return;
+    }
+    if ((liveSession.durationSec || 0) < 25) return;
+    const heat = hardwareHeat(liveSession.live || {}, liveSession.averages || {});
+    if (heat.id !== 'hot') return;
+    const key = liveSession.startedAt || liveSession.game;
+    if (heatAlertForRef.current === key) return;
+    if (dndRef.current || overlayRef.current === false) return;
+    heatAlertForRef.current = key;
+    window.nexforge?.overlayNotify?.({
+      kind: 'heat',
+      sender: liveSession.game,
+      body: 'Hardware running hot — CPU, GPU, or ping spiked.',
+    });
+  }, [liveSession]);
 
   // Game session tracking lives here (always mounted) so finished sessions are
   // saved even when the Analytics screen is closed.
@@ -721,6 +834,13 @@ export function NexForgeProvider({ children }) {
         return;
       }
       try {
+        const recap = recapFromSummary(summary);
+        if (recap) {
+          setLastSessionRecap(recap);
+          try {
+            localStorage.setItem(lastSessionStorageKey(u.id), JSON.stringify(recap));
+          } catch { /* ignore quota */ }
+        }
         const row = {
           user_id: u.id,
           game: summary.game,
@@ -732,10 +852,6 @@ export function NexForgeProvider({ children }) {
           max_cpu_pct: summary.maxCpuPct,
           avg_gpu_pct: summary.avgGpuPct,
           max_gpu_pct: summary.maxGpuPct,
-          avg_disk_pct: summary.avgDiskPct,
-          max_disk_pct: summary.maxDiskPct,
-          avg_wifi_pct: summary.avgWifiPct,
-          max_wifi_pct: summary.maxWifiPct,
           avg_ping_ms: summary.avgPingMs,
           max_ping_ms: summary.maxPingMs,
           tips: summary.tips || [],
@@ -743,16 +859,51 @@ export function NexForgeProvider({ children }) {
           started_at: summary.startedAt,
           ended_at: summary.endedAt,
         };
-        let { error } = await sb.from('game_sessions').insert(row);
+        if (!skipSessionDiskWifiColumns) {
+          row.avg_disk_pct = summary.avgDiskPct;
+          row.max_disk_pct = summary.maxDiskPct;
+          row.avg_wifi_pct = summary.avgWifiPct;
+          row.max_wifi_pct = summary.maxWifiPct;
+        }
+        let { data, error } = await sb.from('game_sessions').insert(row).select('id').single();
         if (error && /avg_disk_pct|avg_wifi_pct|max_disk_pct|max_wifi_pct/.test(String(error.message || ''))) {
+          skipSessionDiskWifiColumns = true;
           delete row.avg_disk_pct;
           delete row.max_disk_pct;
           delete row.avg_wifi_pct;
           delete row.max_wifi_pct;
-          ({ error } = await sb.from('game_sessions').insert(row));
+          ({ data, error } = await sb.from('game_sessions').insert(row).select('id').single());
+        }
+        if (error && /PGRST116|0 rows|Cannot coerce/i.test(String(error.message || ''))) {
+          const { data: latest } = await sb
+            .from('game_sessions')
+            .select('id')
+            .eq('user_id', u.id)
+            .eq('started_at', summary.startedAt)
+            .maybeSingle();
+          if (latest?.id != null) {
+            data = latest;
+            error = null;
+          }
         }
         if (error) throw error;
-        showToast(`${summary.game} session saved`, 'success');
+        const sessionId = data?.id != null ? Number(data.id) : null;
+        setPendingMatchLog({
+          game: summary.game,
+          mode: null,
+          sessionId: Number.isFinite(sessionId) ? sessionId : null,
+          durationSec: summary.durationSec,
+          avgCpuPct: summary.avgCpuPct,
+          avgGpuPct: summary.avgGpuPct,
+          avgRamMb: summary.avgRamMb,
+          tip: Array.isArray(summary.tips) ? summary.tips[0] : null,
+        });
+        const tip = Array.isArray(summary.tips) && summary.tips[0] ? String(summary.tips[0]) : '';
+        showToast(
+          tip ? `${summary.game} saved · ${tip}` : `${summary.game} session saved`,
+          'success',
+          tip ? 5600 : 3200,
+        );
       } catch (err) {
         showToast(`${summary.game} session ended (cloud save failed)`, 'error');
         await reportCloudError(err);
@@ -840,7 +991,12 @@ export function NexForgeProvider({ children }) {
       setParty(data || null);
       return data || null;
     } catch (err) {
-      // Don't flip the whole app offline for a missing party RPC.
+      // Don't wipe a live party on a blip. Clear only when the server says
+      // there is no party (or the RPC is missing entirely).
+      const msg = String(err?.message || '');
+      if (/no party|not in a party|could not find the function|schema cache/i.test(msg)) {
+        setParty(null);
+      }
       console.warn('get_my_party failed', err);
       await reportCloudError(err);
       return null;
@@ -970,6 +1126,10 @@ export function NexForgeProvider({ children }) {
       setClan(data || null);
       return data || null;
     } catch (err) {
+      const msg = String(err?.message || '');
+      if (/no clan|not in a clan|could not find the function|schema cache/i.test(msg)) {
+        setClan(null);
+      }
       console.warn('get_my_clan failed', err);
       await reportCloudError(err);
       return null;
@@ -1163,6 +1323,7 @@ export function NexForgeProvider({ children }) {
     setScreen,
     toasts,
     showToast,
+    dismissToast,
     cloudOffline,
     cloudReason,
     setCloudOffline,
@@ -1203,6 +1364,9 @@ export function NexForgeProvider({ children }) {
     pendingFriendChatId,
     openFriendChat,
     clearPendingFriendChat,
+    pendingMatchLog,
+    clearPendingMatchLog,
+    lastSessionRecap,
     party,
     refreshParty,
     createParty,

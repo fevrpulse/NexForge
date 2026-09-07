@@ -23,7 +23,6 @@ const PROCESS_GAME_MAP = {
   'FIFA25': 'FIFA 25',
   'FC25': 'FIFA 25',
   'NBA2K25': 'NBA 2K25',
-  'LeagueClientUx': 'League of Legends',
   'League of Legends': 'League of Legends',
   'dota2': 'Dota 2',
   'Minecraft.Windows': 'Minecraft',
@@ -34,6 +33,14 @@ const PROCESS_GAME_MAP = {
   'PlayGTAV': 'GTA Online',
   'GeometryDash': 'Geometry Dash',
   'MecchaChameleon': 'Meccha Chameleon',
+  'Marvel-Win64-Shipping': 'Marvel Rivals',
+  'helldivers2': 'Helldivers 2',
+  'RainbowSix': 'Rainbow Six Siege',
+  'RainbowSix_Vulkan': 'Rainbow Six Siege',
+  'destiny2': 'Destiny 2',
+  'Palworld-Win64-Shipping': 'Palworld',
+  'deadlock': 'Deadlock',
+  'Deadlock': 'Deadlock',
   'MecchaChameleon-Win64-Shipping': 'Meccha Chameleon',
   'MECCHA CHAMELEON': 'Meccha Chameleon',
 };
@@ -58,6 +65,12 @@ const GAME_PROBE_HOSTS = {
   'GTA Online': '1.1.1.1',
   'Geometry Dash': '1.1.1.1',
   'Meccha Chameleon': '1.1.1.1',
+  'Marvel Rivals': '1.1.1.1',
+  'Helldivers 2': '1.1.1.1',
+  'Rainbow Six Siege': '1.1.1.1',
+  'Destiny 2': '1.1.1.1',
+  'Palworld': '1.1.1.1',
+  'Deadlock': '1.1.1.1',
 };
 
 function execPs(script, timeoutMs = 8000) {
@@ -82,6 +95,13 @@ function avg(nums) {
 function maxOf(nums) {
   if (!nums.length) return null;
   return Math.max(...nums);
+}
+
+function pctOrNull(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(100, Math.max(0, n));
 }
 
 /** Java Edition is javaw.exe / java.exe — do not treat every Java app as Minecraft. */
@@ -157,6 +177,7 @@ class GameTracker extends EventEmitter {
     this._gpuInFlight = null;
     this._lastIo = { diskPct: null, wifiPct: null };
     this._ioInFlight = null;
+    this._ioWarned = false;
   }
 
   start() {
@@ -360,6 +381,7 @@ Get-Process -ErrorAction SilentlyContinue |
             && !isJavaMinecraft(row.MainWindowTitle, row.Path)) {
           continue;
         }
+        if (processName.toLowerCase() === 'leagueclientux') continue;
         return {
           pid: Number(row.Id),
           processName,
@@ -462,6 +484,8 @@ else { [math]::Min(100, [math]::Round($sum, 1)) }
 
   /**
    * System disk busy % and Wi-Fi (or busiest NIC) utilization vs link speed.
+   * Skips WMI extra "Adapter _2/_3/…" queue instances — those report 0 bandwidth
+   * and made Wi-Fi look like it was not tracking.
    */
   async _ioUsage() {
     if (this._ioInFlight) {
@@ -474,48 +498,84 @@ else { [math]::Min(100, [math]::Round($sum, 1)) }
     }
 
     const script = `
+$ErrorActionPreference = 'SilentlyContinue'
 $diskPct = $null
-$d = Get-CimInstance -ClassName Win32_PerfFormattedData_PerfDisk_PhysicalDisk -Filter "Name='_Total'" -ErrorAction SilentlyContinue
-if ($d) {
-  $idle = 0
-  try { $idle = [double]$d.PercentIdleTime } catch { $idle = -1 }
-  if ($idle -ge 0 -and $idle -le 100) { $diskPct = [math]::Round(100 - $idle, 1) }
-  else {
-    try { $diskPct = [math]::Min(100, [math]::Round([double]$d.PercentDiskTime, 1)) } catch { $diskPct = $null }
+try {
+  $idleSample = (Get-Counter '\\PhysicalDisk(_Total)\\% Idle Time' -ErrorAction Stop).CounterSamples[0].CookedValue
+  $idle = [double]$idleSample
+  if ($idle -ge 0 -and $idle -le 100) { $diskPct = [math]::Round([math]::Max(0, 100 - $idle), 1) }
+} catch {}
+if ($null -eq $diskPct) {
+  $d = Get-CimInstance -ClassName Win32_PerfFormattedData_PerfDisk_PhysicalDisk -Filter "Name='_Total'"
+  if ($d) {
+    try {
+      $idle = [double]$d.PercentIdleTime
+      if ($idle -ge 0 -and $idle -le 100) { $diskPct = [math]::Round(100 - $idle, 1) }
+    } catch {}
+    if ($null -eq $diskPct) {
+      try { $diskPct = [math]::Min(100, [math]::Round([double]$d.PercentDiskTime, 1)) } catch {}
+    }
   }
 }
+
+$nics = @(Get-CimInstance -ClassName Win32_PerfFormattedData_Tcpip_NetworkInterface |
+  Where-Object { $_.Name -notmatch 'Loopback|isatap|Teredo|VPN|Virtual|vEthernet|\\s_\\d+$' })
+
+$upWifi = @(Get-NetAdapter | Where-Object {
+  $_.Status -eq 'Up' -and ($_.Name -match 'Wi-?Fi' -or $_.InterfaceDescription -match 'Wi-?Fi|Wireless|802\\.11|WLAN')
+}) | Select-Object -First 1
+
+$chosen = $null
+if ($upWifi) {
+  $desc = [string]$upWifi.InterfaceDescription
+  $chosen = $nics | Where-Object { $_.Name -eq $desc } | Select-Object -First 1
+  if (-not $chosen) {
+    $chosen = $nics | Where-Object { $_.Name -like ($desc + '*') } | Sort-Object BytesTotalPersec -Descending | Select-Object -First 1
+  }
+}
+if (-not $chosen) {
+  $chosen = $nics | Where-Object { $_.Name -match 'Wi-?Fi|Wireless|802\\.11|WLAN' } | Sort-Object BytesTotalPersec -Descending | Select-Object -First 1
+}
+if (-not $chosen) {
+  $chosen = $nics | Sort-Object BytesTotalPersec -Descending | Select-Object -First 1
+}
+
 $wifiPct = $null
-$nics = @(Get-CimInstance -ClassName Win32_PerfFormattedData_Tcpip_NetworkInterface -ErrorAction SilentlyContinue |
-  Where-Object { $_.Name -notmatch 'Loopback|isatap|Teredo|VPN|Virtual|vEthernet' })
-$wifi = $nics | Where-Object { $_.Name -match 'Wi-?Fi|Wireless|802\\.11|WLAN' } | Sort-Object BytesTotalPersec -Descending | Select-Object -First 1
-if (-not $wifi) { $wifi = $nics | Sort-Object BytesTotalPersec -Descending | Select-Object -First 1 }
-if ($wifi) {
+if ($chosen) {
   $bw = 0
-  try { $bw = [double]$wifi.CurrentBandwidth } catch { $bw = 0 }
+  try { $bw = [double]$chosen.CurrentBandwidth } catch { $bw = 0 }
+  if ($bw -le 0 -and $upWifi) { try { $bw = [double]$upWifi.Speed } catch { $bw = 0 } }
   if ($bw -gt 0) {
-    $wifiPct = [math]::Min(100, [math]::Round(([double]$wifi.BytesTotalPersec * 8.0 / $bw) * 100, 1))
+    $wifiPct = [math]::Min(100, [math]::Round(([double]$chosen.BytesTotalPersec * 8.0 / $bw) * 100, 1))
   }
 }
+
 @{ diskPct = $diskPct; wifiPct = $wifiPct } | ConvertTo-Json -Compress
 `;
 
-    this._ioInFlight = execPs(script, 6000)
+    this._ioInFlight = execPs(script, 9000)
       .then((out) => {
         if (!out) return this._lastIo;
         try {
           const parsed = JSON.parse(out);
-          const disk = Number(parsed.diskPct);
-          const wifi = Number(parsed.wifiPct);
+          const disk = pctOrNull(parsed.diskPct);
+          const wifi = pctOrNull(parsed.wifiPct);
           this._lastIo = {
-            diskPct: Number.isFinite(disk) ? Math.min(100, Math.max(0, disk)) : this._lastIo.diskPct,
-            wifiPct: Number.isFinite(wifi) ? Math.min(100, Math.max(0, wifi)) : this._lastIo.wifiPct,
+            diskPct: disk != null ? disk : this._lastIo.diskPct,
+            wifiPct: wifi != null ? wifi : this._lastIo.wifiPct,
           };
         } catch {
           /* keep last */
         }
         return this._lastIo;
       })
-      .catch(() => this._lastIo)
+      .catch((err) => {
+        if (!this._ioWarned) {
+          this._ioWarned = true;
+          console.warn('Disk/Wi-Fi probe failed:', err && err.message ? err.message : err);
+        }
+        return this._lastIo;
+      })
       .finally(() => {
         this._ioInFlight = null;
       });

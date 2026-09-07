@@ -22,6 +22,7 @@ import Settings from './screens/Settings.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
+import MatchResultPrompt from './components/MatchResultPrompt.jsx';
 import { probeFrameRate, TIER_LABELS } from './lib/fx.js';
 
 const SCREEN_META = {
@@ -122,6 +123,7 @@ function AppShell() {
             </div>
           </div>
           <div className="content">
+            <MatchResultPrompt />
             <ErrorBoundary key={screen}>
               <ScreenComponent />
             </ErrorBoundary>

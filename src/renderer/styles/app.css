@@ -757,6 +757,9 @@ select:focus{border-color:var(--neon)}
 .track-banner-sub{font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.45}
 .track-metrics{display:flex;gap:20px;flex-wrap:wrap;font-family:var(--mono);font-size:13px}
 .track-metrics b{color:var(--text);font-weight:600}
+.track-clip-btn{flex-shrink:0;padding:8px 14px;font-size:12px}
+.track-banner.heat-hot{border-color:rgba(255,74,50,.4);background:rgba(255,74,50,.08)}
+.track-banner.heat-warm{border-color:rgba(255,140,66,.35);background:rgba(255,140,66,.07)}
 .session-metric-grid{
   display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0 16px;
 }

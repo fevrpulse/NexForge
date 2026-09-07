@@ -135,7 +135,7 @@ export default function Communities() {
     }
   }, [myId, reportCloudError, showToast]);
 
-  const loadMessages = useCallback(async (chid) => {
+  const loadMessages = useCallback(async (chid, { silent = false } = {}) => {
     if (!chid) {
       setMessages([]);
       return;
@@ -153,10 +153,12 @@ export default function Communities() {
       setHasMore((data || []).length >= 200);
       setMessages((prev) => mergeChannelMessages(prev, incoming, chid));
     } catch (err) {
-      if (channelRef.current === chid) setMessages([]);
-      await reportCloudError(err);
+      if (!silent) {
+        showToast(err?.message || 'Could not load lounge chat.', 'error');
+        await reportCloudError(err);
+      }
     }
-  }, [reportCloudError]);
+  }, [reportCloudError, showToast]);
 
   async function loadOlderMessages() {
     const chid = channelRef.current;
@@ -201,7 +203,7 @@ export default function Communities() {
       if (error) throw error;
       setVoiceHere(data || []);
     } catch {
-      setVoiceHere([]);
+      /* keep the last roster on a blip */
     }
   }, []);
 
@@ -258,8 +260,15 @@ export default function Communities() {
         () => { loadVoiceHere(channelId); },
       );
     ch.subscribe();
-    return () => { sb.removeChannel(ch); };
-  }, [channelId, myId, loadVoiceHere]);
+    const poll = setInterval(() => {
+      if (activeChannel?.kind === 'text') loadMessages(channelId, { silent: true });
+      else loadVoiceHere(channelId);
+    }, 4000);
+    return () => {
+      clearInterval(poll);
+      sb.removeChannel(ch);
+    };
+  }, [channelId, myId, loadVoiceHere, loadMessages, activeChannel?.kind]);
 
   useEffect(() => {
     if (!voiceChannelRef.current || !voice?.syncChannelPeers || !myId) return;
@@ -311,7 +320,7 @@ export default function Communities() {
       setCreateName('');
       showToast(`Created ${data.name || 'community'}`, 'success');
       await loadCommunities();
-      setSelectedId(data.id);
+      openLounge(data.id);
     });
   }
 
@@ -322,7 +331,7 @@ export default function Communities() {
       setJoinCode('');
       showToast(`Joined ${data.name}`, 'success');
       await loadCommunities();
-      setSelectedId(data.id);
+      openLounge(data.id);
     });
   }
 
@@ -424,6 +433,21 @@ export default function Communities() {
     });
   }
 
+  async function leaveVoiceQuiet() {
+    const chid = voiceChannelRef.current;
+    if (!chid) return;
+    voiceChannelRef.current = null;
+    sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+    voiceRef.current?.leaveChannelVoice?.().catch(() => {});
+    voiceRef.current?.hangup?.().catch(() => {});
+  }
+
+  function openLounge(id) {
+    if (id !== selectedId) leaveVoiceQuiet();
+    setSelectedId(id);
+    setShowAddRoom(false);
+  }
+
   async function leaveVoice() {
     const chid = voiceChannelRef.current || (activeChannel?.kind === 'voice' ? activeChannel.id : null);
     if (!chid) return;
@@ -475,7 +499,7 @@ export default function Communities() {
           <button
             type="button"
             className={`comm-switch lobby ${!selectedId ? 'active' : ''}`}
-            onClick={() => { setSelectedId(null); setShowAddRoom(false); }}
+            onClick={() => openLounge(null)}
           >
             Lobby
           </button>
@@ -485,7 +509,7 @@ export default function Communities() {
               type="button"
               className={`comm-switch ${selectedId === c.id ? 'active' : ''}`}
               style={{ '--comm-color': c.icon_color || '#3B7EFF' }}
-              onClick={() => { setSelectedId(c.id); setShowAddRoom(false); }}
+              onClick={() => openLounge(c.id)}
               title={c.name}
             >
               <span className="comm-switch-dot" aria-hidden />
@@ -579,7 +603,7 @@ export default function Communities() {
                     type="button"
                     className="comm-roster-card"
                     style={{ '--comm-color': c.icon_color || '#3B7EFF', '--stagger': `${i * 45}ms` }}
-                    onClick={() => setSelectedId(c.id)}
+                    onClick={() => openLounge(c.id)}
                   >
                     <span className="comm-roster-sheen" aria-hidden />
                     <span className="comm-roster-mark">{initials(c.name)}</span>

@@ -1,22 +1,24 @@
 export const KNOWN_MAIN_GAMES = [
   'Valorant','CS2','Call of Duty: Warzone','Overwatch 2','Halo Infinite',
   'Apex Legends','Fortnite','PUBG','Fall Guys','Rocket League','FIFA 25','NBA 2K25',
-  'League of Legends','Dota 2','Minecraft','Roblox','GTA Online','Geometry Dash','Meccha Chameleon'
+  'League of Legends','Dota 2','Minecraft','Roblox','GTA Online','Geometry Dash','Meccha Chameleon',
+  'Marvel Rivals','Helldivers 2','Rainbow Six Siege','Destiny 2','Palworld','Deadlock'
 ];
 
 export const GAME_CATALOG = [
-  { category: 'Shooters', games: ['Valorant', 'CS2', 'Call of Duty: Warzone', 'Overwatch 2', 'Halo Infinite'] },
+  { category: 'Shooters', games: ['Valorant', 'CS2', 'Call of Duty: Warzone', 'Overwatch 2', 'Halo Infinite', 'Marvel Rivals', 'Rainbow Six Siege', 'Helldivers 2', 'Deadlock'] },
   { category: 'Casual', games: ['Meccha Chameleon', 'Fall Guys', 'Geometry Dash'] },
   { category: 'Battle Royale', games: ['Apex Legends', 'Fortnite', 'PUBG'] },
   { category: 'Sports & Racing', games: ['Rocket League', 'FIFA 25', 'NBA 2K25'] },
   { category: 'MOBA & Strategy', games: ['League of Legends', 'Dota 2'] },
-  { category: 'Other', games: ['Minecraft', 'Roblox', 'GTA Online'] },
+  { category: 'Other', games: ['Minecraft', 'Roblox', 'GTA Online', 'Destiny 2', 'Palworld'] },
 ];
 
 /** Games where kills / deaths / assists are tracked (manual entry — no live game API). */
 export const SHOOTER_GAMES = new Set([
   'Valorant', 'CS2', 'Call of Duty: Warzone', 'Overwatch 2', 'Halo Infinite',
   'Apex Legends', 'Fortnite', 'PUBG', 'GTA Online',
+  'Marvel Rivals', 'Rainbow Six Siege', 'Helldivers 2', 'Deadlock',
 ]);
 
 export function isShooterGame(game) {
@@ -43,6 +45,12 @@ export const GAME_MARKS = {
   'GTA Online': 'GTA',
   'Geometry Dash': 'GD',
   'Meccha Chameleon': 'MCC',
+  'Marvel Rivals': 'RIV',
+  'Helldivers 2': 'HD2',
+  'Rainbow Six Siege': 'R6',
+  'Destiny 2': 'D2',
+  'Palworld': 'PAL',
+  'Deadlock': 'DL',
 };
 
 export function gameMark(game) {

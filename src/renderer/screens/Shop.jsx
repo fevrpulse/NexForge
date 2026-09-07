@@ -52,6 +52,7 @@ export default function Shop() {
   const [cashBusyId, setCashBusyId] = useState(null);
   const [pendingCash, setPendingCash] = useState(() => new Set());
   const [pendingSessions, setPendingSessions] = useState(() => ({}));
+  const [loadError, setLoadError] = useState(null);
 
   // Restore pending cash checkouts across Shop remounts.
   useEffect(() => {
@@ -101,12 +102,15 @@ export default function Shop() {
       ]);
       if (error) throw error;
       if (invErr) throw invErr;
+      setLoadError(null);
       setCatalog(items || []);
       setOwned(new Set((inv || []).map((r) => r.cosmetic_id)));
     } catch (err) {
+      setLoadError(err?.message || 'Could not load the shop');
+      showToast(err?.message || 'Could not load the shop.', 'error');
       await reportCloudError(err);
     }
-  }, [user, reportCloudError]);
+  }, [user, reportCloudError, showToast]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -446,7 +450,15 @@ export default function Shop() {
       </div>
 
       <div className="shop-grid">
-        {filtered.map((item) => {
+        {loadError ? (
+          <div className="friends-empty" style={{ gridColumn: '1 / -1' }}>
+            Could not load cosmetics. {loadError}
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="friends-empty" style={{ gridColumn: '1 / -1' }}>
+            No {slot}s in the catalog right now.
+          </div>
+        ) : filtered.map((item) => {
           const ownedItem = isOwned(item);
           const lockedMmr = mmr < item.min_mmr;
           const canBuy = !lockedMmr && (item.price === 0 || coins >= item.price);

@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
     const label = provider === "epic" ? "Epic Games" : provider[0].toUpperCase() + provider.slice(1);
     return html(
       "Account linked",
-      `${escapeHtml(label)} is linked as ${escapeHtml(handle)}. You can close this tab and return to NexForge.`,
+      `${escapeHtml(label)} is linked as ${escapeHtml(handle)}. Close this tab — NexForge will pick it up on your profile.`,
       true,
     );
   } catch (err) {

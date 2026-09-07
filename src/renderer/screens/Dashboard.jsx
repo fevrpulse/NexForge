@@ -3,7 +3,9 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import LiveSessionBanner from '../components/LiveSessionBanner.jsx';
+import CoachPanel from '../components/CoachPanel.jsx';
 import { COMPANION_URL } from '../lib/companion.js';
+import { formatDuration } from '../lib/format.js';
 
 function shortCosmeticId(id) {
   if (!id) return '—';
@@ -11,7 +13,7 @@ function shortCosmeticId(id) {
 }
 
 export default function Dashboard() {
-  const { profile, guestMode, setScreen } = useNexForge();
+  const { profile, guestMode, setScreen, lastSessionRecap } = useNexForge();
 
   if (!profile) return null;
 
@@ -23,6 +25,27 @@ export default function Dashboard() {
   return (
     <div>
       <LiveSessionBanner />
+      {!guestMode && lastSessionRecap?.game && (
+        <div className="card last-session-recap">
+          <div className="last-session-recap-copy">
+            <div className="card-title" style={{ marginBottom: 4 }}>Last session</div>
+            <div className="match-result-prompt-sub">
+              {lastSessionRecap.game}
+              {lastSessionRecap.durationSec != null ? ` · ${formatDuration(lastSessionRecap.durationSec)}` : ''}
+              {lastSessionRecap.avgCpuPct != null ? ` · CPU ${Number(lastSessionRecap.avgCpuPct).toFixed(0)}%` : ''}
+              {lastSessionRecap.avgGpuPct != null ? ` · GPU ${Number(lastSessionRecap.avgGpuPct).toFixed(0)}%` : ''}
+              {lastSessionRecap.avgPingMs != null ? ` · ping ${Math.round(Number(lastSessionRecap.avgPingMs))}ms` : ''}
+            </div>
+            {lastSessionRecap.tip ? (
+              <div className="match-result-prompt-tip">{lastSessionRecap.tip}</div>
+            ) : null}
+          </div>
+          <button type="button" className="action-btn ghost" onClick={() => setScreen('analytics')}>
+            Analytics
+          </button>
+        </div>
+      )}
+      {!guestMode && <CoachPanel compact />}
       <div className={`dash-hero ${guestMode ? 'guest' : ''}`}>
         <div className="dash-hero-copy">
           <div className="dash-hero-meta">
