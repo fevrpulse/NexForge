@@ -35,12 +35,8 @@ export default function Optimize() {
   const [scan, setScan] = useState(() => loadHwScan());
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
-  const [game, setGame] = useState(
-    liveSession?.game || lastSessionRecap?.game || profile?.main_game || 'Valorant',
-  );
-  const [goal, setGoal] = useState(() => defaultGoalForGame(
-    liveSession?.game || lastSessionRecap?.game || profile?.main_game || 'Valorant',
-  ));
+  const [openGame, setOpenGame] = useState(null);
+  const [goal, setGoal] = useState('quality');
   const [copied, setCopied] = useState(false);
 
   async function runScan(force = false) {
@@ -66,21 +62,40 @@ export default function Optimize() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function pickGame(next) {
-    setGame(next);
-    setGoal(defaultGoalForGame(next));
+  function openFor(name) {
+    setOpenGame(name);
+    setGoal(defaultGoalForGame(name));
+    setCopied(false);
   }
 
+  function closePopup() {
+    setOpenGame(null);
+    setCopied(false);
+  }
+
+  useEffect(() => {
+    if (!openGame) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePopup();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openGame]);
+
   const rec = useMemo(
-    () => (scan ? recommendSettings(scan, game, goal) : null),
-    [scan, game, goal],
+    () => (scan && openGame ? recommendSettings(scan, openGame, goal) : null),
+    [scan, openGame, goal],
   );
   const hardware = scan ? qualityFromScan(scan) : null;
   const isWindows = String(appPlatform || '').toLowerCase().includes('win');
+  const suggested = liveSession?.game || lastSessionRecap?.game || profile?.main_game || null;
 
   async function copyRec() {
-    if (!rec || !scan) return;
-    const text = formatRecommendationText(scan, game, rec);
+    if (!rec || !scan || !openGame) return;
+    const text = formatRecommendationText(scan, openGame, rec);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -156,18 +171,26 @@ export default function Optimize() {
         )}
       </div>
 
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-title" style={{ marginBottom: 8 }}>Game you want to play</div>
+      <div className="card">
+        <div className="card-title" style={{ marginBottom: 8 }}>Pick a game</div>
         <div className="coach-sub" style={{ marginBottom: 12 }}>
-          Recommendations follow this title. Competitive keeps FPS high; Looks spends frames on fidelity.
+          Click a title for settings matched to this PC. Light games like Minecraft are not treated like Warzone.
         </div>
         <div className="game-grid opt-game-grid">
           {gameCatalog.flatMap((group) =>
             group.games.map((name) => (
               <div
                 key={name}
-                className={`game-card ${game === name ? 'selected' : ''}`}
-                onClick={() => pickGame(name)}
+                role="button"
+                tabIndex={0}
+                className={`game-card ${suggested === name ? 'selected' : ''}`}
+                onClick={() => openFor(name)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    openFor(name);
+                  }
+                }}
               >
                 <div className={`game-icon ${hasGameIcon(name) ? 'game-icon-svg' : ''}`}>
                   {hasGameIcon(name) ? <GameIcon game={name} /> : gameMark(name)}
@@ -178,59 +201,73 @@ export default function Optimize() {
             ))
           )}
         </div>
-        <div className="opt-goal-row">
-          <button
-            type="button"
-            className={`prize-type-btn ${goal === 'competitive' ? 'active' : ''}`}
-            onClick={() => setGoal('competitive')}
-          >
-            Competitive
-          </button>
-          <button
-            type="button"
-            className={`prize-type-btn ${goal === 'quality' ? 'active' : ''}`}
-            onClick={() => setGoal('quality')}
-          >
-            Looks
-          </button>
-        </div>
       </div>
 
-      {rec && (
-        <div className="card">
-          <div className="coach-panel-head">
-            <div>
-              <div className="card-title" style={{ marginBottom: 4 }}>{game} settings</div>
-              <div className="coach-sub">{rec.headline}</div>
-            </div>
-            <button
-              type="button"
-              className="action-btn primary"
-              style={{ padding: '6px 12px', fontSize: 12 }}
-              onClick={copyRec}
-            >
-              {copied ? 'Copied' : 'Copy settings'}
-            </button>
-          </div>
-          <div className="opt-rec-meta">
-            <span>Play at <b>{rec.resolution}</b></span>
-            <span>Target <b>{rec.fpsTarget} FPS</b></span>
-            {rec.upscaler && <span>Upscale <b>{rec.upscaler}</b></span>}
-          </div>
-          <div className="opt-res-why">{rec.resolutionWhy}</div>
-          <div className="opt-settings">
-            {rec.settings.map((s) => (
-              <div className="opt-setting-row" key={s.name}>
-                <span>{s.name}</span>
-                <span>{s.value}</span>
+      {openGame && rec && (
+        <div
+          className="lock-modal"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closePopup();
+          }}
+        >
+          <div className="lock-box opt-popup" role="dialog" aria-modal="true" aria-labelledby="opt-popup-title">
+            <div className="opt-popup-head">
+              <div className="opt-popup-game">
+                <div className={`game-icon ${hasGameIcon(openGame) ? 'game-icon-svg' : ''}`}>
+                  {hasGameIcon(openGame) ? <GameIcon game={openGame} /> : gameMark(openGame)}
+                </div>
+                <div>
+                  <div className="card-title" id="opt-popup-title" style={{ marginBottom: 4 }}>{openGame}</div>
+                  <div className="coach-sub">{rec.headline}</div>
+                </div>
               </div>
+              <button type="button" className="action-btn ghost opt-popup-close" onClick={closePopup}>
+                Close
+              </button>
+            </div>
+
+            <div className="opt-goal-row" style={{ marginBottom: 12 }}>
+              <button
+                type="button"
+                className={`prize-type-btn ${goal === 'competitive' ? 'active' : ''}`}
+                onClick={() => setGoal('competitive')}
+              >
+                Competitive
+              </button>
+              <button
+                type="button"
+                className={`prize-type-btn ${goal === 'quality' ? 'active' : ''}`}
+                onClick={() => setGoal('quality')}
+              >
+                Looks
+              </button>
+            </div>
+
+            <div className="opt-rec-meta">
+              <span>Play at <b>{rec.resolution}</b></span>
+              <span>Expect <b>{rec.fpsTarget} FPS</b></span>
+              {rec.fpsCap && <span>Cap <b>{rec.fpsCap}</b></span>}
+            </div>
+            <div className="opt-res-why">{rec.resolutionWhy}</div>
+            <div className="opt-settings">
+              {rec.settings.map((s) => (
+                <div className="opt-setting-row" key={s.name}>
+                  <span>{s.name}</span>
+                  <span>{s.value}</span>
+                </div>
+              ))}
+            </div>
+            {rec.warnings.map((w) => (
+              <div key={w} className="opt-warn">{w}</div>
             ))}
-          </div>
-          {rec.warnings.map((w) => (
-            <div key={w} className="opt-warn">{w}</div>
-          ))}
-          <div className="coach-empty" style={{ marginTop: 10 }}>
-            Apply these in the game’s video menu. NexForge does not write game config files.
+            <div className="opt-popup-actions">
+              <button type="button" className="action-btn primary" onClick={copyRec}>
+                {copied ? 'Copied' : 'Copy settings'}
+              </button>
+              <div className="coach-empty" style={{ margin: 0 }}>
+                Apply these in the game’s video menu. NexForge does not write config files.
+              </div>
+            </div>
           </div>
         </div>
       )}

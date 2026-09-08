@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.8.2',
+    highlights: [
+      'Click a game on Optimize to open its settings in a popup',
+      'Recommendations match how light the title actually is — Minecraft can sit at 32 chunks on a strong GPU',
+      'Expected FPS is honest (hundreds on Valorant / Minecraft, not a 60-cap on a 5070)',
+      'Competitive vs Looks lives in the popup — Esc or click outside to close',
+    ],
+  },
+  {
     version: '4.8.1',
     highlights: [
       'Optimize — scan this PC for CPU, GPU, RAM, and display',
