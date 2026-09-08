@@ -114,11 +114,11 @@ export default function Dashboard() {
           <span className="dash-tile-title">Tournaments</span>
           <span className="dash-tile-sub">Brackets, check-in, prizes</span>
         </button>
-        <button type="button" className="dash-tile tile-analytics" onClick={() => setScreen('analytics')}>
+        <button type="button" className="dash-tile tile-analytics" onClick={() => setScreen('optimize')}>
           <span className="dash-tile-idx">03</span>
           <span className="dash-tile-kicker">Hardware</span>
-          <span className="dash-tile-title">Analytics</span>
-          <span className="dash-tile-sub">RAM, CPU, GPU, and Wi‑Fi</span>
+          <span className="dash-tile-title">Optimize</span>
+          <span className="dash-tile-sub">Scan this PC and pick in-game settings</span>
         </button>
         {!guestMode ? (
           <button

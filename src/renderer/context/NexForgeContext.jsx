@@ -16,6 +16,7 @@ import {
   nexAiSessionNote,
   withSessionHistory,
 } from '../lib/session.js';
+import { hwScanNote, loadHwScan } from '../lib/optimize.js';
 
 const NexForgeContext = createContext(null);
 
@@ -762,7 +763,9 @@ export function NexForgeProvider({ children }) {
           payload?.message || '',
           withSessionHistory(
             payload?.history || [],
-            nexAiSessionNote(liveSessionRef.current, lastSessionRecapRef.current),
+            [nexAiSessionNote(liveSessionRef.current, lastSessionRecapRef.current), hwScanNote(loadHwScan())]
+              .filter(Boolean)
+              .join(' · ') || null,
           ),
         );
         nf.overlayAiReply({ requestId: payload?.requestId, reply });

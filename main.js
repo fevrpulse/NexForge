@@ -5,6 +5,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { GameTracker, MIN_SESSION_SEC } = require('./game-tracker');
 const { createOverlaySystem } = require('./overlay-system');
+const { scanDeviceSpecs } = require('./hw-scan');
 
 // Packaged builds stamp the .exe as NexForge; set these so app.getName() / process
 // title match even when running unpackaged.
@@ -711,6 +712,8 @@ ipcMain.handle('get-app-info', () => ({
   version: app.getVersion(),
   packaged: app.isPackaged,
 }));
+
+ipcMain.handle('scan-device-specs', (_event, opts) => scanDeviceSpecs({ force: !!opts?.force }));
 
 ipcMain.handle('show-main-window', () => {
   if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };

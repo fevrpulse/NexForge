@@ -3,6 +3,7 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { askNexPanion, NEXPANION_ID } from '../lib/nexpanion.js';
 import { formatAccelerator } from '../lib/hotkeys.js';
 import { nexAiSessionNote, withSessionHistory } from '../lib/session.js';
+import { hwScanNote, loadHwScan } from '../lib/optimize.js';
 
 const WELCOME = {
   id: 'nexpanion-welcome',
@@ -12,7 +13,7 @@ const WELCOME = {
 
 const SUGGESTIONS = [
   'Give me a 10-minute warmup',
-  'How do I start a party?',
+  'What in-game settings should I use?',
   'Tips after a losing streak',
 ];
 
@@ -124,7 +125,12 @@ export default function NexPanionDock() {
         }));
       const reply = await askNexPanion(
         body,
-        withSessionHistory(history, nexAiSessionNote(liveSession, lastSessionRecap)),
+        withSessionHistory(
+          history,
+          [nexAiSessionNote(liveSession, lastSessionRecap), hwScanNote(loadHwScan())]
+            .filter(Boolean)
+            .join(' · ') || null,
+        ),
       );
       setMsgs((prev) => [
         ...prev,

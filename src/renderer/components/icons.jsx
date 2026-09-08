@@ -54,6 +54,13 @@ const NAV_ICONS = {
       <path d="M9.5 17.5h5v3h-5z" />
     </>
   ),
+  optimize: (
+    <>
+      <path d="M4 16.5l4.2-4.2 2.6 2.6L20 5.5" />
+      <path d="M4 20.5h16" />
+      <path d="M14.5 8.2l2.2-2.2 2.4 2.4-2.2 2.2" />
+    </>
+  ),
   leaderboard: (
     <>
       <rect x="9" y="4" width="6" height="16.5" rx="1" />

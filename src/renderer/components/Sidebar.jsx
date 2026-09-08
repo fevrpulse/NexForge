@@ -6,6 +6,7 @@ import PlayerAvatar, { GamerTag, displayTag } from './PlayerAvatar.jsx';
 const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'matchmaking', label: 'Matchmaking' },
+  { id: 'optimize', label: 'Optimize' },
   { id: 'tournaments', label: 'Tournaments' },
 ];
 

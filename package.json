@@ -1,6 +1,6 @@
 {
   "name": "nexforge-desktop",
-  "version": "4.8.0",
+  "version": "4.8.1",
   "description": "NexForge Desktop",
   "main": "main.js",
   "author": "fevrpulse",
@@ -29,6 +29,7 @@
       "main.js",
       "preload.js",
       "game-tracker.js",
+      "hw-scan.js",
       "overlay.html",
       "overlay-preload.js",
       "overlay-system.js",

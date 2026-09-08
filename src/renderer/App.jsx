@@ -19,6 +19,7 @@ import Shop from './screens/Shop.jsx';
 import Clans from './screens/Clans.jsx';
 import Communities from './screens/Communities.jsx';
 import Settings from './screens/Settings.jsx';
+import Optimize from './screens/Optimize.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
@@ -36,6 +37,7 @@ const SCREEN_META = {
   profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
   analytics: { title: 'Analytics', badge: 'STATS' },
   squad: { title: 'Squad Finder', badge: 'FIND TEAM' },
+  optimize: { title: 'Optimize', badge: 'RIG SCAN' },
   settings: { title: 'Settings', badge: 'SYSTEM' },
 };
 
@@ -50,6 +52,7 @@ const SCREEN_COMPONENTS = {
   profile: Profile,
   analytics: Analytics,
   squad: Squad,
+  optimize: Optimize,
   settings: Settings,
 };
 

@@ -4,6 +4,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.8.1',
+    highlights: [
+      'Optimize — scan this PC for CPU, GPU, RAM, and display',
+      'Pick a game and get in-game quality settings for Competitive or Looks',
+      'Copy the list into the game’s video menu — NexForge does not rewrite configs',
+      'Dashboard Hardware tile and Play → Optimize open the rig scan',
+      'NexAI can use your last scan when you ask for settings advice',
+    ],
+  },
+  {
     version: '4.8.0',
     highlights: [
       'Last session recap on the dashboard, plus live heat, CPU, GPU, disk, Wi‑Fi, and ping',

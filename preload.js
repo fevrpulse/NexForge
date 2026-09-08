@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('nexforge', {
   startGameTracking: () => ipcRenderer.invoke('start-game-tracking'),
   stopGameTracking: () => ipcRenderer.invoke('stop-game-tracking'),
   getActiveGameSession: () => ipcRenderer.invoke('get-active-game-session'),
+  scanDeviceSpecs: (opts) => ipcRenderer.invoke('scan-device-specs', opts),
   notifyGameSessionSaved: () => ipcRenderer.send('game-session-saved'),
   setPingProbeHost: (host) => ipcRenderer.invoke('set-ping-probe-host', host),
   onGameSessionStarted: (callback) => subscribe('game-session-started', callback),
