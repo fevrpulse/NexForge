@@ -1623,9 +1623,60 @@
   background:var(--panel);color:var(--text);border:1px solid var(--border);
   border-radius:10px;padding:7px 10px;font-family:var(--font);font-weight:700;
 }
+.settings-input{
+  background:var(--panel);color:var(--text);border:1px solid var(--border);
+  border-radius:10px;padding:7px 10px;font-family:var(--mono);font-size:12px;
+  min-width:180px;max-width:280px;
+}
+.settings-shell{
+  display:grid;grid-template-columns:200px minmax(0,1fr);gap:18px;
+  align-items:start;
+}
+.settings-nav{
+  position:sticky;top:0;
+  display:flex;flex-direction:column;gap:3px;
+  padding:10px;background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);
+}
+.settings-nav-btn{
+  text-align:left;padding:9px 12px;border-radius:10px;border:1px solid transparent;
+  background:transparent;color:var(--muted2);font-family:var(--font);font-weight:700;
+  font-size:13px;cursor:pointer;
+}
+.settings-nav-btn:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.settings-nav-btn.active{
+  color:#081008;background:var(--neon);border-color:rgba(201,255,0,.7);
+}
+.settings-body{display:flex;flex-direction:column;gap:14px;min-width:0;padding-bottom:40px}
+.settings-lead{
+  font-family:var(--mono);font-size:12px;color:var(--muted2);line-height:1.55;margin:-4px 0 2px;
+}
+html[data-compact-nav="1"] .sidebar{width:78px}
+html[data-compact-nav="1"] .nav-label,
+html[data-compact-nav="1"] .sb-status,
+html[data-compact-nav="1"] .sb-version,
+html[data-compact-nav="1"] .sb-section-label,
+html[data-compact-nav="1"] .user-pill-meta,
+html[data-compact-nav="1"] .signout-btn,
+html[data-compact-nav="1"] .sb-brand > div{display:none}
+html[data-compact-nav="1"] .sb-logo{padding:2px 8px 14px}
+html[data-compact-nav="1"] .sb-brand{justify-content:center}
+html[data-compact-nav="1"] .nav-item{
+  justify-content:center;margin:0 8px;padding:10px 8px;gap:0;
+}
+html[data-compact-nav="1"] .nav-item:hover{transform:none}
+html[data-compact-nav="1"] .user-pill{justify-content:center;padding:8px}
+html[data-compact-nav="1"] .sb-bottom{padding:8px}
+html[data-atmosphere="off"] .ui-atmosphere,
+html[data-atmosphere="off"] .fx-max-veil,
+html[data-atmosphere="off"] .ui-grain{display:none}
+@media (max-width:1180px){
+  .settings-shell{grid-template-columns:1fr}
+  .settings-nav{position:relative;flex-direction:row;flex-wrap:wrap}
+}
 @media (prefers-reduced-motion: reduce){
-  .ui-atmosphere,.click-fx-layer,.app::before,.action-btn.primary::after,.np-fab,.np-orbit,.loading-ring,.hud-scan,.chat-pop,.np-dots i,.chat-typing-dots i,.chat-bubble-row,.np-msg,.comm-msg{animation:none}
-  .ui-atmosphere,.click-fx-layer,.hud-frame,.ui-grain{display:none}
+  .ui-atmosphere,.click-fx-layer,.app::before,.action-btn.primary::after,.np-fab,.np-orbit,.loading-ring,.hud-scan,.chat-pop,.np-dots i,.chat-typing-dots i,.chat-bubble-row,.np-msg,.comm-msg,.fx-max-veil{animation:none}
+  .ui-atmosphere,.click-fx-layer,.hud-frame,.ui-grain,.fx-max-veil{display:none}
   .loading-ring,.np-orbit{display:none}
 }
 

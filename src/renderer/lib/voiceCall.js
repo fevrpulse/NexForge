@@ -1,4 +1,5 @@
 import { sb } from './supabase.js';
+import { getAppPref, setAppPref } from './app-prefs.js';
 
 const RING_TIMEOUT_MS = 30_000;
 const CONNECT_TIMEOUT_MS = 12_000;
@@ -97,8 +98,8 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let deafened = false;
   let iceServers = null;
   let detail = '';
-  let inputDeviceId = '';
-  let outputDeviceId = '';
+  let inputDeviceId = getAppPref('voiceInputId') || '';
+  let outputDeviceId = getAppPref('voiceOutputId') || '';
   let screenTrack = null;
   let screenStream = null;
   let audioDevices = { inputs: [], outputs: [] };
@@ -186,10 +187,10 @@ export function createVoiceCallController({ userId, onState, onError }) {
   }
 
   async function getMic() {
-    const baseAudio = {
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
+    const capture = {
+      echoCancellation: getAppPref('echoCancellation') !== false,
+      noiseSuppression: getAppPref('noiseSuppression') !== false,
+      autoGainControl: getAppPref('autoGainControl') !== false,
     };
     const tryConstraints = async (audio) => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio, video: false });
@@ -203,7 +204,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
     try {
       return await tryConstraints({
-        ...baseAudio,
+        ...capture,
         ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
       });
     } catch (firstErr) {
@@ -211,7 +212,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
       if (inputDeviceId) {
         try {
           inputDeviceId = '';
-          return await tryConstraints(baseAudio);
+          return await tryConstraints(capture);
         } catch {
           /* fall through to friendly error */
         }
@@ -770,6 +771,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
   async function setInputDevice(deviceId) {
     inputDeviceId = deviceId || '';
+    setAppPref('voiceInputId', inputDeviceId);
     if (!localStream) {
       emit();
       return;
@@ -777,9 +779,9 @@ export function createVoiceCallController({ userId, onState, onError }) {
     const oldTrack = localStream.getAudioTracks()[0];
     const fresh = await navigator.mediaDevices.getUserMedia({
       audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
+        echoCancellation: getAppPref('echoCancellation') !== false,
+        noiseSuppression: getAppPref('noiseSuppression') !== false,
+        autoGainControl: getAppPref('autoGainControl') !== false,
         ...(inputDeviceId ? { deviceId: { exact: inputDeviceId } } : {}),
       },
     });
@@ -803,6 +805,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
 
   async function setOutputDevice(deviceId) {
     outputDeviceId = deviceId || '';
+    setAppPref('voiceOutputId', outputDeviceId);
     for (const session of peers.values()) {
       const el = session.audioEl;
       if (el && typeof el.setSinkId === 'function') {

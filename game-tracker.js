@@ -1,166 +1,12 @@
 const { execFile } = require('child_process');
 const os = require('os');
 const { EventEmitter } = require('events');
+const { identifyGame, PROCESS_GAME_MAP } = require('./game-detect');
 
 const POLL_MS = 3000;
 const MIN_SESSION_SEC = 45;
 const MIN_ACTIVE_RAM_MB = 80;
 const DEFAULT_PROBE = '1.1.1.1';
-
-/** Process name (no .exe) → display game name matching GAME_CATALOG */
-const PROCESS_GAME_MAP = {
-  'VALORANT-Win64-Shipping': 'Valorant',
-  'cs2': 'CS2',
-  'ModernWarfare': 'Call of Duty: Warzone',
-  'cod': 'Call of Duty: Warzone',
-  'Overwatch': 'Overwatch 2',
-  'HaloInfinite': 'Halo Infinite',
-  'r5apex': 'Apex Legends',
-  'FortniteClient-Win64-Shipping': 'Fortnite',
-  'TslGame': 'PUBG',
-  'FallGuys_client_game': 'Fall Guys',
-  'RocketLeague': 'Rocket League',
-  'FIFA25': 'FIFA 25',
-  'FC25': 'FIFA 25',
-  'NBA2K25': 'NBA 2K25',
-  'League of Legends': 'League of Legends',
-  'dota2': 'Dota 2',
-  'Minecraft.Windows': 'Minecraft',
-  'javaw': 'Minecraft',
-  'java': 'Minecraft',
-  'RobloxPlayerBeta': 'Roblox',
-  'GTA5': 'GTA Online',
-  'PlayGTAV': 'GTA Online',
-  'GeometryDash': 'Geometry Dash',
-  'MecchaChameleon': 'Meccha Chameleon',
-  'Marvel-Win64-Shipping': 'Marvel Rivals',
-  'helldivers2': 'Helldivers 2',
-  'RainbowSix': 'Rainbow Six Siege',
-  'RainbowSix_Vulkan': 'Rainbow Six Siege',
-  'destiny2': 'Destiny 2',
-  'Palworld-Win64-Shipping': 'Palworld',
-  'deadlock': 'Deadlock',
-  'Deadlock': 'Deadlock',
-  'MecchaChameleon-Win64-Shipping': 'Meccha Chameleon',
-  'MECCHA CHAMELEON': 'Meccha Chameleon',
-  'cod24-cod': 'Call of Duty',
-  'BlackOps6': 'Call of Duty',
-  'BlackOpsColdWar': 'Call of Duty',
-  'bf6': 'Battlefield 6',
-  'BF6': 'Battlefield 6',
-  'Battlefield': 'Battlefield 6',
-  'Discovery': 'The Finals',
-  'EscapeFromTarkov': 'Escape from Tarkov',
-  'EscapeFromTarkovArena': 'Escape from Tarkov',
-  'HuntGame': 'Hunt: Showdown',
-  'tf': 'Team Fortress 2',
-  'tf_windows64': 'Team Fortress 2',
-  'tf_win64': 'Team Fortress 2',
-  'ReadyOrNotSteam-Win64-Shipping': 'Ready or Not',
-  'ReadyOrNot': 'Ready or Not',
-  'DeltaForceClient-Win64-Shipping': 'Delta Force',
-  'left4dead2': 'Left 4 Dead 2',
-  'FSD-Win64-Shipping': 'Deep Rock Galactic',
-  'Titanfall2': 'Titanfall 2',
-  'DOOMEternalx64vk': 'DOOM Eternal',
-  'DOOMEternalx64': 'DOOM Eternal',
-  'Borderlands4': 'Borderlands 4',
-  'ULTRAKILL': 'Ultrakill',
-  'payday2_win32_release': 'Payday 2',
-  'InsurgencyClient-Win64-Shipping': 'Insurgency: Sandstorm',
-  'NarakaBladepoint': 'Naraka: Bladepoint',
-  'ABIGame': 'Arena Breakout Infinite',
-  'SMITE2': 'Smite 2',
-  'RelicCardinal': 'Age of Empires IV',
-  'AoE2DE_s': 'Age of Empires II',
-  'SC2_x64': 'StarCraft II',
-  'Civ7': 'Civilization VII',
-  'FC26': 'EA Sports FC 26',
-  'FIFA26': 'EA Sports FC 26',
-  'NBA2K26': 'NBA 2K26',
-  'Madden26': 'Madden NFL 26',
-  'F1_25': 'F1 25',
-  'ForzaHorizon5': 'Forza Horizon 5',
-  'acc': 'Assetto Corsa Competizione',
-  'ACS': 'Assetto Corsa Competizione',
-  'RustClient': 'Rust',
-  'ArkAscended': 'ARK: Survival Ascended',
-  'valheim': 'Valheim',
-  '7DaysToDie': '7 Days to Die',
-  'OnceHuman': 'Once Human',
-  'enshrouded': 'Enshrouded',
-  'dontstarve_steam_x64': 'Don\'t Starve Together',
-  'Terraria': 'Terraria',
-  'Stardew Valley': 'Stardew Valley',
-  'StardewValley': 'Stardew Valley',
-  'Lethal Company': 'Lethal Company',
-  'Content Warning': 'Content Warning',
-  'REPO': 'R.E.P.O.',
-  'PEAK': 'Peak',
-  'Schedule I': 'Schedule I',
-  'FactoryGameSteam-Win64-Shipping': 'Satisfactory',
-  'FactoryGame': 'Satisfactory',
-  'factorio': 'Factorio',
-  'RimWorldWin64': 'RimWorld',
-  'NMS': 'No Man\'s Sky',
-  'SoTGame': 'Sea of Thieves',
-  'SonsOfTheForest': 'Sons of the Forest',
-  'eldenring': 'Elden Ring',
-  'bg3': 'Baldur\'s Gate 3',
-  'bg3_dx11': 'Baldur\'s Gate 3',
-  'Cyberpunk2077': 'Cyberpunk 2077',
-  'RDR2': 'Red Dead Redemption 2',
-  'witcher3': 'The Witcher 3',
-  'b1-Win64-Shipping': 'Black Myth: Wukong',
-  'MonsterHunterWilds': 'Monster Hunter Wilds',
-  'PathOfExileSteam': 'Path of Exile',
-  'PathOfExile_x64Steam': 'Path of Exile',
-  'PathOfExile2': 'Path of Exile 2',
-  'Diablo IV': 'Diablo IV',
-  'SkyrimSE': 'Skyrim',
-  'HogwartsLegacy': 'Hogwarts Legacy',
-  'Starfield': 'Starfield',
-  'Hades2': 'Hades II',
-  'Hollow Knight Silksong': 'Hollow Knight: Silksong',
-  're4': 'Resident Evil 4',
-  'DarkSoulsIII': 'Dark Souls III',
-  'Wow': 'World of Warcraft',
-  'WowClassic': 'World of Warcraft',
-  'ffxiv_dx11': 'Final Fantasy XIV',
-  'LOSTARK': 'Lost Ark',
-  'Gw2-64': 'Guild Wars 2',
-  'eso64': 'The Elder Scrolls Online',
-  'Warframe.x64': 'Warframe',
-  'GenshinImpact': 'Genshin Impact',
-  'YuanShen': 'Genshin Impact',
-  'ZenlessZoneZero': 'Zenless Zone Zero',
-  'StarRail': 'Honkai: Star Rail',
-  'JagexLauncher': 'Old School RuneScape',
-  'RuneLite': 'Old School RuneScape',
-  'rs2client': 'Old School RuneScape',
-  'TL': 'Throne and Liberty',
-  'StreetFighter6': 'Street Fighter 6',
-  'Polaris-Win64-Shipping': 'Tekken 8',
-  'MK12': 'Mortal Kombat 1',
-  'Brawlhalla': 'Brawlhalla',
-  'Phasmophobia': 'Phasmophobia',
-  'DeadByDaylight-Win64-Shipping': 'Dead by Daylight',
-  'DeadByDaylight': 'Dead by Daylight',
-  'Among Us': 'Among Us',
-  'ItTakesTwo': 'It Takes Two',
-  'PartyAnimals': 'Party Animals',
-  'VRChat': 'VRChat',
-  'Goose Goose Duck': 'Goose Goose Duck',
-  'TS4_x64': 'The Sims 4',
-  'BloonsTD6': 'Bloons TD 6',
-  'SlayTheSpire': 'Slay the Spire',
-  'Hearthstone': 'Hearthstone',
-  'SNAP': 'Marvel Snap',
-  'MTGA': 'Magic: The Gathering Arena',
-  'masterduel': 'Yu-Gi-Oh! Master Duel',
-  'Balatro': 'Balatro',
-  'VampireSurvivors': 'Vampire Survivors',
-};
 
 const GAME_PROBE_HOSTS = {
   'Valorant': '1.1.1.1',
@@ -221,28 +67,6 @@ function pctOrNull(value) {
   return Math.min(100, Math.max(0, n));
 }
 
-/** Java Edition is javaw.exe / java.exe — do not treat every Java app as Minecraft. */
-function isJavaMinecraft(windowTitle, exePath) {
-  const title = String(windowTitle || '').toLowerCase();
-  const path = String(exePath || '').toLowerCase();
-  // Vanilla + common clients. Skip launcher UI so opening it is not a play session.
-  if (title && !title.includes('launcher')) {
-    if (
-      title.includes('minecraft')
-      || title.includes('lunar')
-      || title.includes('badlion')
-      || title.includes('feather')
-      || title.includes('labymod')
-      || title.includes('prism')
-      || title.includes('modrinth')
-    ) {
-      return true;
-    }
-  }
-  return /[\\/](?:\.minecraft|minecraft|prismlauncher|multimc|modrinth|curseforge|lunarclient|lunar client|badlion|feather)[\\/]/i.test(path)
-    || path.includes('.minecraft');
-}
-
 function buildTips({ avgRamMb, avgCpuPct, avgGpuPct, avgDiskPct, avgWifiPct, avgPingMs }) {
   const tips = [];
   if (avgWifiPct != null && avgWifiPct > 70) {
@@ -289,7 +113,6 @@ class GameTracker extends EventEmitter {
     this._cpuPrev = null;
     this._customProbeHost = null;
     this._cores = Math.max(1, os.cpus().length);
-    this._knownNames = Object.keys(PROCESS_GAME_MAP);
     this._lastGpuPct = null;
     this._gpuInFlight = null;
     this._lastIo = { diskPct: null, wifiPct: null };
@@ -467,48 +290,55 @@ class GameTracker extends EventEmitter {
   }
 
   async _findGameProcess() {
-    const namesLiteral = this._knownNames.map((n) => `'${n.replace(/'/g, "''")}'`).join(',');
-    // Only track processes that actually have a visible window.
-    // Launchers/crash handlers (e.g. background RobloxPlayerBeta) often stay
-    // alive with MainWindowHandle 0 and would otherwise false-trigger tracking.
     const script = `
-$names = @(${namesLiteral})
 $minBytes = ${MIN_ACTIVE_RAM_MB} * 1MB
 Get-Process -ErrorAction SilentlyContinue |
   Where-Object {
-    ($names -contains $_.ProcessName) -and
     ($_.MainWindowHandle -ne 0) -and
     ($_.WorkingSet64 -ge $minBytes)
   } |
   Sort-Object WorkingSet64 -Descending |
-  Select-Object -First 8 Id, ProcessName, Path, WorkingSet64, CPU, MainWindowTitle |
+  Select-Object -First 40 |
+  ForEach-Object {
+    $path = $null
+    try { $path = $_.Path } catch {}
+    [pscustomobject]@{
+      Id = $_.Id
+      ProcessName = $_.ProcessName
+      Path = $path
+      WorkingSet64 = $_.WorkingSet64
+      CPU = $_.CPU
+      MainWindowTitle = $_.MainWindowTitle
+    }
+  } |
   ConvertTo-Json -Compress
 `;
     try {
-      const out = await execPs(script);
+      const out = await execPs(script, 10000);
       if (!out) return null;
       const parsed = JSON.parse(out);
       const rows = Array.isArray(parsed) ? parsed : [parsed];
+      const hits = [];
       for (const row of rows) {
         if (!row || !row.Id) continue;
         const processName = String(row.ProcessName || '');
-        const game = PROCESS_GAME_MAP[processName];
+        const game = identifyGame(processName, row.MainWindowTitle, row.Path);
         if (!game) continue;
-        if ((processName.toLowerCase() === 'javaw' || processName.toLowerCase() === 'java')
-            && !isJavaMinecraft(row.MainWindowTitle, row.Path)) {
-          continue;
-        }
-        if (processName.toLowerCase() === 'leagueclientux') continue;
-        return {
+        hits.push({
           pid: Number(row.Id),
           processName,
           game,
           ramMb: Math.round(Number(row.WorkingSet64 || 0) / (1024 * 1024)),
           cpuSeconds: Number(row.CPU || 0),
           windowTitle: row.MainWindowTitle || '',
-        };
+        });
       }
-      return null;
+      if (!hits.length) return null;
+      if (this._session) {
+        const sticky = hits.find((h) => h.pid === this._session.pid && h.game === this._session.game);
+        if (sticky) return sticky;
+      }
+      return hits[0];
     } catch (err) {
       console.error('Process scan failed:', err.message || err);
       return null;

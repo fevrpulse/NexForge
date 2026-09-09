@@ -266,7 +266,7 @@
 
 /* ── Settings: effect tier picker ─────────────────────────── */
 
-.fx-picker{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+.fx-picker{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
 .fx-opt{
   display:flex;flex-direction:column;gap:3px;text-align:left;
   padding:11px 12px;border-radius:11px;cursor:pointer;
@@ -278,7 +278,8 @@
 .fx-opt-name{font-family:var(--font);font-size:13px;font-weight:700;color:var(--text)}
 .fx-opt.active .fx-opt-name{color:var(--neon)}
 .fx-opt-hint{font-family:var(--mono);font-size:10px;color:var(--muted2);line-height:1.4}
-@media (max-width:900px){.fx-picker{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:1100px){.fx-picker{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:700px){.fx-picker{grid-template-columns:repeat(2,1fr)}}
 
 /* ============================================================
    TIER: BALANCED  (default for mid-range machines)
@@ -392,3 +393,166 @@
 :root[data-fx="high"] .card-title::before{
   box-shadow:0 0 12px rgba(210,255,42,.5);
 }
+
+
+/* ============================================================
+   TIER: MAX  — cinematic HUD. Extra bloom, scan, and glass.
+   Opt-in only; Auto never picks this.
+   ============================================================ */
+
+.fx-max-veil{
+  display:none;pointer-events:none;position:fixed;inset:0;z-index:2;overflow:hidden;
+}
+:root[data-fx="max"] .fx-max-veil{display:block}
+.fx-max-veil::before,
+.fx-max-veil::after{
+  content:"";position:absolute;border-radius:50%;filter:blur(8px);
+  animation:fx-max-orb 16s ease-in-out infinite alternate;
+}
+.fx-max-veil::before{
+  width:52vmin;height:52vmin;left:-8vmin;top:-12vmin;
+  background:radial-gradient(circle, rgba(210,255,42,.16), transparent 68%);
+}
+.fx-max-veil::after{
+  width:46vmin;height:46vmin;right:-10vmin;bottom:-14vmin;
+  background:radial-gradient(circle, rgba(108,255,240,.12), transparent 70%);
+  animation-duration:22s;animation-direction:alternate-reverse;
+}
+@keyframes fx-max-orb{
+  from{transform:translate3d(0,0,0) scale(1);opacity:.7}
+  to{transform:translate3d(6%,4%,0) scale(1.12);opacity:1}
+}
+
+:root[data-fx="max"]{
+  --neon-glow:rgba(210,255,42,.28);
+  --shadow-glow:0 0 0 1px rgba(210,255,42,.22), 0 18px 48px rgba(0,0,0,.45), 0 0 40px rgba(210,255,42,.08);
+}
+:root[data-fx="max"] body{
+  background:
+    radial-gradient(ellipse 70% 42% at 8% -8%, rgba(210,255,42,.1), transparent 58%),
+    radial-gradient(ellipse 50% 36% at 100% 0%, rgba(108,255,240,.06), transparent 52%),
+    radial-gradient(ellipse 40% 28% at 70% 100%, rgba(165,107,255,.04), transparent 55%),
+    var(--bg);
+}
+:root[data-fx="max"] body::before{
+  opacity:1;
+  background:
+    radial-gradient(ellipse 46% 36% at 16% 6%, rgba(210,255,42,.1), transparent 62%);
+}
+:root[data-fx="max"] body::after{
+  background:radial-gradient(ellipse 38% 32% at 86% 94%, rgba(108,255,240,.07), transparent 64%);
+}
+:root[data-fx="max"] .main::before{
+  background-image:
+    linear-gradient(rgba(210,255,42,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(210,255,42,.045) 1px, transparent 1px);
+  animation:fx-max-grid 28s linear infinite;
+}
+@keyframes fx-max-grid{
+  from{background-position:0 0, 0 0}
+  to{background-position:0 54px, 54px 0}
+}
+:root[data-fx="max"] .app::before{opacity:.95}
+:root[data-fx="max"] .ui-atmosphere{opacity:.62}
+:root[data-fx="max"] .ui-atmosphere::before{
+  background:linear-gradient(180deg, transparent, rgba(210,255,42,.1), rgba(108,255,240,.07), transparent);
+  animation-duration:5.6s;
+}
+:root[data-fx="max"] .ui-grain{opacity:.07}
+:root[data-fx="max"] .topbar{
+  backdrop-filter:blur(18px) saturate(1.25);
+  -webkit-backdrop-filter:blur(18px) saturate(1.25);
+  box-shadow:inset 0 -1px 0 rgba(210,255,42,.16), 0 12px 32px rgba(0,0,0,.25);
+}
+:root[data-fx="max"] .topbar::after{
+  height:2px;opacity:1;
+  box-shadow:0 0 16px rgba(210,255,42,.55);
+  animation-duration:3.2s;
+}
+:root[data-fx="max"] .topbar-title{
+  text-shadow:0 0 28px rgba(210,255,42,.35);
+}
+:root[data-fx="max"] .sb-brand > div span{
+  background-size:180% 100%;
+  animation:fx-shimmer 3.6s ease-in-out infinite;
+  filter:drop-shadow(0 0 10px rgba(210,255,42,.45));
+}
+:root[data-fx="max"] .sidebar{
+  box-shadow:inset -1px 0 0 rgba(210,255,42,.12), 18px 0 40px rgba(0,0,0,.18);
+}
+:root[data-fx="max"] .sidebar::before{opacity:.42}
+:root[data-fx="max"] .nav-item.active{
+  box-shadow:0 10px 28px rgba(210,255,42,.28), 0 0 22px rgba(210,255,42,.18);
+}
+:root[data-fx="max"] .stat-val.neon{
+  filter:drop-shadow(0 0 18px rgba(210,255,42,.5));
+}
+:root[data-fx="max"] .stat-card{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 16px 36px rgba(0,0,0,.35);
+}
+:root[data-fx="max"] .stat-card:hover{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1), var(--shadow-md),
+             0 0 48px rgba(210,255,42,.28);
+}
+:root[data-fx="max"] .card{
+  box-shadow:0 16px 40px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.05);
+}
+:root[data-fx="max"] .card:hover{
+  box-shadow:0 20px 48px rgba(0,0,0,.42), 0 0 28px rgba(210,255,42,.12);
+}
+:root[data-fx="max"] .card-title::before{
+  box-shadow:0 0 16px rgba(210,255,42,.7);
+}
+:root[data-fx="max"] .dash-tile{
+  box-shadow:0 12px 28px rgba(0,0,0,.28);
+}
+:root[data-fx="max"] .dash-tile:hover{
+  box-shadow:0 18px 36px rgba(0,0,0,.32), 0 0 32px rgba(210,255,42,.16);
+}
+:root[data-fx="max"] .action-btn.primary{
+  box-shadow:0 4px 0 rgba(0,0,0,.15), 0 14px 28px rgba(210,255,42,.28);
+}
+:root[data-fx="max"] .action-btn.primary:hover{
+  box-shadow:0 4px 0 rgba(0,0,0,.15), 0 18px 34px rgba(210,255,42,.42);
+}
+:root[data-fx="max"] .auth-box,
+:root[data-fx="max"] .np-panel,
+:root[data-fx="max"] .modal-box,
+:root[data-fx="max"] .lock-box{
+  backdrop-filter:blur(26px) saturate(1.2);
+  -webkit-backdrop-filter:blur(26px) saturate(1.2);
+  box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08), 0 0 90px rgba(210,255,42,.12);
+}
+:root[data-fx="max"] .auth-glow{
+  background:radial-gradient(circle,rgba(210,255,42,.16) 0%,transparent 68%);
+}
+:root[data-fx="max"] .hud-c{
+  border-color:rgba(210,255,42,.85);
+  box-shadow:0 0 16px rgba(210,255,42,.4);
+  animation:fx-max-hud 2.8s ease-in-out infinite;
+}
+:root[data-fx="max"] .hud-tr,
+:root[data-fx="max"] .hud-bl{animation-delay:.7s}
+@keyframes fx-max-hud{
+  0%,100%{opacity:.7}
+  50%{opacity:1}
+}
+:root[data-fx="max"] .cursor-lamp{
+  width:180px;height:180px;margin:-90px 0 0 -90px;opacity:.95;
+  background:
+    radial-gradient(circle, rgba(210,255,42,.08) 0%, rgba(108,255,240,.03) 34%, transparent 70%);
+}
+:root[data-fx="max"] .badge-neon{
+  box-shadow:0 0 18px rgba(210,255,42,.35);
+}
+:root[data-fx="max"] .sb-status{
+  box-shadow:0 0 18px rgba(210,255,42,.12);
+}
+:root[data-fx="max"] .game-card:hover,
+:root[data-fx="max"] .game-card.selected{
+  box-shadow:0 0 0 1px rgba(210,255,42,.28), 0 16px 36px rgba(0,0,0,.35), 0 0 28px rgba(210,255,42,.12);
+}
+:root[data-fx="max"] .topbar-icon::before{
+  animation-duration:3.2s;
+}
+

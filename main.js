@@ -6,6 +6,8 @@ const crypto = require('crypto');
 const { GameTracker, MIN_SESSION_SEC } = require('./game-tracker');
 const { createOverlaySystem } = require('./overlay-system');
 const { scanDeviceSpecs } = require('./hw-scan');
+const { WinGameBoost } = require('./win-game-boost');
+const desktopPrefs = require('./desktop-prefs');
 
 // Packaged builds stamp the .exe as NexForge; set these so app.getName() / process
 // title match even when running unpackaged.
@@ -55,6 +57,7 @@ let updater = null;
 let quitSessionFlushStarted = false;
 let sessionFlushDone = null;
 const gameTracker = new GameTracker();
+const gameBoost = new WinGameBoost();
 
 // Second launches focus the existing window instead of fighting over the auth port.
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
@@ -82,10 +85,24 @@ function rotateAuthNonce() {
 }
 
 function setupGameTracker() {
-  gameTracker.on('started', (session) => sendToRenderer('game-session-started', session));
+  gameTracker.on('started', async (session) => {
+    let boost = { applied: false };
+    try {
+      boost = await gameBoost.apply(session);
+    } catch (err) {
+      console.warn('Game boost failed:', err && err.message ? err.message : err);
+    }
+    sendToRenderer('game-session-started', { ...session, boost });
+  });
   gameTracker.on('sample', (payload) => sendToRenderer('game-session-sample', payload));
-  gameTracker.on('ended', (summary) => sendToRenderer('game-session-ended', summary));
-  gameTracker.on('cancelled', (payload) => sendToRenderer('game-session-cancelled', payload || {}));
+  gameTracker.on('ended', (summary) => {
+    sendToRenderer('game-session-ended', summary);
+    gameBoost.restore();
+  });
+  gameTracker.on('cancelled', (payload) => {
+    sendToRenderer('game-session-cancelled', payload || {});
+    gameBoost.restore();
+  });
 }
 
 /**
@@ -234,13 +251,19 @@ function setupAutoUpdater() {
     sendToRenderer('update-status', { state: 'error', message: err && err.message });
   });
 
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => {
-    console.error('Update check failed:', err);
-  });
+  if (desktopPrefs.getPrefs().autoCheckUpdates !== false) {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      console.error('Update check failed:', err);
+    });
+  }
+
+  function autoUpdateAllowed() {
+    return desktopPrefs.getPrefs().autoCheckUpdates !== false;
+  }
 
   // Catch releases that publish shortly after launch.
   const firstRecheck = setTimeout(() => {
-    if (installingUpdate) return;
+    if (installingUpdate || !autoUpdateAllowed()) return;
     autoUpdater.checkForUpdates().catch((err) => {
       console.error('First recheck update failed:', err);
     });
@@ -249,7 +272,7 @@ function setupAutoUpdater() {
 
   // Long-running sessions still pick up new releases without a restart.
   const timer = setInterval(() => {
-    if (installingUpdate) return;
+    if (installingUpdate || !autoUpdateAllowed()) return;
     autoUpdater.checkForUpdates().catch((err) => {
       console.error('Periodic update check failed:', err);
     });
@@ -487,12 +510,14 @@ function createWindow() {
   const iconIco = path.join(__dirname, 'build', 'icon.ico');
   const iconPng = path.join(__dirname, 'build', 'icon.png');
   const windowIcon = process.platform === 'win32' && fs.existsSync(iconIco) ? iconIco : iconPng;
+  const startMin = desktopPrefs.getPrefs().startMinimized;
   mainWindow = new BrowserWindow({
     width: Math.max(1100, state?.width || 1400),
     height: Math.max(700, state?.height || 900),
     ...(restorePosition ? { x: state.x, y: state.y } : {}),
     minWidth: 1100,
     minHeight: 700,
+    show: !startMin,
     title: 'NexForge',
     icon: windowIcon,
     autoHideMenuBar: true,
@@ -510,11 +535,12 @@ function createWindow() {
   if (state?.maximized) mainWindow.maximize();
   mainWindow.on('close', (e) => {
     saveWindowState();
-    if (!isQuitting) {
+    if (!isQuitting && desktopPrefs.getPrefs().closeToTray !== false) {
       e.preventDefault();
       mainWindow.hide();
       return;
     }
+    isQuitting = true;
     // Quitting mid-game: hold the close just long enough for the renderer to
     // save the session, then let the quit carry on. Preventing the close also
     // cancels the quit, so it has to be restarted once the write lands.
@@ -525,6 +551,11 @@ function createWindow() {
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
         else app.quit();
       });
+    }
+  });
+  mainWindow.on('minimize', () => {
+    if (desktopPrefs.getPrefs().minimizeToTray) {
+      mainWindow.hide();
     }
   });
   // The hidden overlay must not keep the app alive after the main window closes.
@@ -696,6 +727,24 @@ ipcMain.handle('stop-game-tracking', () => {
 
 ipcMain.handle('get-active-game-session', () => gameTracker.getActiveSession());
 
+ipcMain.handle('get-game-boost-prefs', () => gameBoost.getPrefs());
+ipcMain.handle('set-game-boost-prefs', (_event, prefs) => gameBoost.setEnabled(prefs?.enabled !== false));
+
+ipcMain.handle('get-desktop-prefs', () => desktopPrefs.getPrefs());
+ipcMain.handle('set-desktop-prefs', (_event, patch) => {
+  const prev = desktopPrefs.getPrefs();
+  const next = desktopPrefs.setPrefs(patch || {});
+  if (next.trackingEnabled !== prev.trackingEnabled) {
+    if (next.trackingEnabled) gameTracker.start();
+    else gameTracker.stop();
+  }
+  return next;
+});
+ipcMain.handle('open-user-data-folder', async () => {
+  const err = await shell.openPath(app.getPath('userData'));
+  return err ? { ok: false, reason: err } : { ok: true };
+});
+
 // Renderer confirms the finished session has been written (or definitively
 // failed), which releases the quit that is waiting on it.
 ipcMain.on('game-session-saved', () => {
@@ -773,6 +822,7 @@ app.whenReady().then(async () => {
 
   await startAuthServer();
   ensureOverlaySystem();
+  desktopPrefs.syncFromDisk();
   createWindow();
   setupTray();
   setupGameTracker();
@@ -782,7 +832,9 @@ app.whenReady().then(async () => {
   const presenceTimer = setInterval(() => sendToRenderer('presence-tick'), 45000);
   if (presenceTimer.unref) presenceTimer.unref();
   if (process.platform === 'win32') {
-    gameTracker.start();
+    gameBoost.recover().finally(() => {
+      if (desktopPrefs.getPrefs().trackingEnabled !== false) gameTracker.start();
+    });
   }
 
   app.on('activate', () => {
@@ -794,6 +846,7 @@ app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   isQuitting = true;
+  gameBoost.restore();
   if (tray) {
     tray.destroy();
     tray = null;

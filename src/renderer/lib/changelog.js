@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.10.0',
+    highlights: [
+      'Settings is a full control panel — startup, tray, appearance, voice, privacy, and about',
+      'Max visual effects for a cinematic HUD; Auto still never picks Max on its own',
+      'Windows game boost while you play: high-performance plan, Game Mode, quieter Xbox capture',
+      'Session tracking picks up all 126 catalog titles from the window and install path, not just exact exe names',
+    ],
+  },
+  {
     version: '4.9.0',
     highlights: [
       '126 games in the catalog — Call of Duty, Elden Ring, BG3, FC 26, Genshin, Tarkov, and a hundred more',

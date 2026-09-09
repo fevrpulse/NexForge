@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { entriesSince } from '../lib/changelog.js';
+import { getAppPref } from '../lib/app-prefs.js';
 
 const STORAGE_KEY = 'nexforge-last-seen-version';
 
@@ -17,11 +18,14 @@ export default function WhatsNewModal() {
       return;
     }
     if (!lastSeen) {
-      // Fresh install — nothing to announce, just remember this version.
       try { localStorage.setItem(STORAGE_KEY, appVersion); } catch { /* ignore */ }
       return;
     }
     if (lastSeen === appVersion) return;
+    if (getAppPref('whatsNew') === false) {
+      try { localStorage.setItem(STORAGE_KEY, appVersion); } catch { /* ignore */ }
+      return;
+    }
     const since = entriesSince(lastSeen, appVersion);
     if (since.length) {
       setEntries(since);

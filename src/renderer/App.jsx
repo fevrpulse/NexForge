@@ -148,6 +148,7 @@ export default function App() {
       <NexForgeProvider>
         <VoiceCallProvider>
           <div className="ui-atmosphere" aria-hidden="true" />
+          <div className="fx-max-veil" aria-hidden="true" />
           <div className="ui-grain" aria-hidden="true" />
           <div className="hud-frame" aria-hidden="true">
             <span className="hud-c hud-tl" />

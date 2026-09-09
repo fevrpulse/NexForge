@@ -16,7 +16,7 @@ import {
   nexAiSessionNote,
   withSessionHistory,
 } from '../lib/session.js';
-import { hwScanNote, loadHwScan } from '../lib/optimize.js';
+import { getAppPref, resolveHomeScreen } from '../lib/app-prefs.js';
 
 const NexForgeContext = createContext(null);
 
@@ -78,7 +78,7 @@ export function NexForgeProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [guestMode, setGuestMode] = useState(false);
-  const [screen, setScreenState] = useState('dashboard');
+  const [screen, setScreenState] = useState(() => resolveHomeScreen(false, GUEST_LOCKED_SCREENS));
   const [toasts, setToasts] = useState([]);
   const [cloudOffline, setCloudOfflineState] = useState(false);
   const [cloudReason, setCloudReason] = useState('');
@@ -183,12 +183,13 @@ export function NexForgeProvider({ children }) {
     [communityGames],
   );
 
-  const showToast = useCallback((msg, type = 'success', ms = 3200) => {
+  const showToast = useCallback((msg, type = 'success', ms) => {
     const id = ++toastSeq;
     setToasts((prev) => [...prev, { id, msg, type }]);
+    const hold = Number.isFinite(ms) ? ms : Number(getAppPref('toastMs')) || 3200;
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, Math.max(1800, Number(ms) || 3200));
+    }, Math.max(1800, Number(hold) || 3200));
   }, []);
 
   const dismissToast = useCallback((id) => {
@@ -343,7 +344,7 @@ export function NexForgeProvider({ children }) {
     setPendingMatchLog(null);
     setPendingFriendChatId(null);
     setProfile(GUEST_PROFILE);
-    setScreenState('dashboard');
+    setScreenState(resolveHomeScreen(true, GUEST_LOCKED_SCREENS));
   }, []);
 
   const signOut = useCallback(async () => {
@@ -416,7 +417,7 @@ export function NexForgeProvider({ children }) {
     setGuestMode(false);
     setUser(session.user);
     await loadProfileFor(session.user);
-    setScreenState('dashboard');
+    setScreenState(resolveHomeScreen(false, GUEST_LOCKED_SCREENS));
     showToast('Signed in successfully', 'success');
   }, [loadProfileFor, showToast]);
 
@@ -478,6 +479,8 @@ export function NexForgeProvider({ children }) {
           if (overlayPrefs.lastClipPath) setLastClipPath(overlayPrefs.lastClipPath);
           if (overlayPrefs.clipStatus) setClipStatus(overlayPrefs.clipStatus);
         }
+        const probe = getAppPref('pingProbeHost');
+        if (probe) window.nexforge?.setPingProbeHost?.(probe);
       } catch (_) {
         /* unpackaged / missing preload */
       }
@@ -594,6 +597,7 @@ export function NexForgeProvider({ children }) {
         unreadSoundBaselineRef.current !== null
         && total > unreadSoundBaselineRef.current
         && !dndRef.current
+        && getAppPref('messageSounds') !== false
       ) {
         playMessageChirp();
       }
@@ -629,7 +633,10 @@ export function NexForgeProvider({ children }) {
       try {
         const { error } = await sb
           .from('profiles')
-          .update({ last_seen_at: new Date().toISOString(), playing_game: playingGame })
+          .update({
+            last_seen_at: new Date().toISOString(),
+            playing_game: getAppPref('sharePresence') === false ? null : playingGame,
+          })
           .eq('id', user.id);
         if (error && !/playing_game|last_seen_at|schema cache|column/i.test(String(error.message || ''))) {
           await reportCloudError(error);
@@ -802,6 +809,7 @@ export function NexForgeProvider({ children }) {
     const key = liveSession.startedAt || liveSession.game;
     if (heatAlertForRef.current === key) return;
     if (dndRef.current || overlayRef.current === false) return;
+    if (getAppPref('heatAlerts') === false) return;
     heatAlertForRef.current = key;
     window.nexforge?.overlayNotify?.({
       kind: 'heat',
@@ -822,7 +830,13 @@ export function NexForgeProvider({ children }) {
 
     const offStarted = nf.onGameSessionStarted((session) => {
       setLiveSession(session);
-      showToast(`Tracking ${session.game}`, 'success');
+      if (getAppPref('sessionToasts') === false) return;
+      showToast(
+        session.boost?.applied
+          ? `Tracking ${session.game} — Windows game boost on`
+          : `Tracking ${session.game}`,
+        'success',
+      );
     });
     const offSample = nf.onGameSessionSample((payload) => {
       setLiveSession((prev) => (prev ? { ...prev, ...payload } : payload));
@@ -831,7 +845,9 @@ export function NexForgeProvider({ children }) {
       setLiveSession(null);
       const u = userRef.current;
       if (!u) {
-        showToast(`${summary.game} session ended — sign in to save sessions`, 'error');
+        if (getAppPref('sessionToasts') !== false) {
+          showToast(`${summary.game} session ended — sign in to save sessions`, 'error');
+        }
         // A quit can be waiting on this write; nothing to save means go ahead.
         nf.notifyGameSessionSaved?.();
         return;
@@ -891,24 +907,30 @@ export function NexForgeProvider({ children }) {
         }
         if (error) throw error;
         const sessionId = data?.id != null ? Number(data.id) : null;
-        setPendingMatchLog({
-          game: summary.game,
-          mode: null,
-          sessionId: Number.isFinite(sessionId) ? sessionId : null,
-          durationSec: summary.durationSec,
-          avgCpuPct: summary.avgCpuPct,
-          avgGpuPct: summary.avgGpuPct,
-          avgRamMb: summary.avgRamMb,
-          tip: Array.isArray(summary.tips) ? summary.tips[0] : null,
-        });
+        if (getAppPref('winLossPrompt') !== false) {
+          setPendingMatchLog({
+            game: summary.game,
+            mode: null,
+            sessionId: Number.isFinite(sessionId) ? sessionId : null,
+            durationSec: summary.durationSec,
+            avgCpuPct: summary.avgCpuPct,
+            avgGpuPct: summary.avgGpuPct,
+            avgRamMb: summary.avgRamMb,
+            tip: Array.isArray(summary.tips) ? summary.tips[0] : null,
+          });
+        }
         const tip = Array.isArray(summary.tips) && summary.tips[0] ? String(summary.tips[0]) : '';
-        showToast(
-          tip ? `${summary.game} saved · ${tip}` : `${summary.game} session saved`,
-          'success',
-          tip ? 5600 : 3200,
-        );
+        if (getAppPref('sessionToasts') !== false) {
+          showToast(
+            tip ? `${summary.game} saved · ${tip}` : `${summary.game} session saved`,
+            'success',
+            tip ? 5600 : undefined,
+          );
+        }
       } catch (err) {
-        showToast(`${summary.game} session ended (cloud save failed)`, 'error');
+        if (getAppPref('sessionToasts') !== false) {
+          showToast(`${summary.game} session ended (cloud save failed)`, 'error');
+        }
         await reportCloudError(err);
       } finally {
         setSessionSaveTick((t) => t + 1);
@@ -918,7 +940,9 @@ export function NexForgeProvider({ children }) {
     });
     const offCancelled = nf.onGameSessionCancelled((payload) => {
       setLiveSession(null);
-      if (payload?.game) showToast(`${payload.game} session discarded (too short)`, 'error');
+      if (payload?.game && getAppPref('sessionToasts') !== false) {
+        showToast(`${payload.game} session discarded (too short)`, 'error');
+      }
     });
 
     return () => {

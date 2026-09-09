@@ -11,7 +11,7 @@
       // Runs before first paint so heavy effects never flash on then off.
       (function () {
         function isTier(t) {
-          return t === 'high' || t === 'balanced' || t === 'low';
+          return t === 'max' || t === 'high' || t === 'balanced' || t === 'low';
         }
         var tier;
         // An explicit choice always wins.
@@ -33,6 +33,11 @@
                : 'balanced';
         }
         document.documentElement.setAttribute('data-fx', tier);
+        try {
+          var prefs = JSON.parse(localStorage.getItem('nexforge_app_prefs') || '{}');
+          if (prefs && prefs.compactSidebar) document.documentElement.setAttribute('data-compact-nav', '1');
+          if (prefs && prefs.atmosphere === false) document.documentElement.setAttribute('data-atmosphere', 'off');
+        } catch (e) {}
       })();
     </script>
   </head>

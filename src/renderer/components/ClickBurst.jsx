@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { getAppPrefs, subscribeAppPrefs } from '../lib/app-prefs.js';
 
 let nextId = 1;
 
-function makeSparks() {
-  const n = 10;
+function makeSparks(maxLook) {
+  const n = maxLook ? 16 : 10;
   return Array.from({ length: n }, (_, i) => {
     const angle = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
     const dist = 16 + Math.random() * 28;
@@ -17,11 +18,17 @@ function makeSparks() {
 
 export default function ClickBurst() {
   const [bursts, setBursts] = useState([]);
+  const [prefs, setPrefs] = useState(() => getAppPrefs());
   const lampRef = useRef(null);
+  const clickFx = prefs.clickFx !== false;
+  const cursorLamp = prefs.cursorLamp !== false;
+
+  useEffect(() => subscribeAppPrefs(setPrefs), []);
 
   useEffect(() => {
     const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     if (media?.matches) return undefined;
+    if (!clickFx && !cursorLamp) return undefined;
 
     let x = window.innerWidth / 2;
     let y = window.innerHeight / 2;
@@ -37,7 +44,7 @@ export default function ClickBurst() {
       }
       raf = window.requestAnimationFrame(tick);
     }
-    raf = window.requestAnimationFrame(tick);
+    if (cursorLamp) raf = window.requestAnimationFrame(tick);
 
     function onMove(e) {
       tx = e.clientX;
@@ -45,26 +52,30 @@ export default function ClickBurst() {
     }
 
     function spawn(e) {
+      if (!clickFx) return;
       const id = nextId++;
-      const burst = { id, x: e.clientX, y: e.clientY, sparks: makeSparks() };
+      const maxLook = document.documentElement.getAttribute('data-fx') === 'max';
+      const burst = { id, x: e.clientX, y: e.clientY, sparks: makeSparks(maxLook) };
       setBursts((prev) => [...prev.slice(-9), burst]);
       window.setTimeout(() => {
         setBursts((prev) => prev.filter((b) => b.id !== id));
       }, 480);
     }
 
-    window.addEventListener('pointermove', onMove, { passive: true });
-    window.addEventListener('pointerdown', spawn);
+    if (cursorLamp) window.addEventListener('pointermove', onMove, { passive: true });
+    if (clickFx) window.addEventListener('pointerdown', spawn);
     return () => {
       window.cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerdown', spawn);
     };
-  }, []);
+  }, [clickFx, cursorLamp]);
+
+  if (!clickFx && !cursorLamp) return null;
 
   return (
     <div className="click-fx-layer" aria-hidden="true">
-      <span className="cursor-lamp" ref={lampRef} />
+      {cursorLamp ? <span className="cursor-lamp" ref={lampRef} /> : null}
       {bursts.map((b) => (
         <span
           key={b.id}

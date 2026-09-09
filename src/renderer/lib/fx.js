@@ -9,7 +9,7 @@ const PROBED = 'nf-fx-probed';
 // being recomputed back up to the tier the machine could not sustain.
 const AUTO = 'nf-fx-auto-tier';
 
-export const TIERS = ['high', 'balanced', 'low'];
+export const TIERS = ['max', 'high', 'balanced', 'low'];
 
 function persist(key, value) {
   try {
@@ -21,6 +21,7 @@ function persist(key, value) {
 
 export const TIER_LABELS = {
   auto: 'Auto',
+  max: 'Max',
   high: 'High',
   balanced: 'Balanced',
   low: 'Low',
@@ -28,6 +29,7 @@ export const TIER_LABELS = {
 
 export const TIER_HINTS = {
   auto: 'Match effects to your hardware',
+  max: 'Cinematic — every glow, scan, and bloom',
   high: 'Every effect, for strong GPUs',
   balanced: 'Full look, no heavy blur',
   low: 'Static — best for weak GPUs',
@@ -104,7 +106,7 @@ export function probeFrameRate({ onDowngrade } = {}) {
   const finish = (fps) => {
     persist(PROBED, String(Math.round(fps)));
     if (fps >= MIN_FPS) return;
-    const next = current === 'high' ? 'balanced' : 'low';
+    const next = current === 'balanced' ? 'low' : 'balanced';
     // Record the tier as well as the fps: the probe only runs once per install,
     // so without this the next launch recomputes the expensive tier and never
     // re-measures, pinning a weak GPU to effects it cannot render.

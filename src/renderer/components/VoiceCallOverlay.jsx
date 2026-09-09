@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
+import { getAppPref } from '../lib/app-prefs.js';
 import { createVoiceCallController } from '../lib/voiceCall.js';
 import PlayerAvatar, { GamerTag } from './PlayerAvatar.jsx';
 import { sb } from '../lib/supabase.js';
@@ -53,7 +54,7 @@ export function VoiceCallProvider({ children }) {
   }, []);
 
   const playRingtone = useCallback(() => {
-    if (dndEnabled) return;
+    if (dndEnabled || getAppPref('callSounds') === false) return;
     stopRingtone();
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -341,6 +342,7 @@ export function VoiceCallProvider({ children }) {
     toggleScreenShare,
     setInputDevice,
     setOutputDevice,
+    refreshDevices: () => ctrlRef.current?.refreshDevices?.(),
     inCall: call.state !== 'idle',
   }), [
     call, peerProfile, peerProfiles, startCall, startChannelVoice, syncChannelPeers, leaveChannelVoice,
