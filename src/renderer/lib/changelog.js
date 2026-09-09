@@ -4,6 +4,16 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.9.0',
+    highlights: [
+      '126 games in the catalog — Call of Duty, Elden Ring, BG3, FC 26, Genshin, Tarkov, and a hundred more',
+      'Search Matchmaking and Optimize instead of scrolling a wall of tiles',
+      'Titles grouped by type: shooters, BR, sports, survival, RPGs, MMOs, fighting, party',
+      'Optimize still treats light games like Minecraft differently from heavy ones like Warzone',
+      'Session tracking recognizes many of the new titles when they are running',
+    ],
+  },
+  {
     version: '4.8.2',
     highlights: [
       'Click a game on Optimize to open its settings in a popup',

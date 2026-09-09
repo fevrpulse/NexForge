@@ -242,6 +242,243 @@ const GAME_ICONS = {
       <circle cx="14.8" cy="10.2" r="1.1" fill="currentColor" stroke="none" />
     </>
   ),
+  'Marvel Rivals': (
+    <>
+      <path d="M12 3.5l3.2 6.4 7 .9-5.2 4.7 1.4 6.8L12 18.6 5.6 22.3l1.4-6.8L1.8 10.8l7-.9L12 3.5z" />
+      <circle cx="12" cy="13" r="2.2" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Helldivers 2': (
+    <>
+      <path d="M12 3l2.2 5.4H20l-4.6 3.4 1.8 5.6L12 14.2 6.8 17.4l1.8-5.6L4 8.4h5.8L12 3z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Rainbow Six Siege': (
+    <>
+      <path d="M12 3.2l7.5 3.2v6.2c0 4.4-3.2 7.4-7.5 8.8C7.7 20 4.5 17 4.5 12.6V6.4L12 3.2z" />
+      <path d="M12 8v8M8.5 12h7" />
+    </>
+  ),
+  'Destiny 2': (
+    <>
+      <path d="M12 3.5L14.8 9l6.2.7-4.6 4.2 1.3 6.1L12 16.8 6.3 20l1.3-6.1L3 9.7 9.2 9 12 3.5z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Palworld': (
+    <>
+      <circle cx="12" cy="13" r="6.5" />
+      <path d="M8 7.2C8 4.8 9.6 3.2 12 3.2S16 4.8 16 7.2" />
+      <circle cx="9.8" cy="12.4" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="14.2" cy="12.4" r=".9" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Deadlock': (
+    <>
+      <path d="M4 12l8-8 8 8-8 8-8-8z" />
+      <path d="M12 4v16M4 12h16" strokeWidth="1.4" />
+    </>
+  ),
+  'Call of Duty': (
+    <>
+      <path d="M12 3.5l2 5.2 5.5.6-4.1 3.7 1.2 5.5L12 15.6 7.4 18.5l1.2-5.5-4.1-3.7 5.5-.6L12 3.5z" />
+      <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Battlefield 6': (
+    <>
+      <path d="M3.5 16.5L12 4.5l8.5 12H3.5z" />
+      <path d="M12 8.5v8" />
+    </>
+  ),
+  'The Finals': (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 8h8M8 12h5M8 16h8" />
+    </>
+  ),
+  'Escape from Tarkov': (
+    <>
+      <path d="M5 19V6.5L12 3.5l7 3V19" />
+      <path d="M8.5 19v-6h7v6" />
+    </>
+  ),
+  'Elden Ring': (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3.4" />
+    </>
+  ),
+  'Baldur\'s Gate 3': (
+    <>
+      <path d="M12 3.5c4.5 2 7.5 5.4 7.5 9.8S16.2 21 12 21 4.5 17.7 4.5 13.3 7.5 5.5 12 3.5z" />
+      <path d="M8 13.5c1.2 1.6 2.6 2.4 4 2.4s2.8-.8 4-2.4" />
+    </>
+  ),
+  'Cyberpunk 2077': (
+    <>
+      <path d="M3.5 12h17" />
+      <path d="M6 7.5h12l1.5 4.5-1.5 4.5H6L4.5 12 6 7.5z" />
+      <circle cx="9" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Red Dead Redemption 2': (
+    <>
+      <path d="M12 4l2.4 4.8 5.3.6-3.9 3.6 1.1 5.2L12 15.8 7.1 18.2l1.1-5.2-3.9-3.6 5.3-.6L12 4z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'The Witcher 3': (
+    <>
+      <path d="M12 3.2l2.8 5.2 1.6-1.2 1.2 3.4 3.4.4-2.6 2.6.8 3.4-3.4-.6L12 20.5 8.2 16.4l-3.4.6.8-3.4-2.6-2.6 3.4-.4 1.2-3.4 1.6 1.2L12 3.2z" />
+    </>
+  ),
+  'Black Myth: Wukong': (
+    <>
+      <circle cx="12" cy="10" r="5" />
+      <path d="M7 15.5c1.6 3 8.4 3 10 0" />
+      <path d="M12 5V2.8M9 6.2 7.4 4.4M15 6.2l1.6-1.8" />
+    </>
+  ),
+  'Monster Hunter Wilds': (
+    <>
+      <path d="M4 18.5L12 4l8 14.5H4z" />
+      <path d="M9.5 14.5h5" />
+    </>
+  ),
+  'Path of Exile 2': (
+    <>
+      <path d="M12 2.8L20 8v8l-8 5.2L4 16V8l8-5.2z" />
+      <path d="M12 8v8" />
+    </>
+  ),
+  'Diablo IV': (
+    <>
+      <path d="M12 3c4 3.2 7 7 7 11.2C19 18.4 16 21 12 21S5 18.4 5 14.2C5 10 8 6.2 12 3z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'World of Warcraft': (
+    <>
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M12 5.5v13M5.5 12h13" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  'Final Fantasy XIV': (
+    <>
+      <path d="M12 3.5l8 16.5H4L12 3.5z" />
+      <path d="M8.2 16.2h7.6" />
+    </>
+  ),
+  'Genshin Impact': (
+    <>
+      <path d="M12 3l2.6 6.4H21l-5.2 3.8 2 6.3L12 16.2 6.2 19.5l2-6.3L3 9.4h6.4L12 3z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Rust': (
+    <>
+      <path d="M4.5 17.5h15l-2.2-9.2H6.7L4.5 17.5z" />
+      <path d="M8 8.3V5.5h8v2.8" />
+    </>
+  ),
+  'EA Sports FC 26': (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 8.6l3.2 2.3-1.2 3.8H10l-1.2-3.8L12 8.6z" fill="currentColor" stroke="none" />
+      <path d="M12 8.6V3.5M15.2 10.9l4.9-1.6M14 14.7l3 4M10 14.7l-3 4M8.8 10.9L3.9 9.3" strokeWidth="1.4" />
+    </>
+  ),
+  'NBA 2K26': (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M3.5 12h17M12 3.5v17" strokeWidth="1.4" />
+      <path d="M6 6c3.3 3.3 3.3 8.7 0 12M18 6c-3.3 3.3-3.3 8.7 0 12" strokeWidth="1.4" />
+    </>
+  ),
+  'Forza Horizon 5': (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3.2" />
+      <path d="M12 4v3M12 17v3M4 12h3M17 12h3" />
+    </>
+  ),
+  'Street Fighter 6': (
+    <>
+      <path d="M5 18.5c2.4-5 4.6-9.6 7-14.5 2.4 4.9 4.6 9.5 7 14.5" />
+      <path d="M7.5 13h9" />
+    </>
+  ),
+  'Tekken 8': (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="1.5" />
+      <path d="M8 8v8M8 12h4.5a2.5 2.5 0 0 0 0-5H8" />
+    </>
+  ),
+  'Dead by Daylight': (
+    <>
+      <path d="M12 3.5v17" />
+      <path d="M7 8.5h10M8.5 13.5h7" />
+      <circle cx="12" cy="3.5" r="1.4" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Phasmophobia': (
+    <>
+      <path d="M12 4.2c3.6 0 6.2 2.6 6.2 6.4 0 4.4-3 7.6-6.2 9.4-3.2-1.8-6.2-5-6.2-9.4 0-3.8 2.6-6.4 6.2-6.4z" />
+      <circle cx="10" cy="10.4" r=".9" fill="currentColor" stroke="none" />
+      <circle cx="14" cy="10.4" r=".9" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Among Us': (
+    <>
+      <path d="M8.2 6.5h7.4c1.6 0 2.9 2.4 2.9 6.2s-1.3 6.8-2.9 6.8H9.8c-2 0-3.3-2.6-3.3-6.8 0-2.6.7-4.8 1.7-6.2z" />
+      <rect x="4.2" y="10.2" width="4.2" height="5.2" rx="1.2" />
+      <ellipse cx="14.4" cy="10.4" rx="3.2" ry="2" />
+    </>
+  ),
+  'Teamfight Tactics': (
+    <>
+      <rect x="4" y="4" width="6.2" height="6.2" rx="1" />
+      <rect x="13.8" y="4" width="6.2" height="6.2" rx="1" />
+      <rect x="4" y="13.8" width="6.2" height="6.2" rx="1" />
+      <rect x="13.8" y="13.8" width="6.2" height="6.2" rx="1" />
+    </>
+  ),
+  'Hearthstone': (
+    <>
+      <rect x="5.5" y="3.5" width="13" height="17" rx="2" />
+      <circle cx="12" cy="12" r="3.4" />
+    </>
+  ),
+  'Stardew Valley': (
+    <>
+      <path d="M12 4.2c2.6 3.2 6.5 6.4 6.5 9.6 0 3.2-2.8 5.5-6.5 5.5S5.5 17 5.5 13.8c0-3.2 3.9-6.4 6.5-9.6z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Terraria': (
+    <>
+      <rect x="3.5" y="10" width="17" height="10.5" rx="1" />
+      <path d="M8 10V7.2a4 4 0 0 1 8 0V10" />
+    </>
+  ),
+  'Lethal Company': (
+    <>
+      <circle cx="12" cy="12" r="8" />
+      <path d="M8.5 14.2c.8 1.4 2 2.1 3.5 2.1s2.7-.7 3.5-2.1" />
+      <circle cx="9.2" cy="10.2" r="1" fill="currentColor" stroke="none" />
+      <circle cx="14.8" cy="10.2" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  'Warframe': (
+    <>
+      <path d="M12 3.2L19.5 8v8L12 20.8 4.5 16V8L12 3.2z" />
+      <path d="M12 8.2v7.6" />
+    </>
+  ),
+  'Old School RuneScape': (
+    <>
+      <circle cx="12" cy="12" r="8.2" />
+      <path d="M8 15.2c1.2-3.4 2.5-6.4 4-9.4 1.5 3 2.8 6 4 9.4" />
+    </>
+  ),
 };
 
 export function NavIcon({ id, size = 18 }) {

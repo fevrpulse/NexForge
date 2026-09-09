@@ -429,6 +429,16 @@ body::after{
 }
 .mm-back:hover{color:var(--text)}
 .game-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:18px}
+.game-group{margin-bottom:8px}
+.game-group-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted2);margin:2px 0 10px;
+}
+.game-search-field{margin:10px 0 14px}
+.game-search-empty{
+  font-family:var(--mono);font-size:12px;color:var(--muted2);padding:8px 0 18px;
+}
+.game-group .game-grid{margin-bottom:16px}
 .game-card{
   background:var(--surface);border:1px solid var(--border);border-radius:14px 10px 14px 12px;
   padding:16px;cursor:pointer;transition:all .15s;text-align:left;

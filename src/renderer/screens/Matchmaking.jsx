@@ -2,10 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import {
-  gameMark, modeMark, modesForGame,
+  modeMark, modesForGame,
   honestServerLabel, isShooterGame,
 } from '../lib/games.js';
-import { GameIcon, hasGameIcon } from '../components/icons.jsx';
+import GameCatalogGrid from '../components/GameCatalogGrid.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
 import LobbyPanel from '../components/LobbyPanel.jsx';
 import { friendQueueTarget, isVisibleOpenQueue, publicServerLabel } from '../lib/duels.js';
@@ -53,6 +53,7 @@ export default function Matchmaking() {
 
   const [step, setStep] = useState(1);
   const [selectedGame, setSelectedGame] = useState(profile?.main_game || 'Valorant');
+  const [gameQuery, setGameQuery] = useState('');
 
   const [title, setTitle] = useState('');
   const [details, setDetails] = useState('');
@@ -379,23 +380,13 @@ export default function Matchmaking() {
       {step === 1 && (
         <div className="mm-step active">
           <div className="card-title">Select a game to queue for</div>
-          <div className="game-grid">
-            {gameCatalog.flatMap((group) =>
-              group.games.map((game) => (
-                <div
-                  key={game}
-                  className={`game-card ${selectedGame === game ? 'selected' : ''}`}
-                  onClick={() => selectGame(game)}
-                >
-                  <div className={`game-icon ${hasGameIcon(game) ? 'game-icon-svg' : ''}`}>
-                    {hasGameIcon(game) ? <GameIcon game={game} /> : gameMark(game)}
-                  </div>
-                  <div className="game-name">{game}</div>
-                  <div className="game-cat">{group.category}</div>
-                </div>
-              ))
-            )}
-          </div>
+          <GameCatalogGrid
+            catalog={gameCatalog}
+            selected={selectedGame}
+            onSelect={selectGame}
+            query={gameQuery}
+            onQueryChange={setGameQuery}
+          />
         </div>
       )}
 

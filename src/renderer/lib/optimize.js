@@ -1,4 +1,4 @@
-import { isShooterGame } from './games.js';
+import { gameLoadOf, isShooterGame } from './games.js';
 
 export const HW_SCAN_KEY = 'nf_hw_scan';
 export const QUALITY_ORDER = ['potato', 'low', 'medium', 'high', 'ultra'];
@@ -15,13 +15,6 @@ const GPU_RULES = [
   { re: /uhd|iris|hd graphics|graphics hd|adreno|mali|intel\(r\) hd/i, score: 12 },
 ];
 
-const LIGHT_GAMES = new Set([
-  'Minecraft', 'Valorant', 'League of Legends', 'Dota 2', 'Roblox', 'Rocket League',
-  'CS2', 'Overwatch 2', 'Geometry Dash', 'Fall Guys', 'Meccha Chameleon',
-]);
-const HEAVY_GAMES = new Set([
-  'Call of Duty: Warzone', 'Marvel Rivals', 'Helldivers 2', 'GTA Online', 'Palworld', 'PUBG',
-]);
 
 function clamp(n, lo, hi) {
   return Math.min(hi, Math.max(lo, n));
@@ -102,10 +95,7 @@ export function detectUpscaler(gpuName) {
 }
 
 export function gameLoad(game) {
-  const g = String(game || '');
-  if (LIGHT_GAMES.has(g)) return 'light';
-  if (HEAVY_GAMES.has(g)) return 'heavy';
-  return 'medium';
+  return gameLoadOf(game);
 }
 
 export function qualityFromScan(scan) {
@@ -269,7 +259,7 @@ function gameOverrides(game, visual, goal, upscaler, load, height) {
       row('Biome blend', visual === 'potato' || visual === 'low' ? '5×5' : '15×15'),
     ];
   }
-  if (g === 'Fortnite' || g === 'Marvel Rivals') {
+  if (g === 'Fortnite' || g === 'Marvel Rivals' || g === 'The Finals' || g === 'Arc Raiders') {
     const view = visual === 'potato' ? 'Medium' : visual === 'low' ? 'High' : 'Epic';
     return [
       row('View distance', view),
@@ -301,12 +291,6 @@ function gameOverrides(game, visual, goal, upscaler, load, height) {
       row('Frame rate cap', 'Uncapped or monitor Hz'),
       row('VSync', 'Off'),
     ];
-  }
-  if (g === 'Call of Duty: Warzone' || g === 'Apex Legends' || g === 'PUBG' || g === 'Overwatch 2' || g === 'Halo Infinite' || g === 'Rainbow Six Siege' || g === 'Deadlock' || g === 'Helldivers 2') {
-    return genericSettings(visual, goal, upscaler, load, height);
-  }
-  if (g === 'GTA Online' || g === 'Destiny 2' || g === 'Palworld' || g === 'Rocket League' || g === 'FIFA 25' || g === 'NBA 2K25') {
-    return genericSettings(visual, goal, upscaler, load, height);
   }
   return genericSettings(visual, goal, upscaler, load, height);
 }

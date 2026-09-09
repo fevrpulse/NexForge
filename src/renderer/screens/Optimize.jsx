@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
-import { gameMark } from '../lib/games.js';
+import GameCatalogGrid from '../components/GameCatalogGrid.jsx';
 import { GameIcon, hasGameIcon } from '../components/icons.jsx';
 import {
   defaultGoalForGame,
@@ -38,6 +38,7 @@ export default function Optimize() {
   const [openGame, setOpenGame] = useState(null);
   const [goal, setGoal] = useState('quality');
   const [copied, setCopied] = useState(false);
+  const [gameQuery, setGameQuery] = useState('');
 
   async function runScan(force = false) {
     if (!window.nexforge?.scanDeviceSpecs) {
@@ -176,31 +177,14 @@ export default function Optimize() {
         <div className="coach-sub" style={{ marginBottom: 12 }}>
           Click a title for settings matched to this PC. Light games like Minecraft are not treated like Warzone.
         </div>
-        <div className="game-grid opt-game-grid">
-          {gameCatalog.flatMap((group) =>
-            group.games.map((name) => (
-              <div
-                key={name}
-                role="button"
-                tabIndex={0}
-                className={`game-card ${suggested === name ? 'selected' : ''}`}
-                onClick={() => openFor(name)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    openFor(name);
-                  }
-                }}
-              >
-                <div className={`game-icon ${hasGameIcon(name) ? 'game-icon-svg' : ''}`}>
-                  {hasGameIcon(name) ? <GameIcon game={name} /> : gameMark(name)}
-                </div>
-                <div className="game-name">{name}</div>
-                <div className="game-cat">{group.category}</div>
-              </div>
-            ))
-          )}
-        </div>
+        <GameCatalogGrid
+          catalog={gameCatalog}
+          selected={suggested}
+          onSelect={openFor}
+          query={gameQuery}
+          onQueryChange={setGameQuery}
+          className="opt-game-grid"
+        />
       </div>
 
       {openGame && rec && (
