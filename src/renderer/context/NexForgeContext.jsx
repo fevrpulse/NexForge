@@ -122,20 +122,6 @@ export function NexForgeProvider({ children }) {
   const overlayRef = useRef(overlayEnabled);
   useEffect(() => { overlayRef.current = overlayEnabled; }, [overlayEnabled]);
 
-  const setOverlayEnabled = useCallback((on) => {
-    const next = !!on;
-    setOverlayEnabledState(next);
-    try { localStorage.setItem('nexforge_overlay', next ? '1' : '0'); } catch { /* ignore */ }
-    window.nexforge?.getOverlayPrefs?.()
-      .then((p) => window.nexforge.setOverlayPrefs({
-        overlayEnabled: next,
-        clipEnabled: p?.clipEnabled !== false,
-        clipSeconds: p?.clipSeconds || 20,
-        hotkeys: p?.hotkeys,
-      }))
-      .catch(() => {});
-  }, []);
-
   const [clipEnabled, setClipEnabledState] = useState(true);
   const [clipSeconds, setClipSecondsState] = useState(20);
   const [overlayHotkeys, setOverlayHotkeys] = useState({
@@ -145,6 +131,8 @@ export function NexForgeProvider({ children }) {
   });
   const [lastClipPath, setLastClipPath] = useState(null);
   const [clipStatus, setClipStatus] = useState({ enabled: true, buffering: true, readySeconds: 0, seconds: 20 });
+  const [overlayLobby, setOverlayLobby] = useState(null);
+  const [overlayFriends, setOverlayFriends] = useState([]);
 
   const applyOverlayPrefs = useCallback(async (patch) => {
     const current = await window.nexforge?.getOverlayPrefs?.().catch(() => null);
@@ -153,6 +141,11 @@ export function NexForgeProvider({ children }) {
       clipEnabled: patch.clipEnabled ?? current?.clipEnabled ?? true,
       clipSeconds: patch.clipSeconds ?? current?.clipSeconds ?? 20,
       hotkeys: patch.hotkeys || current?.hotkeys || overlayHotkeys,
+      statusStrip: patch.statusStrip ?? current?.statusStrip,
+      crosshair: patch.crosshair ?? current?.crosshair,
+      crosshairStyle: patch.crosshairStyle ?? current?.crosshairStyle,
+      stripPosition: patch.stripPosition ?? current?.stripPosition,
+      hudOpacity: patch.hudOpacity ?? current?.hudOpacity,
     };
     const saved = await window.nexforge?.setOverlayPrefs?.(next);
     const prefs = saved || next;
@@ -165,6 +158,13 @@ export function NexForgeProvider({ children }) {
     }
     return prefs;
   }, [overlayHotkeys]);
+
+  const setOverlayEnabled = useCallback((on) => {
+    const next = !!on;
+    setOverlayEnabledState(next);
+    try { localStorage.setItem('nexforge_overlay', next ? '1' : '0'); } catch { /* ignore */ }
+    applyOverlayPrefs({ overlayEnabled: next }).catch(() => {});
+  }, [applyOverlayPrefs]);
 
   const setClipEnabled = useCallback((on) => applyOverlayPrefs({ clipEnabled: !!on }), [applyOverlayPrefs]);
   const setClipSeconds = useCallback((n) => applyOverlayPrefs({ clipSeconds: n }), [applyOverlayPrefs]);
@@ -748,14 +748,23 @@ export function NexForgeProvider({ children }) {
     const offClipStatus = nf.onOverlayClipStatus?.((status) => {
       if (status) setClipStatus(status);
     });
+    const offAction = nf.onOverlayAction?.((payload) => {
+      if (payload?.type === 'dnd') setDndEnabled(!!payload.on);
+      if (payload?.type === 'showMain') nf.showMainWindow?.();
+      if (payload?.type === 'openScreen' && ['friends', 'optimize', 'dashboard', 'analytics'].includes(payload.screen)) {
+        setScreen(payload.screen);
+        nf.showMainWindow?.();
+      }
+    });
     return () => {
       offHotkey?.();
       offBlocked?.();
       offClipSaved?.();
       offClipErr?.();
       offClipStatus?.();
+      offAction?.();
     };
-  }, [showToast]);
+  }, [showToast, setDndEnabled, setScreen]);
 
   useEffect(() => {
     const nf = window.nexforge;
@@ -788,15 +797,45 @@ export function NexForgeProvider({ children }) {
   useEffect(() => {
     window.nexforge?.overlaySyncState?.({
       signedIn: !!user,
+      tag: profile?.gamer_tag || (guestMode ? 'Guest' : 'Player'),
+      mmr: profile?.mmr ?? null,
+      clanTag: profile?.clan_tag || null,
+      mainGame: profile?.main_game || null,
       game: liveSession?.game || null,
       unread: unreadTotal,
       durationSec: liveSession?.durationSec || 0,
       cpuPct: liveSession?.live?.cpuPct ?? liveSession?.averages?.cpuPct ?? null,
       gpuPct: liveSession?.live?.gpuPct ?? liveSession?.averages?.gpuPct ?? null,
+      ramMb: liveSession?.live?.ramMb ?? liveSession?.averages?.ramMb ?? null,
+      diskPct: liveSession?.live?.diskPct ?? liveSession?.averages?.diskPct ?? null,
+      wifiPct: liveSession?.live?.wifiPct ?? liveSession?.averages?.wifiPct ?? null,
       pingMs: liveSession?.live?.pingMs ?? null,
+      pingHistory: (liveSession?.samples || []).map((s) => s?.pingMs).filter((n) => n != null).slice(-16),
       heat: liveSession ? hardwareHeat(liveSession.live || {}, liveSession.averages || {}).label : null,
+      boost: !!liveSession?.boost?.applied,
+      dnd: dndEnabled,
+      recap: lastSessionRecap,
+      lobby: user && !guestMode ? overlayLobby : null,
+      party: user && !guestMode && party?.members?.length
+        ? {
+          game: party.game || null,
+          members: party.members.map((m) => ({
+            tag: m.gamer_tag || 'Player',
+            role: m.role || '',
+            status: m.status || '',
+            ready: !!m.ready,
+            online: m.last_seen_at
+              ? Date.now() - new Date(m.last_seen_at).getTime() < 3 * 60 * 1000
+              : m.status === 'joined',
+          })),
+        }
+        : null,
+      friends: user && !guestMode ? overlayFriends : [],
     });
-  }, [user, liveSession, unreadTotal]);
+  }, [
+    user, guestMode, profile?.gamer_tag, profile?.mmr, profile?.clan_tag, profile?.main_game,
+    liveSession, unreadTotal, dndEnabled, lastSessionRecap, overlayLobby, party, overlayFriends,
+  ]);
 
   useEffect(() => {
     if (!liveSession?.game) {
@@ -1290,7 +1329,10 @@ export function NexForgeProvider({ children }) {
   // Overlay 2.0 — party invites + lobby codes (click-through; respects DND).
   const overlaySeenRef = useRef({ partyInviteKey: null, lobbyCodeKey: null });
   useEffect(() => {
-    if (!user || guestMode) return undefined;
+    if (!user || guestMode) {
+      setOverlayLobby(null);
+      return undefined;
+    }
     const nf = window.nexforge;
     if (!nf?.overlayNotify) return undefined;
 
@@ -1318,7 +1360,13 @@ export function NexForgeProvider({ children }) {
     async function pollLobbyOverlay() {
       try {
         const { data, error } = await sb.rpc('get_my_lobby');
-        if (error || cancelled || !data?.lobby_code) return;
+        if (cancelled) return;
+        if (error) return;
+        if (!data?.lobby_code) {
+          setOverlayLobby(null);
+          return;
+        }
+        setOverlayLobby({ code: data.lobby_code, game: data.game || null });
         const key = `${data.id}:${data.lobby_code}`;
         if (overlaySeenRef.current.lobbyCodeKey === key) return;
         overlaySeenRef.current.lobbyCodeKey = key;
@@ -1340,6 +1388,63 @@ export function NexForgeProvider({ children }) {
       clearInterval(id);
     };
   }, [user, guestMode, party]);
+
+  useEffect(() => {
+    if (!user || guestMode || !overlayEnabled) {
+      setOverlayFriends([]);
+      return undefined;
+    }
+    let cancelled = false;
+    const ONLINE_MS = 3 * 60 * 1000;
+    async function tick() {
+      try {
+        const { data: rows, error } = await sb
+          .from('friendships')
+          .select('requester_id,addressee_id,status');
+        if (error || cancelled) return;
+        const mine = (rows || []).filter((r) => {
+          const involved = r.requester_id === user.id || r.addressee_id === user.id;
+          const accepted = r.status === 'accepted' || r.status === 'friends' || r.status == null;
+          return involved && accepted;
+        });
+        const ids = [...new Set(mine.map((r) => (r.requester_id === user.id ? r.addressee_id : r.requester_id)))]
+          .filter((id) => id && id !== user.id);
+        if (!ids.length) {
+          if (!cancelled) setOverlayFriends([]);
+          return;
+        }
+        let { data: profs, error: pErr } = await sb
+          .from('profiles')
+          .select('id,gamer_tag,last_seen_at,playing_game,custom_status')
+          .in('id', ids.slice(0, 40));
+        if (pErr) {
+          ({ data: profs, error: pErr } = await sb
+            .from('profiles')
+            .select('id,gamer_tag,last_seen_at,playing_game')
+            .in('id', ids.slice(0, 40)));
+        }
+        if (cancelled || pErr) return;
+        const now = Date.now();
+        const online = (profs || [])
+          .filter((p) => p.last_seen_at && now - new Date(p.last_seen_at).getTime() < ONLINE_MS)
+          .map((p) => ({
+            tag: p.gamer_tag || 'Player',
+            game: p.playing_game || null,
+            status: p.custom_status || null,
+          }))
+          .slice(0, 8);
+        setOverlayFriends(online);
+      } catch {
+        /* overlay friends are best-effort */
+      }
+    }
+    tick();
+    const id = setInterval(tick, 20000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [user, guestMode, overlayEnabled]);
 
   const value = {
     loading,
@@ -1375,6 +1480,7 @@ export function NexForgeProvider({ children }) {
     setDndEnabled,
     overlayEnabled,
     setOverlayEnabled,
+    applyOverlayPrefs,
     clipEnabled,
     setClipEnabled,
     clipSeconds,

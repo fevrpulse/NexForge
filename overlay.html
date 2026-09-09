@@ -14,6 +14,8 @@
       --muted: #9aa08d;
       --red: #FF4A32;
       --call: #FF8A3D;
+      --warm: #FF8C42;
+      --hud-opacity: .92;
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body {
@@ -30,12 +32,13 @@
     }
     body.hud-on.nexai-only { background: transparent; }
     body.nexai-only .hud-bar,
-    body.nexai-only #panel-session,
-    body.nexai-only #panel-clip,
-    body.nexai-only #panel-feed { display: none !important; }
-    body.nexai-only #panel-nexai {
-      box-shadow: 0 18px 48px rgba(0,0,0,.55);
-    }
+    body.nexai-only .hud-panel:not(#panel-nexai),
+    body.nexai-only #strip,
+    body.nexai-only #crosshair,
+    body.nexai-only #panel-picker { display: none !important; }
+    body.nexai-only #panel-nexai { box-shadow: 0 18px 48px rgba(0,0,0,.55); }
+    body.hud-on #strip { display: none !important; }
+    #hud, #strip, #crosshair { opacity: var(--hud-opacity); }
     .panel-h .panel-x {
       display: none;
       border: 1px solid var(--border);
@@ -55,42 +58,29 @@
     .ai-chip {
       background: rgba(201,255,0,.07);
       border: 1px solid rgba(201,255,0,.22);
-      color: var(--muted2);
+      color: var(--muted);
       border-radius: 999px;
       padding: 5px 10px;
       font-family: inherit;
       font-size: 10px;
       cursor: pointer;
-      transition: border-color .15s, color .15s, background .15s;
     }
     .ai-chip:hover { border-color: var(--neon); color: var(--neon); background: rgba(201,255,0,.14); }
     #toasts {
-      position: fixed;
-      top: 18px;
-      right: 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      align-items: flex-end;
-      z-index: 40;
-      pointer-events: none;
+      position: fixed; top: 18px; right: 18px;
+      display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
+      z-index: 40; pointer-events: none;
     }
     .toast {
-      width: 340px;
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--neon);
-      border-radius: 12px;
-      padding: 11px 14px;
-      display: flex;
-      gap: 11px;
-      align-items: center;
+      width: 340px; background: var(--bg); border: 1px solid var(--border);
+      border-left: 3px solid var(--neon); border-radius: 12px; padding: 11px 14px;
+      display: flex; gap: 11px; align-items: center;
       box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
       animation: slide-in 0.22s ease-out;
     }
     .toast.call { border-left-color: var(--call); }
     .toast.clip { border-left-color: var(--hud); }
-    .toast.heat { border-left-color: #FF8C42; }
+    .toast.heat { border-left-color: var(--warm); }
     .toast.party { border-left-color: #4B8CFF; }
     .toast.lobby { border-left-color: #FF9652; }
     .toast.leaving { opacity: 0; transform: translateX(24px); transition: opacity .35s, transform .35s; }
@@ -125,10 +115,11 @@
     body.hud-on #hud { display: block; }
     .hud-bar {
       position: absolute; left: 50%; top: 16px; transform: translateX(-50%);
-      display: flex; align-items: center; gap: 14px;
+      display: flex; align-items: center; gap: 10px;
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: 999px; padding: 8px 14px 8px 16px;
+      border-radius: 999px; padding: 8px 12px 8px 16px;
       box-shadow: 0 10px 32px rgba(0,0,0,.45);
+      z-index: 20;
     }
     .hud-bar b { color: var(--neon); letter-spacing: .12em; font-size: 11px; }
     .hud-bar span { font-size: 12px; color: var(--muted); }
@@ -139,17 +130,14 @@
     }
     .hud-bar button:hover, .panel button:hover, .ai-send:hover { background: var(--neon); color: #081008; }
     .panel {
-      position: absolute;
-      width: 320px;
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      box-shadow: 0 16px 40px rgba(0,0,0,.45);
+      position: absolute; width: 300px;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,.45);
       overflow: hidden;
     }
+    .panel.hidden-panel { display: none !important; }
     .panel-h {
-      cursor: grab;
-      padding: 10px 12px;
+      cursor: grab; padding: 10px 12px;
       display: flex; align-items: center; justify-content: space-between;
       border-bottom: 1px solid rgba(201,255,0,.12);
       font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
@@ -159,47 +147,163 @@
     .panel-b { padding: 12px; font-size: 13px; }
     .muted { color: var(--muted); font-size: 12px; line-height: 1.45; }
     .clip-status { font-family: Consolas, monospace; font-size: 11px; color: var(--hud); margin: 8px 0 12px; }
-    .clip-btn {
-      width: 100%; padding: 10px !important; border-radius: 12px !important;
-      font-size: 14px !important;
-    }
+    .clip-btn { width: 100%; padding: 10px !important; border-radius: 12px !important; font-size: 14px !important; }
     .clip-btn:disabled { opacity: .5; cursor: not-allowed; }
-    #ai-log {
-      height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;
-      margin-bottom: 8px;
-    }
-    .ai-msg {
-      font-size: 12px; line-height: 1.45; padding: 8px 10px; border-radius: 10px;
-      background: rgba(255,255,255,.04); color: var(--text);
-    }
+    #ai-log { height: 220px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+    .ai-msg { font-size: 12px; line-height: 1.45; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.04); color: var(--text); }
     .ai-msg.me { background: rgba(210,255,42,.14); color: var(--neon); }
     .ai-row { display: flex; gap: 6px; }
     .ai-row input {
       flex: 1; border-radius: 10px; border: 1px solid var(--border);
-      background: rgba(0,0,0,.35); color: var(--text); padding: 8px 10px;
-      font-family: inherit;
+      background: rgba(0,0,0,.35); color: var(--text); padding: 8px 10px; font-family: inherit;
     }
     .feed-item { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
     .feed-item:last-child { border-bottom: none; }
     .feed-k { font-size: 10px; letter-spacing: .12em; color: var(--neon); text-transform: uppercase; }
+    .meter { display: grid; grid-template-columns: 52px 1fr 46px; gap: 6px; align-items: center; margin: 5px 0; }
+    .meter-l { font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .meter-t { font-family: Consolas, monospace; font-size: 11px; text-align: right; color: var(--hud); }
+    .meter-bar { grid-column: 1 / -1; height: 5px; border-radius: 99px; background: rgba(255,255,255,.08); overflow: hidden; }
+    .meter-bar i { display: block; height: 100%; background: var(--neon); border-radius: 99px; }
+    .meter-bar i.warm { background: var(--warm); }
+    .meter-bar i.hot { background: var(--red); }
+    .stat-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; font-size: 12px; }
+    .stat-row b { color: var(--neon); font-weight: 700; }
+    .list-row { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.06); font-size: 12px; }
+    .list-row:last-child { border-bottom: none; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; }
+    .dot.on { background: var(--neon); box-shadow: 0 0 8px var(--neon); }
+    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .quick-grid button { width: 100%; border-radius: 10px !important; padding: 9px 8px !important; }
+    .notes {
+      width: 100%; min-height: 110px; resize: none; border-radius: 10px;
+      border: 1px solid var(--border); background: rgba(0,0,0,.35); color: var(--text);
+      padding: 8px 10px; font-family: inherit; font-size: 12px;
+    }
+    .clock-big { font-size: 28px; font-weight: 800; letter-spacing: .04em; font-family: Consolas, monospace; }
+    .kbd { font-family: Consolas, monospace; font-size: 11px; color: var(--neon); }
+    .spark { display: flex; align-items: flex-end; gap: 2px; height: 28px; margin-top: 8px; }
+    .spark i { flex: 1; background: var(--hud); opacity: .75; border-radius: 1px 1px 0 0; min-height: 3px; }
+    #strip {
+      display: none; position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+      z-index: 8; pointer-events: none;
+      background: var(--panel); border: 1px solid var(--border); border-radius: 999px;
+      padding: 7px 16px; gap: 10px; align-items: center;
+      box-shadow: 0 10px 28px rgba(0,0,0,.45);
+      font-family: Consolas, monospace; font-size: 11px; letter-spacing: .04em;
+    }
+    body.strip-on #strip { display: flex; }
+    body.strip-top #strip { top: 18px; bottom: auto; }
+    #strip b { color: var(--neon); }
+    #strip .sep { color: rgba(255,255,255,.2); }
+    #strip .flag { color: var(--hud); }
+    #strip.hot { border-color: rgba(255,74,50,.55); }
+    #strip.warm { border-color: rgba(255,140,66,.55); }
+    #crosshair {
+      display: none; position: fixed; left: 50%; top: 50%; width: 14px; height: 14px;
+      margin: -7px 0 0 -7px; z-index: 5; pointer-events: none;
+    }
+    body.crosshair-on #crosshair { display: block; }
+    #crosshair::before, #crosshair::after {
+      content: ""; position: absolute; background: var(--neon); opacity: .85;
+      box-shadow: 0 0 6px rgba(210,255,42,.6);
+    }
+    #crosshair::before { left: 6px; top: 0; width: 2px; height: 14px; }
+    #crosshair::after { left: 0; top: 6px; width: 14px; height: 2px; }
+    body.xh-dot #crosshair::before {
+      left: 5px; top: 5px; width: 4px; height: 4px; border-radius: 50%;
+    }
+    body.xh-dot #crosshair::after { display: none; }
+    body.xh-circle #crosshair {
+      width: 18px; height: 18px; margin: -9px 0 0 -9px;
+      border: 2px solid var(--neon); border-radius: 50%;
+      box-shadow: 0 0 8px rgba(210,255,42,.5);
+    }
+    body.xh-circle #crosshair::before, body.xh-circle #crosshair::after { display: none; }
+    body.xh-plus #crosshair::before {
+      left: 6px; top: 0; width: 2px; height: 5px;
+      box-shadow: 0 9px 0 0 var(--neon);
+    }
+    body.xh-plus #crosshair::after {
+      left: 0; top: 6px; width: 5px; height: 2px;
+      box-shadow: 9px 0 0 0 var(--neon);
+    }
+    .timer-big { font-size: 32px; font-weight: 800; letter-spacing: .06em; font-family: Consolas, monospace; color: var(--hud); }
+    .you-tag { font-weight: 800; font-size: 18px; margin-bottom: 4px; }
+    .qual { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 800; }
+    .qual.ok { color: var(--neon); }
+    .qual.warm { color: var(--warm); }
+    .qual.hot { color: var(--red); }
+    .score-ring {
+      display: flex; align-items: baseline; gap: 8px; margin: 8px 0 4px;
+    }
+    .score-ring b { font-size: 28px; font-family: Consolas, monospace; color: var(--neon); }
+    #panel-picker {
+      display: none; position: absolute; left: 50%; top: 58px; transform: translateX(-50%);
+      width: 280px; background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 10px; z-index: 25; box-shadow: 0 16px 40px rgba(0,0,0,.5);
+    }
+    #panel-picker.open { display: block; }
+    .pick-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 4px; font-size: 12px; color: var(--text);
+    }
+    .pick-row button {
+      width: 36px; padding: 3px 0; font-size: 10px;
+    }
   </style>
 </head>
 <body>
+  <div id="crosshair" aria-hidden="true"></div>
+  <div id="strip">
+    <b>NF</b>
+    <span class="sep">·</span>
+    <span id="strip-clock">--:--</span>
+    <span class="sep">·</span>
+    <span id="strip-game">Idle</span>
+    <span class="sep" id="strip-dur-sep" hidden>·</span>
+    <span id="strip-dur" hidden></span>
+    <span class="sep">·</span>
+    <span id="strip-stats">Waiting</span>
+    <span class="sep strip-flag-sep" hidden>·</span>
+    <span id="strip-flags" class="flag"></span>
+  </div>
   <div id="toasts"></div>
   <div id="hud">
     <div class="hud-bar">
       <b>NEXFORGE HUD</b>
       <span id="hud-hint">Drag panels · same keybind to close</span>
+      <button type="button" id="hud-clip">Clip</button>
+      <button type="button" id="hud-panels">Panels</button>
       <button type="button" id="hud-close">Close</button>
     </div>
-    <div class="panel" id="panel-session" data-id="session">
+    <div id="panel-picker"></div>
+
+    <div class="panel hud-panel" id="panel-session" data-id="session">
       <div class="panel-h">Session</div>
       <div class="panel-b">
         <div id="session-game" style="font-weight:800;font-size:16px">No game tracked</div>
         <div class="muted" id="session-sub">Launch a supported game to light this up.</div>
+        <div id="session-meters"></div>
       </div>
     </div>
-    <div class="panel" id="panel-clip" data-id="clip">
+    <div class="panel hud-panel" id="panel-hardware" data-id="hardware">
+      <div class="panel-h">Hardware</div>
+      <div class="panel-b" id="hardware-body">
+        <div class="muted">Meters fill once a session is tracked.</div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-clock" data-id="clock">
+      <div class="panel-h">Clock</div>
+      <div class="panel-b">
+        <div class="clock-big" id="clock-now">--:--</div>
+        <div class="muted" id="clock-date"></div>
+        <div class="stat-row" style="margin-top:8px"><span>UTC</span><b id="clock-utc">—</b></div>
+        <div class="stat-row"><span>Session</span><b id="clock-session">—</b></div>
+        <div class="stat-row"><span>You</span><b id="clock-tag">Player</b></div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-clip" data-id="clip">
       <div class="panel-h">Clip</div>
       <div class="panel-b">
         <div class="muted">Save the last seconds of gameplay — kills, clutches, anything worth keeping.</div>
@@ -208,14 +312,28 @@
         <div class="muted" id="clip-last" style="margin-top:8px"></div>
       </div>
     </div>
-    <div class="panel" id="panel-nexai" data-id="nexai" style="width:360px">
+    <div class="panel hud-panel" id="panel-quick" data-id="quick">
+      <div class="panel-h">Quick</div>
+      <div class="panel-b">
+        <div class="quick-grid">
+          <button type="button" id="quick-clip">Clip now</button>
+          <button type="button" id="quick-dnd">DND</button>
+          <button type="button" id="quick-show">Show app</button>
+          <button type="button" id="quick-lobby">Copy lobby</button>
+          <button type="button" id="quick-tag">Copy tag</button>
+          <button type="button" id="quick-stats">Copy stats</button>
+        </div>
+        <div class="muted" id="quick-status" style="margin-top:10px">Boost and DND show here.</div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-nexai" data-id="nexai" style="width:360px">
       <div class="panel-h">NexAI <button type="button" class="panel-x panel-clear" id="nexai-clear" aria-label="Clear conversation" title="Clear conversation">⌫</button><button type="button" class="panel-x" id="nexai-close" aria-label="Close">×</button></div>
       <div class="panel-b">
         <div id="ai-log"></div>
         <div class="ai-chips" id="ai-chips">
-          <button type="button" class="ai-chip">How do I improve my aim?</button>
-          <button type="button" class="ai-chip">Warm-up routine</button>
-          <button type="button" class="ai-chip">Help me stop tilting</button>
+          <button type="button" class="ai-chip" data-chip="0">How do I improve my aim?</button>
+          <button type="button" class="ai-chip" data-chip="1">Warm-up routine</button>
+          <button type="button" class="ai-chip" data-chip="2">Help me stop tilting</button>
         </div>
         <div class="ai-row">
           <input id="ai-input" maxlength="400" placeholder="Ask NexAI…" />
@@ -223,29 +341,123 @@
         </div>
       </div>
     </div>
-    <div class="panel" id="panel-feed" data-id="feed">
+    <div class="panel hud-panel" id="panel-feed" data-id="feed">
       <div class="panel-h">Alerts</div>
       <div class="panel-b" id="feed-list">
         <div class="muted">Calls and messages show here while you play.</div>
       </div>
+    </div>
+    <div class="panel hud-panel" id="panel-squad" data-id="squad">
+      <div class="panel-h">Squad</div>
+      <div class="panel-b" id="squad-body">
+        <div class="muted">No party yet. Invite from Friends.</div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-friends" data-id="friends">
+      <div class="panel-h">Friends</div>
+      <div class="panel-b" id="friends-body">
+        <div class="muted">Online friends appear here while the overlay is on.</div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-recap" data-id="recap">
+      <div class="panel-h">Last session</div>
+      <div class="panel-b" id="recap-body">
+        <div class="muted">Finish a tracked game to see the recap.</div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-you" data-id="you">
+      <div class="panel-h">You</div>
+      <div class="panel-b">
+        <div class="you-tag" id="you-tag">Player</div>
+        <div class="muted" id="you-sub">Sign in to fill this out.</div>
+        <div id="you-stats"></div>
+        <div class="quick-grid" style="margin-top:10px">
+          <button type="button" id="you-friends">Friends</button>
+          <button type="button" id="you-optimize">Optimize</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-network" data-id="network">
+      <div class="panel-h">Network</div>
+      <div class="panel-b" id="network-body">
+        <div class="muted">Ping fills once a session is tracked.</div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-focus" data-id="focus">
+      <div class="panel-h">Focus</div>
+      <div class="panel-b">
+        <div class="timer-big" id="focus-remain">05:00</div>
+        <div class="muted" id="focus-label" style="margin:6px 0 10px">Warm-up timer — stays on this PC only.</div>
+        <div class="quick-grid">
+          <button type="button" data-focus="3">3 min</button>
+          <button type="button" data-focus="5">5 min</button>
+          <button type="button" data-focus="10">10 min</button>
+          <button type="button" id="focus-toggle">Start</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-notes" data-id="notes">
+      <div class="panel-h">Notes</div>
+      <div class="panel-b">
+        <textarea class="notes" id="notes-box" maxlength="800" placeholder="Strats, codes, reminders…"></textarea>
+      </div>
+    </div>
+    <div class="panel hud-panel" id="panel-keys" data-id="keys">
+      <div class="panel-h">Hotkeys</div>
+      <div class="panel-b" id="keys-body"></div>
     </div>
   </div>
   <script>
     const api = window.nexforgeOverlay;
     const MAX_TOASTS = 4;
     const TOAST_MS = 7000;
-    const LAYOUT_KEY = 'nf-overlay-layout-v1';
+    const LAYOUT_KEY = 'nf-overlay-layout-v2';
+    const VISIBLE_KEY = 'nf-overlay-visible-v1';
+    const NOTES_KEY = 'nf-overlay-notes';
+    const PANEL_META = [
+      { id: 'session', label: 'Session' },
+      { id: 'hardware', label: 'Hardware' },
+      { id: 'network', label: 'Network' },
+      { id: 'clock', label: 'Clock' },
+      { id: 'you', label: 'You' },
+      { id: 'clip', label: 'Clip' },
+      { id: 'quick', label: 'Quick actions' },
+      { id: 'nexai', label: 'NexAI' },
+      { id: 'feed', label: 'Alerts' },
+      { id: 'squad', label: 'Squad' },
+      { id: 'friends', label: 'Friends' },
+      { id: 'recap', label: 'Last session' },
+      { id: 'focus', label: 'Focus timer' },
+      { id: 'notes', label: 'Notes' },
+      { id: 'keys', label: 'Hotkeys' },
+    ];
     const DEFAULT_LAYOUT = {
-      session: { x: 24, y: 72 },
-      clip: { x: 24, y: 210 },
-      nexai: { x: 24, y: 400 },
-      feed: { x: -380, y: 72 },
+      session: { x: 20, y: 70 },
+      hardware: { x: 20, y: 250 },
+      clock: { x: 20, y: 520 },
+      you: { x: 20, y: 700 },
+      clip: { x: 340, y: 70 },
+      quick: { x: 340, y: 300 },
+      nexai: { x: 340, y: 520 },
+      feed: { x: -340, y: 70 },
+      squad: { x: -340, y: 280 },
+      friends: { x: -340, y: 470 },
+      recap: { x: -340, y: 680 },
+      network: { x: 660, y: 70 },
+      focus: { x: 660, y: 300 },
+      notes: { x: 660, y: 500 },
+      keys: { x: 660, y: 700 },
+    };
+    const DEFAULT_VISIBLE = {
+      session: true, hardware: true, network: true, clock: true, you: true,
+      clip: true, quick: true, nexai: true, feed: true, squad: true, friends: true,
+      recap: true, focus: true, notes: false, keys: false,
     };
 
     let aiBusy = false;
     let aiReq = 0;
     let signedIn = false;
-    // The overlay had no memory: every question started a fresh conversation.
+    let overlayState = {};
     const AI_HISTORY_KEY = 'nf-overlay-ai-history';
     const AI_HISTORY_MAX = 16;
     let aiHistory = [];
@@ -255,11 +467,8 @@
     } catch { aiHistory = []; }
 
     function persistAiHistory() {
-      try {
-        localStorage.setItem(AI_HISTORY_KEY, JSON.stringify(aiHistory.slice(-AI_HISTORY_MAX)));
-      } catch { /* storage full or blocked */ }
+      try { localStorage.setItem(AI_HISTORY_KEY, JSON.stringify(aiHistory.slice(-AI_HISTORY_MAX))); } catch { /* ignore */ }
     }
-
     function clearAiHistory() {
       aiHistory = [];
       persistAiHistory();
@@ -268,12 +477,17 @@
       syncAiChips();
     }
     let feed = [];
-    let prefs = { hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8' } };
+    let prefs = { hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8', nexai: 'Ctrl+Shift+A' }, statusStrip: true, crosshair: false, crosshairStyle: 'cross', stripPosition: 'bottom', hudOpacity: 92 };
+    const FOCUS_KEY = 'nf-overlay-focus';
+    let focusUntil = 0;
+    let focusLen = 5 * 60 * 1000;
+    try {
+      const savedFocus = JSON.parse(localStorage.getItem(FOCUS_KEY) || 'null');
+      if (savedFocus && Number(savedFocus.len)) focusLen = Number(savedFocus.len);
+      if (savedFocus && Number(savedFocus.until) > Date.now()) focusUntil = Number(savedFocus.until);
+    } catch { /* ignore */ }
 
-    function initials(name) {
-      return String(name || '?').slice(0, 2).toUpperCase();
-    }
-
+    function initials(name) { return String(name || '?').slice(0, 2).toUpperCase(); }
     function kindLabel(kind) {
       if (kind === 'call') return 'Incoming Call';
       if (kind === 'party') return 'Party';
@@ -282,6 +496,23 @@
       if (kind === 'heat') return 'Hardware';
       if (kind === 'duel') return 'Duel';
       return 'Message';
+    }
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, (c) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+      }[c]));
+    }
+    function formatAcc(acc) {
+      return String(acc || '').replace(/CommandOrControl/g, 'Ctrl').replace(/\+/g, ' + ');
+    }
+    function fmtDur(sec) {
+      const n = Math.max(0, Math.floor(Number(sec) || 0));
+      const m = Math.floor(n / 60);
+      const s = n % 60;
+      return m + 'm ' + String(s).padStart(2, '0') + 's';
+    }
+    function clockText() {
+      return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
     }
 
     function addFeed(msg) {
@@ -297,38 +528,33 @@
       )).join('');
     }
 
-    function escapeHtml(s) {
-      return String(s || '').replace(/[&<>"']/g, (c) => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-      }[c]));
-    }
-
     function toastCount() {
       return document.getElementById('toasts')?.querySelectorAll('.toast').length || 0;
     }
-
     function clipStatusText(s) {
       if (!s || s.enabled === false) return 'Clip buffer off';
       if (s.buffering) return 'Buffering… ' + (s.readySeconds || 0) + 's';
       return 'Ready · last ' + (s.seconds || 20) + 's';
     }
-
     function applyClipUi(s) {
       const status = document.getElementById('clip-status');
       const btn = document.getElementById('clip-btn');
+      const hudClip = document.getElementById('hud-clip');
+      const quick = document.getElementById('quick-clip');
       if (status) status.textContent = clipStatusText(s);
-      if (!btn) return;
       const off = !s || s.enabled === false;
       const buffering = !!s?.buffering;
-      btn.disabled = off || buffering;
-      btn.textContent = off ? 'Clips off' : buffering ? 'Buffering…' : 'Clip highlight';
+      [btn, hudClip, quick].forEach((el) => {
+        if (!el) return;
+        el.disabled = off || buffering;
+      });
+      if (btn) btn.textContent = off ? 'Clips off' : buffering ? 'Buffering…' : 'Clip highlight';
+      if (hudClip) hudClip.textContent = off ? 'Clips off' : buffering ? 'Buffering' : 'Clip';
     }
 
     function addToast(msg) {
       const host = document.getElementById('toasts');
-      while (toastCount() >= MAX_TOASTS) {
-        host.querySelector('.toast')?.remove();
-      }
+      while (toastCount() >= MAX_TOASTS) host.querySelector('.toast')?.remove();
       const kind = String(msg.kind || 'message').toLowerCase();
       const el = document.createElement('div');
       el.className = 'toast ' + kind;
@@ -354,20 +580,52 @@
       try {
         const raw = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null');
         return raw && typeof raw === 'object' ? { ...DEFAULT_LAYOUT, ...raw } : { ...DEFAULT_LAYOUT };
-      } catch {
-        return { ...DEFAULT_LAYOUT };
-      }
+      } catch { return { ...DEFAULT_LAYOUT }; }
     }
-
     function saveLayout(layout) {
       try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(layout)); } catch { /* ignore */ }
+    }
+    function loadVisible() {
+      try {
+        const raw = JSON.parse(localStorage.getItem(VISIBLE_KEY) || 'null');
+        return raw && typeof raw === 'object' ? { ...DEFAULT_VISIBLE, ...raw } : { ...DEFAULT_VISIBLE };
+      } catch { return { ...DEFAULT_VISIBLE }; }
+    }
+    function saveVisible(vis) {
+      try { localStorage.setItem(VISIBLE_KEY, JSON.stringify(vis)); } catch { /* ignore */ }
+    }
+
+    function applyVisible() {
+      const vis = loadVisible();
+      document.querySelectorAll('.hud-panel').forEach((el) => {
+        el.classList.toggle('hidden-panel', vis[el.dataset.id] === false);
+      });
+      renderPicker();
+    }
+
+    function renderPicker() {
+      const box = document.getElementById('panel-picker');
+      if (!box) return;
+      const vis = loadVisible();
+      box.innerHTML = PANEL_META.map((p) => (
+        `<div class="pick-row"><span>${escapeHtml(p.label)}</span><button type="button" data-toggle="${p.id}">${vis[p.id] === false ? 'Off' : 'On'}</button></div>`
+      )).join('');
+      box.querySelectorAll('button[data-toggle]').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const visNow = loadVisible();
+          visNow[btn.dataset.toggle] = visNow[btn.dataset.toggle] === false;
+          saveVisible(visNow);
+          applyVisible();
+        };
+      });
     }
 
     function placePanels() {
       const layout = loadLayout();
       document.querySelectorAll('.panel').forEach((el) => {
         const id = el.dataset.id;
-        const pos = layout[id] || DEFAULT_LAYOUT[id];
+        const pos = layout[id] || DEFAULT_LAYOUT[id] || { x: 24, y: 72 };
         let x = pos.x;
         let y = pos.y;
         if (x < 0) x = window.innerWidth + x;
@@ -378,16 +636,12 @@
 
     function enableDrag(el) {
       const handle = el.querySelector('.panel-h');
-      let sx = 0;
-      let sy = 0;
-      let ox = 0;
-      let oy = 0;
+      if (!handle) return;
+      let sx = 0, sy = 0, ox = 0, oy = 0;
       handle.addEventListener('mousedown', (e) => {
+        if (e.target.closest('button')) return;
         e.preventDefault();
-        sx = e.clientX;
-        sy = e.clientY;
-        ox = el.offsetLeft;
-        oy = el.offsetTop;
+        sx = e.clientX; sy = e.clientY; ox = el.offsetLeft; oy = el.offsetTop;
         const move = (ev) => {
           el.style.left = Math.max(8, ox + ev.clientX - sx) + 'px';
           el.style.top = Math.max(56, oy + ev.clientY - sy) + 'px';
@@ -404,11 +658,312 @@
       });
     }
 
+    function meterHtml(label, value, suffix, max) {
+      const n = Number(value);
+      const cap = max || 100;
+      const pct = Number.isFinite(n) ? Math.max(0, Math.min(100, (n / cap) * 100)) : 0;
+      const cls = pct >= 90 ? 'hot' : pct >= 75 ? 'warm' : '';
+      const text = Number.isFinite(n) ? Math.round(n) + suffix : '—';
+      return `<div class="meter"><div class="meter-l">${label}</div><div class="meter-t">${text}</div><div class="meter-bar"><i class="${cls}" style="width:${pct}%"></i></div></div>`;
+    }
+
+    function sparkHtml(values) {
+      const nums = (values || []).map(Number).filter(Number.isFinite).slice(-16);
+      if (nums.length < 2) return '';
+      const max = Math.max(...nums, 1);
+      return `<div class="spark">${nums.map((n) => `<i style="height:${Math.max(8, (n / max) * 100)}%"></i>`).join('')}</div>`;
+    }
+
+    function applyChrome(nextPrefs) {
+      if (nextPrefs) prefs = { ...prefs, ...nextPrefs };
+      const opacity = Math.max(40, Math.min(100, Number(prefs.hudOpacity) || 92)) / 100;
+      document.documentElement.style.setProperty('--hud-opacity', String(opacity));
+      document.body.classList.toggle('crosshair-on', !!prefs.crosshair);
+      document.body.classList.toggle('strip-top', prefs.stripPosition === 'top');
+      document.body.classList.remove('xh-cross', 'xh-dot', 'xh-circle', 'xh-plus');
+      const xh = ['cross', 'dot', 'circle', 'plus'].includes(prefs.crosshairStyle) ? prefs.crosshairStyle : 'cross';
+      document.body.classList.add('xh-' + xh);
+      const keys = document.getElementById('keys-body');
+      if (keys) {
+        keys.innerHTML = [
+          ['HUD', prefs.hotkeys?.overlay],
+          ['NexAI', prefs.hotkeys?.nexai],
+          ['Clip', prefs.hotkeys?.clip],
+        ].map(([k, v]) => `<div class="stat-row"><span>${k}</span><span class="kbd">${escapeHtml(formatAcc(v))}</span></div>`).join('');
+      }
+    }
+
+    function pingQuality(ms) {
+      const n = Number(ms);
+      if (!Number.isFinite(n)) return { id: 'ok', label: 'Waiting' };
+      if (n >= 120) return { id: 'hot', label: 'Spikes' };
+      if (n >= 70) return { id: 'warm', label: 'Spotty' };
+      if (n >= 40) return { id: 'ok', label: 'Good' };
+      return { id: 'ok', label: 'Excellent' };
+    }
+
+    function sessionScore(state) {
+      if (!state?.game) return null;
+      let score = 100;
+      const cpu = Number(state.cpuPct);
+      const gpu = Number(state.gpuPct);
+      const ping = Number(state.pingMs);
+      if (Number.isFinite(cpu)) score -= Math.max(0, cpu - 70) * 0.6;
+      if (Number.isFinite(gpu)) score -= Math.max(0, gpu - 75) * 0.5;
+      if (Number.isFinite(ping)) score -= Math.max(0, ping - 40) * 0.25;
+      return Math.max(12, Math.min(99, Math.round(score)));
+    }
+
+    function gameChips(game) {
+      const g = String(game || '').toLowerCase();
+      if (/valorant|counter-strike|cs2|overwatch|apex|r6|rainbow/.test(g)) {
+        return ['Aim routine for this lobby', 'Stop peeking wide', 'Reset after a bad round'];
+      }
+      if (/league|dota|smite|hots/.test(g)) {
+        return ['Macro advice this game', 'Help me tilt less', 'What to play from behind'];
+      }
+      if (/fortnite|warzone|pubg|battle royale/.test(g)) {
+        return ['Drop and rotate plan', 'Late-game positioning', 'Loadout ideas'];
+      }
+      if (/rocket league|fifa|fc 2|nba/.test(g)) {
+        return ['Warm-up drills', 'Keep composure', 'What to practice next'];
+      }
+      return ['How do I improve my aim?', 'Warm-up routine', 'Help me stop tilting'];
+    }
+
+    function applyAiChips(game) {
+      if (aiHistory.length) return;
+      const texts = gameChips(game);
+      document.querySelectorAll('.ai-chip').forEach((chip, i) => {
+        if (texts[i]) chip.textContent = texts[i];
+      });
+    }
+
+    function fmtMmSs(ms) {
+      const n = Math.max(0, Math.ceil(ms / 1000));
+      const m = Math.floor(n / 60);
+      const s = n % 60;
+      return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+
+    function persistFocus() {
+      try { localStorage.setItem(FOCUS_KEY, JSON.stringify({ until: focusUntil, len: focusLen })); } catch { /* ignore */ }
+    }
+
+    function renderFocus() {
+      const remain = document.getElementById('focus-remain');
+      const label = document.getElementById('focus-label');
+      const toggle = document.getElementById('focus-toggle');
+      const left = focusUntil ? Math.max(0, focusUntil - Date.now()) : focusLen;
+      if (remain) remain.textContent = fmtMmSs(left);
+      if (toggle) toggle.textContent = focusUntil ? 'Stop' : 'Start';
+      if (label) {
+        label.textContent = focusUntil
+          ? (left > 0 ? 'Timer running on this PC.' : 'Done — start another set.')
+          : 'Warm-up timer — stays on this PC only.';
+      }
+      if (focusUntil && left <= 0) {
+        focusUntil = 0;
+        persistFocus();
+        if (toggle) toggle.textContent = 'Start';
+      }
+    }
+
+    let durationAt = 0;
+    function liveDuration() {
+      if (!overlayState.game) return null;
+      const base = Number(overlayState.durationSec);
+      if (!Number.isFinite(base)) return 0;
+      if (!durationAt) return Math.max(0, base);
+      return Math.max(0, base + (Date.now() - durationAt) / 1000);
+    }
+
+    function applyState(state) {
+      if (!state || typeof state !== 'object') return;
+      overlayState = { ...overlayState, ...state };
+      if (Object.prototype.hasOwnProperty.call(state, 'durationSec')) durationAt = Date.now();
+      signedIn = !!overlayState.signedIn;
+      const game = overlayState.game || '';
+      document.getElementById('session-game').textContent = game || 'No game tracked';
+      document.getElementById('strip-game').textContent = game || 'Idle';
+      document.getElementById('clock-tag').textContent = overlayState.tag || 'Player';
+      applyAiChips(game);
+
+      const dur = liveDuration();
+      const bits = [];
+      if (game) {
+        if (overlayState.heat) bits.push(overlayState.heat);
+        if (overlayState.cpuPct != null) bits.push('CPU ' + Math.round(Number(overlayState.cpuPct)) + '%');
+        if (overlayState.gpuPct != null) bits.push('GPU ' + Math.round(Number(overlayState.gpuPct)) + '%');
+        if (overlayState.pingMs != null) bits.push(Math.round(Number(overlayState.pingMs)) + 'ms');
+        if (overlayState.unread) bits.push(overlayState.unread + ' unread');
+        document.getElementById('session-sub').textContent = [
+          dur != null ? fmtDur(dur) : 'Live',
+          ...bits,
+        ].join(' · ');
+        document.getElementById('clock-session').textContent = dur != null ? fmtDur(dur) : 'Live';
+      } else {
+        document.getElementById('session-sub').textContent = 'Launch a supported game to light this up.';
+        document.getElementById('clock-session').textContent = '—';
+      }
+      const durEl = document.getElementById('strip-dur');
+      const durSep = document.getElementById('strip-dur-sep');
+      if (durEl) {
+        durEl.hidden = !game;
+        durEl.textContent = game && dur != null ? fmtDur(dur) : '';
+      }
+      if (durSep) durSep.hidden = !game;
+      document.getElementById('strip-stats').textContent = game ? (bits.join(' · ') || 'Live') : 'Waiting';
+
+      const dnd = !!overlayState.dnd;
+      const boost = !!overlayState.boost;
+      const voice = overlayState.voice && overlayState.voice.state && overlayState.voice.state !== 'idle' ? overlayState.voice : null;
+      const flags = [];
+      if (dnd) flags.push('DND');
+      if (boost) flags.push('Boost');
+      if (voice) flags.push(voice.state === 'ringing' ? 'Ringing' : 'Call');
+      if (overlayState.unread) flags.push(overlayState.unread + ' msg');
+      const flagsEl = document.getElementById('strip-flags');
+      const flagSep = document.querySelector('.strip-flag-sep');
+      if (flagsEl) flagsEl.textContent = flags.join(' · ');
+      if (flagSep) flagSep.hidden = !flags.length;
+      const strip = document.getElementById('strip');
+      if (strip) {
+        strip.classList.toggle('hot', overlayState.heat === 'Running hot');
+        strip.classList.toggle('warm', overlayState.heat === 'Warm');
+      }
+
+      const score = sessionScore(overlayState);
+      document.getElementById('session-meters').innerHTML = game ? (
+        (score != null ? `<div class="score-ring"><b>${score}</b><span class="muted">session score</span></div>` : '') +
+        meterHtml('CPU', overlayState.cpuPct, '%') +
+        meterHtml('GPU', overlayState.gpuPct, '%') +
+        meterHtml('Ping', overlayState.pingMs, 'ms', 200)
+      ) : '';
+
+      const hw = document.getElementById('hardware-body');
+      if (hw) {
+        if (game) {
+          hw.innerHTML =
+            meterHtml('CPU', overlayState.cpuPct, '%') +
+            meterHtml('GPU', overlayState.gpuPct, '%') +
+            meterHtml('RAM', overlayState.ramMb, ' MB', Math.max(16000, Number(overlayState.ramMb) * 1.2 || 16000)) +
+            meterHtml('Disk', overlayState.diskPct, '%') +
+            meterHtml('Wi-Fi', overlayState.wifiPct, '%') +
+            meterHtml('Ping', overlayState.pingMs, 'ms', 200) +
+            `<div class="stat-row"><span>Heat</span><b>${escapeHtml(overlayState.heat || '—')}</b></div>` +
+            sparkHtml(overlayState.pingHistory);
+        } else {
+          hw.innerHTML = '<div class="muted">Meters fill once a session is tracked.</div>';
+        }
+      }
+
+      const net = document.getElementById('network-body');
+      const q = pingQuality(overlayState.pingMs);
+      if (net) {
+        if (game) {
+          net.innerHTML =
+            `<div class="qual ${q.id}">${escapeHtml(q.label)}</div>` +
+            meterHtml('Ping', overlayState.pingMs, 'ms', 200) +
+            meterHtml('Wi-Fi', overlayState.wifiPct, '%') +
+            sparkHtml(overlayState.pingHistory) +
+            (overlayState.lobby?.code ? `<div class="stat-row"><span>Lobby</span><b>${escapeHtml(overlayState.lobby.code)}</b></div>` : '');
+        } else {
+          net.innerHTML = '<div class="muted">Ping fills once a session is tracked.</div>';
+        }
+      }
+
+      const youTag = overlayState.tag || 'Player';
+      document.getElementById('you-tag').textContent = youTag;
+      document.getElementById('you-sub').textContent = signedIn
+        ? [overlayState.clanTag ? '[' + overlayState.clanTag + ']' : null, overlayState.mainGame || null].filter(Boolean).join(' · ') || 'Online'
+        : 'Sign in to fill this out.';
+      document.getElementById('you-stats').innerHTML =
+        (overlayState.mmr != null ? `<div class="stat-row"><span>MMR</span><b>${escapeHtml(String(overlayState.mmr))}</b></div>` : '') +
+        `<div class="stat-row"><span>Unread</span><b>${overlayState.unread || 0}</b></div>` +
+        `<div class="stat-row"><span>DND</span><b>${dnd ? 'On' : 'Off'}</b></div>` +
+        `<div class="stat-row"><span>Boost</span><b>${boost ? 'On' : 'Idle'}</b></div>` +
+        (voice ? `<div class="stat-row"><span>Voice</span><b>${escapeHtml(voice.state)}${voice.muted ? ' · muted' : ''}</b></div>` : '');
+
+      const party = overlayState.party || null;
+      const lobby = overlayState.lobby || null;
+      const squad = document.getElementById('squad-body');
+      if (squad) {
+        if (party && Array.isArray(party.members) && party.members.length) {
+          squad.innerHTML =
+            `<div class="stat-row"><span>${escapeHtml(party.game || 'Party')}</span><b>${party.members.length}</b></div>` +
+            (lobby?.code ? `<div class="stat-row"><span>Lobby</span><b>${escapeHtml(lobby.code)}</b></div>` : '') +
+            party.members.map((m) => (
+              `<div class="list-row"><span><span class="dot ${m.online ? 'on' : ''}"></span>${escapeHtml(m.tag || 'Player')}</span><span class="muted">${escapeHtml((m.ready ? 'ready · ' : '') + (m.role || m.status || ''))}</span></div>`
+            )).join('');
+        } else {
+          squad.innerHTML = lobby?.code
+            ? `<div class="muted">No party. Lobby <b>${escapeHtml(lobby.code)}</b>${lobby.game ? ' · ' + escapeHtml(lobby.game) : ''}.</div>`
+            : '<div class="muted">No party yet. Invite from Friends.</div>';
+        }
+      }
+
+      const friends = Array.isArray(overlayState.friends) ? overlayState.friends : [];
+      const fb = document.getElementById('friends-body');
+      if (fb) {
+        if (!signedIn) {
+          fb.innerHTML = '<div class="muted">Sign in to see friends.</div>';
+        } else if (friends.length) {
+          fb.innerHTML = friends.map((f) => (
+            `<div class="list-row"><span><span class="dot on"></span>${escapeHtml(f.tag)}</span><span class="muted">${escapeHtml(f.status || f.game || 'Online')}</span></div>`
+          )).join('');
+        } else {
+          fb.innerHTML = '<div class="muted">No friends online right now.</div>';
+        }
+      }
+
+      const recap = overlayState.recap;
+      const rb = document.getElementById('recap-body');
+      if (recap?.game) {
+        rb.innerHTML =
+          `<div style="font-weight:800;margin-bottom:6px">${escapeHtml(recap.game)}</div>` +
+          `<div class="stat-row"><span>Time</span><b>${escapeHtml(fmtDur(recap.durationSec))}</b></div>` +
+          (recap.avgCpuPct != null ? `<div class="stat-row"><span>CPU</span><b>${Math.round(recap.avgCpuPct)}%</b></div>` : '') +
+          (recap.avgGpuPct != null ? `<div class="stat-row"><span>GPU</span><b>${Math.round(recap.avgGpuPct)}%</b></div>` : '') +
+          (recap.avgRamMb != null ? `<div class="stat-row"><span>RAM</span><b>${Math.round(recap.avgRamMb)} MB</b></div>` : '') +
+          (recap.avgPingMs != null ? `<div class="stat-row"><span>Ping</span><b>${Math.round(recap.avgPingMs)}ms</b></div>` : '') +
+          (recap.tip ? `<div class="muted" style="margin-top:8px">${escapeHtml(recap.tip)}</div>` : '');
+      } else {
+        rb.innerHTML = '<div class="muted">Finish a tracked game to see the recap.</div>';
+      }
+
+      document.getElementById('quick-dnd').textContent = dnd ? 'DND on' : 'DND off';
+      document.getElementById('quick-lobby').disabled = !lobby?.code;
+      document.getElementById('quick-stats').disabled = !game;
+      document.getElementById('quick-status').textContent =
+        (boost ? 'Windows game boost on' : 'Game boost idle') +
+        (dnd ? ' · Do Not Disturb' : '') +
+        (voice ? ` · Voice ${voice.state}` : '') +
+        (overlayState.unread ? ` · ${overlayState.unread} unread` : '');
+    }
+
+    function tickClock() {
+      const t = clockText();
+      const d = new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      document.getElementById('strip-clock').textContent = t;
+      document.getElementById('clock-now').textContent = t;
+      document.getElementById('clock-date').textContent = d;
+      const utc = document.getElementById('clock-utc');
+      if (utc) utc.textContent = new Date().toISOString().slice(11, 16) + 'Z';
+      const dur = liveDuration();
+      if (dur != null) {
+        const text = fmtDur(dur);
+        document.getElementById('clock-session').textContent = text;
+        const durEl = document.getElementById('strip-dur');
+        if (durEl) durEl.textContent = text;
+      }
+      renderFocus();
+    }
+
     function syncAiChips() {
       const chips = document.getElementById('ai-chips');
       if (chips) chips.classList.toggle('hidden', aiHistory.length > 0);
     }
-
     function addAi(role, text) {
       const log = document.getElementById('ai-log');
       const div = document.createElement('div');
@@ -417,7 +972,6 @@
       log.appendChild(div);
       log.scrollTop = log.scrollHeight;
     }
-
     async function sendAi() {
       const input = document.getElementById('ai-input');
       const text = input.value.trim();
@@ -430,7 +984,6 @@
       addAi('me', text);
       aiBusy = true;
       const requestId = ++aiReq;
-      // Send prior turns so follow-up questions actually make sense.
       const history = aiHistory.slice(-AI_HISTORY_MAX);
       aiHistory.push({ role: 'user', content: text });
       persistAiHistory();
@@ -438,40 +991,93 @@
       api.askAi({ requestId, message: text, history });
     }
 
-    function formatAcc(acc) {
-      return String(acc || '').replace(/CommandOrControl/g, 'Ctrl').replace(/\+/g, ' + ');
-    }
-
     document.getElementById('hud-close').onclick = () => api.closeHud();
-    document.getElementById('nexai-close').onclick = (e) => {
-      e.preventDefault();
+    document.getElementById('hud-clip').onclick = () => api.clipNow();
+    document.getElementById('hud-panels').onclick = (e) => {
       e.stopPropagation();
-      api.closeHud();
+      document.getElementById('panel-picker').classList.toggle('open');
     };
+    document.getElementById('nexai-close').onclick = (e) => { e.preventDefault(); e.stopPropagation(); api.closeHud(); };
     document.getElementById('nexai-close').onmousedown = (e) => e.stopPropagation();
     document.getElementById('nexai-clear').onclick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
       clearAiHistory();
       document.getElementById('ai-input')?.focus();
     };
     document.getElementById('nexai-clear').onmousedown = (e) => e.stopPropagation();
     document.getElementById('clip-btn').onclick = () => api.clipNow();
-    document.getElementById('ai-send').onclick = sendAi;
-    document.getElementById('ai-input').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') sendAi();
+    document.getElementById('quick-clip').onclick = () => api.clipNow();
+    document.getElementById('quick-dnd').onclick = () => api.action?.({ type: 'dnd', on: !overlayState.dnd });
+    document.getElementById('quick-show').onclick = () => api.action?.({ type: 'showMain' });
+    document.getElementById('quick-lobby').onclick = async () => {
+      const code = overlayState.lobby?.code;
+      if (!code) return;
+      try { await navigator.clipboard.writeText(code); } catch { /* ignore */ }
+    };
+    document.getElementById('quick-tag').onclick = async () => {
+      try { await navigator.clipboard.writeText(overlayState.tag || ''); } catch { /* ignore */ }
+    };
+    document.getElementById('quick-stats').onclick = async () => {
+      const game = overlayState.game;
+      if (!game) return;
+      const line = [
+        game,
+        overlayState.durationSec != null ? fmtDur(overlayState.durationSec) : null,
+        overlayState.cpuPct != null ? 'CPU ' + Math.round(overlayState.cpuPct) + '%' : null,
+        overlayState.gpuPct != null ? 'GPU ' + Math.round(overlayState.gpuPct) + '%' : null,
+        overlayState.pingMs != null ? Math.round(overlayState.pingMs) + 'ms' : null,
+        overlayState.heat || null,
+      ].filter(Boolean).join(' · ');
+      try { await navigator.clipboard.writeText(line); } catch { /* ignore */ }
+    };
+    document.getElementById('you-friends').onclick = () => api.action?.({ type: 'openScreen', screen: 'friends' });
+    document.getElementById('you-optimize').onclick = () => api.action?.({ type: 'openScreen', screen: 'optimize' });
+    document.getElementById('focus-toggle').onclick = () => {
+      if (focusUntil) {
+        focusUntil = 0;
+      } else {
+        focusUntil = Date.now() + focusLen;
+      }
+      persistFocus();
+      renderFocus();
+    };
+    document.querySelectorAll('[data-focus]').forEach((btn) => {
+      btn.onclick = () => {
+        const mins = Number(btn.dataset.focus);
+        if (!Number.isFinite(mins) || mins <= 0) return;
+        focusLen = mins * 60 * 1000;
+        if (focusUntil) focusUntil = Date.now() + focusLen;
+        persistFocus();
+        renderFocus();
+      };
     });
+    document.getElementById('ai-send').onclick = sendAi;
+    document.getElementById('ai-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendAi(); });
     document.querySelectorAll('.panel').forEach(enableDrag);
+    document.addEventListener('click', () => document.getElementById('panel-picker').classList.remove('open'));
+    document.getElementById('panel-picker').addEventListener('click', (e) => e.stopPropagation());
+
+    const notes = document.getElementById('notes-box');
+    if (notes) {
+      try { notes.value = localStorage.getItem(NOTES_KEY) || ''; } catch { /* ignore */ }
+      notes.addEventListener('input', () => {
+        try { localStorage.setItem(NOTES_KEY, notes.value.slice(0, 800)); } catch { /* ignore */ }
+      });
+    }
+
+    applyVisible();
     placePanels();
     window.addEventListener('resize', placePanels);
+    applyChrome(prefs);
+    tickClock();
+    renderFocus();
+    setInterval(tickClock, 1000);
 
     document.querySelectorAll('.ai-chip').forEach((chip) => {
       chip.onmousedown = (e) => e.stopPropagation();
       chip.onclick = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const input = document.getElementById('ai-input');
-        input.value = chip.textContent;
+        e.preventDefault(); e.stopPropagation();
+        document.getElementById('ai-input').value = chip.textContent;
         sendAi();
       };
     });
@@ -483,7 +1089,6 @@
       api.closeHud();
     });
 
-    // Replay the stored conversation so reopening keeps context on screen.
     for (const turn of aiHistory) addAi(turn.role === 'user' ? 'me' : 'ai', turn.content);
     syncAiChips();
 
@@ -491,9 +1096,11 @@
     api?.onHud((payload) => {
       const open = !!payload?.open;
       const mode = payload?.mode === 'nexai' ? 'nexai' : 'full';
+      const wasOpen = document.body.classList.contains('hud-on');
       document.body.classList.toggle('hud-on', open);
       document.body.classList.toggle('nexai-only', open && mode === 'nexai');
-      if (payload?.prefs) prefs = payload.prefs;
+      document.body.classList.toggle('strip-on', !open && !!payload?.strip);
+      if (payload?.prefs) applyChrome(payload.prefs);
       document.getElementById('hud-hint').textContent =
         'Drag panels · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes · ' + formatAcc(prefs.hotkeys?.clip) + ' clips';
       if (payload?.clipStatus) applyClipUi(payload.clipStatus);
@@ -502,56 +1109,25 @@
       }
       if (open) {
         placePanels();
-        if (mode === 'nexai') {
-          requestAnimationFrame(() => document.getElementById('ai-input')?.focus());
-        }
-      } else {
-        // Closing while a reply was in flight used to leave the composer
-        // disabled forever. Bumping the id also drops the late reply.
+        if (mode === 'nexai' && !wasOpen) requestAnimationFrame(() => document.getElementById('ai-input')?.focus());
+      } else if (wasOpen) {
         aiBusy = false;
         aiReq += 1;
+        document.getElementById('panel-picker').classList.remove('open');
       }
     });
-    api?.onState((state) => {
-      signedIn = !!state?.signedIn;
-      document.getElementById('session-game').textContent = state?.game || 'No game tracked';
-      if (state?.game) {
-        const bits = [];
-        const dur = Number(state.durationSec);
-        if (Number.isFinite(dur) && dur > 0) {
-          const m = Math.floor(dur / 60);
-          const s = Math.floor(dur % 60);
-          bits.push(m + 'm ' + String(s).padStart(2, '0') + 's');
-        } else {
-          bits.push('Live session');
-        }
-        if (state.heat) bits.push(state.heat);
-        if (state.cpuPct != null) bits.push('CPU ' + Math.round(Number(state.cpuPct)) + '%');
-        if (state.gpuPct != null) bits.push('GPU ' + Math.round(Number(state.gpuPct)) + '%');
-        if (state.pingMs != null) bits.push(Math.round(Number(state.pingMs)) + 'ms');
-        if (state.unread) bits.push(state.unread + ' unread');
-        document.getElementById('session-sub').textContent = bits.join(' · ');
-      } else {
-        document.getElementById('session-sub').textContent = 'Launch a supported game to light this up.';
-      }
-    });
+    api?.onPrefs((p) => { if (p) applyChrome(p); });
+    api?.onState(applyState);
     api?.onAiReply((payload) => {
-      // Ignore replies to requests the user already dismissed.
       if (payload?.requestId && payload.requestId !== aiReq) return;
       aiBusy = false;
-      if (payload?.error) {
-        addAi('ai', payload.error);
-        return;
-      }
+      if (payload?.error) { addAi('ai', payload.error); return; }
       const reply = payload?.reply || '…';
       addAi('ai', reply);
       aiHistory.push({ role: 'assistant', content: reply });
       persistAiHistory();
     });
-    api?.onClipStatus((s) => {
-      if (!s) return;
-      applyClipUi(s);
-    });
+    api?.onClipStatus((s) => { if (s) applyClipUi(s); });
     api?.onClipSaved((payload) => {
       if (payload?.path) document.getElementById('clip-last').textContent = String(payload.path).split(/[/\\]/).pop();
     });

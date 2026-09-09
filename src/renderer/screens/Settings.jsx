@@ -107,6 +107,7 @@ export default function Settings() {
     setDndEnabled,
     overlayEnabled,
     setOverlayEnabled,
+    applyOverlayPrefs,
     clipEnabled,
     setClipEnabled,
     clipSeconds,
@@ -128,6 +129,13 @@ export default function Settings() {
   const [fxPref, setFxPref] = useState(() => getPreference());
   const [fxActive, setFxActive] = useState(() => activeTier());
   const [gameBoostOn, setGameBoostOn] = useState(true);
+  const [hudExtras, setHudExtras] = useState({
+    statusStrip: true,
+    crosshair: false,
+    crosshairStyle: 'cross',
+    stripPosition: 'bottom',
+    hudOpacity: 92,
+  });
   const [prefs, setPrefs] = useState(() => getAppPrefs());
   const [desk, setDesk] = useState(DESK_DEFAULTS);
   const [probeDraft, setProbeDraft] = useState(() => getAppPrefs().pingProbeHost || '');
@@ -154,6 +162,25 @@ export default function Settings() {
       .catch(() => showToast('Could not save that setting', 'error'));
   }
 
+  function patchHud(patch) {
+    setHudExtras((cur) => ({ ...cur, ...patch }));
+    applyOverlayPrefs(patch)
+      .then((saved) => {
+        if (saved) {
+          setHudExtras((cur) => ({
+            ...cur,
+            statusStrip: saved.statusStrip !== false,
+            crosshair: !!saved.crosshair,
+            crosshairStyle: saved.crosshairStyle || cur.crosshairStyle,
+            stripPosition: saved.stripPosition === 'top' ? 'top' : 'bottom',
+            hudOpacity: Number(saved.hudOpacity) || cur.hudOpacity,
+          }));
+        }
+        showToast('Saved', 'success');
+      })
+      .catch(() => showToast('Could not save that setting', 'error'));
+  }
+
   useEffect(() => {
     window.nexforge?.getGameBoostPrefs?.()
       .then((p) => {
@@ -163,6 +190,18 @@ export default function Settings() {
     window.nexforge?.getDesktopPrefs?.()
       .then((p) => {
         if (p) setDesk((cur) => ({ ...cur, ...p }));
+      })
+      .catch(() => {});
+    window.nexforge?.getOverlayPrefs?.()
+      .then((p) => {
+        if (!p) return;
+        setHudExtras({
+          statusStrip: p.statusStrip !== false,
+          crosshair: !!p.crosshair,
+          crosshairStyle: p.crosshairStyle || 'cross',
+          stripPosition: p.stripPosition === 'top' ? 'top' : 'bottom',
+          hudOpacity: Number(p.hudOpacity) || 92,
+        });
       })
       .catch(() => {});
   }, []);
@@ -467,7 +506,7 @@ export default function Settings() {
 
         {tab === 'overlay' && (
           <>
-            <p className="settings-lead">In-game HUD, NexAI, and the rolling clip buffer.</p>
+            <p className="settings-lead">In-game HUD, NexAI, clips, status strip, crosshair, and extra panels.</p>
             <div className="card">
               <div className="card-title">In-game overlay</div>
               <SettingToggle
@@ -489,6 +528,56 @@ export default function Settings() {
                 value={overlayHotkeys?.nexai}
                 listening={listening === 'nexai'}
                 onListen={() => startListen('nexai')}
+              />
+            </div>
+
+            <div className="card">
+              <div className="card-title">HUD extras</div>
+              <SettingToggle
+                on={hudExtras.statusStrip}
+                onChange={(on) => patchHud({ statusStrip: on })}
+                label="Persistent status strip"
+                hint="Click-through clock, game, and hardware on the edge of the screen while a session is tracked. Hidden when the full HUD is open."
+              />
+              <SelectRow
+                label="Strip position"
+                hint="Where the idle strip sits. Exclusive fullscreen still cannot be drawn over."
+                value={hudExtras.stripPosition}
+                onChange={(v) => patchHud({ stripPosition: v })}
+                options={[
+                  { value: 'bottom', label: 'Bottom center' },
+                  { value: 'top', label: 'Top center' },
+                ]}
+              />
+              <SettingToggle
+                on={hudExtras.crosshair}
+                onChange={(on) => patchHud({ crosshair: on })}
+                label="On-screen crosshair"
+                hint="A click-through marker at the center of the primary display while a tracked game is running."
+              />
+              <SelectRow
+                label="Crosshair style"
+                hint="Shown only when the crosshair is on."
+                value={hudExtras.crosshairStyle}
+                onChange={(v) => patchHud({ crosshairStyle: v })}
+                options={[
+                  { value: 'cross', label: 'Cross' },
+                  { value: 'plus', label: 'Plus (gap)' },
+                  { value: 'dot', label: 'Dot' },
+                  { value: 'circle', label: 'Circle' },
+                ]}
+              />
+              <SelectRow
+                label="HUD opacity"
+                hint="Panels, strip, and crosshair. Toasts stay readable."
+                value={String(hudExtras.hudOpacity)}
+                onChange={(v) => patchHud({ hudOpacity: Number(v) })}
+                options={[
+                  { value: '70', label: '70%' },
+                  { value: '85', label: '85%' },
+                  { value: '92', label: '92%' },
+                  { value: '100', label: '100%' },
+                ]}
               />
             </div>
 

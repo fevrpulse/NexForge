@@ -113,6 +113,7 @@ export function VoiceCallProvider({ children }) {
       setPeerProfile(null);
       setPeerProfiles({});
       stopRingtone();
+      window.nexforge?.overlaySyncState?.({ voice: null });
       return undefined;
     }
 
@@ -134,6 +135,15 @@ export function VoiceCallProvider({ children }) {
           inputDeviceId: next.inputDeviceId || '',
           outputDeviceId: next.outputDeviceId || '',
           audioDevices: next.audioDevices || { inputs: [], outputs: [] },
+        });
+        window.nexforge?.overlaySyncState?.({
+          voice: next.state && next.state !== 'idle'
+            ? {
+              state: next.state,
+              muted: !!next.muted,
+              peers: (next.peers || []).length,
+            }
+            : null,
         });
         if (next.state === 'idle') {
           setPeerProfile(null);

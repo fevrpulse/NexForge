@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('nexforge', {
   onOverlayAiAsk: (callback) => subscribe('overlay-ai-ask', callback),
   overlayAiReply: (payload) => ipcRenderer.send('overlay-ai-reply', payload),
   overlaySyncState: (state) => ipcRenderer.invoke('overlay-sync-state', state),
+  onOverlayAction: (callback) => subscribe('overlay-action', callback),
   getOverlayPrefs: () => ipcRenderer.invoke('get-overlay-prefs'),
   setOverlayPrefs: (prefs) => ipcRenderer.invoke('set-overlay-prefs', prefs),
   setOverlayHotkey: (payload) => ipcRenderer.invoke('set-overlay-hotkey', payload),

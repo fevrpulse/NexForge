@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.11.0',
+    highlights: [
+      'In-game overlay HUD adds hardware, network, squad, friends, recap, you, and a focus timer',
+      'Click-through status strip while a game is tracked, plus optional crosshair styles',
+      'Quick actions from the HUD: clip, DND, show the app, copy lobby / tag / live stats',
+      'Settings → Overlay controls strip position, crosshair, and HUD opacity',
+    ],
+  },
+  {
     version: '4.10.0',
     highlights: [
       'Settings is a full control panel — startup, tray, appearance, voice, privacy, and about',

@@ -6,12 +6,34 @@ const DEFAULT_PREFS = {
   overlayEnabled: true,
   clipEnabled: true,
   clipSeconds: 20,
+  statusStrip: true,
+  crosshair: false,
+  crosshairStyle: 'cross',
+  stripPosition: 'bottom',
+  hudOpacity: 92,
   hotkeys: {
     overlay: 'CommandOrControl+Shift+O',
     nexai: 'CommandOrControl+Shift+A',
     clip: 'CommandOrControl+F8',
   },
 };
+
+function clampOpacity(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return DEFAULT_PREFS.hudOpacity;
+  return Math.max(40, Math.min(100, Math.round(v)));
+}
+
+function resolveHudExtras(raw = {}) {
+  const style = String(raw.crosshairStyle || DEFAULT_PREFS.crosshairStyle);
+  return {
+    statusStrip: raw.statusStrip !== false,
+    crosshair: !!raw.crosshair,
+    crosshairStyle: ['cross', 'dot', 'circle', 'plus'].includes(style) ? style : 'cross',
+    stripPosition: raw.stripPosition === 'top' ? 'top' : 'bottom',
+    hudOpacity: clampOpacity(raw.hudOpacity),
+  };
+}
 
 function resolveHotkeys(hotkeys) {
   const next = {
@@ -42,6 +64,7 @@ function loadPrefs() {
       clipEnabled: raw.clipEnabled !== false,
       clipSeconds: Math.max(8, Math.min(45, Number(raw.clipSeconds) || 20)),
       hotkeys: resolveHotkeys(raw.hotkeys),
+      ...resolveHudExtras(raw),
     };
   } catch {
     return { ...DEFAULT_PREFS, hotkeys: { ...DEFAULT_PREFS.hotkeys } };
@@ -224,8 +247,33 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     return win;
   }
 
+  function idleStrip() {
+    return prefs.statusStrip !== false && !!lastGame;
+  }
+
+  function wantsIdleOverlay() {
+    if (prefs.overlayEnabled === false || !lastGame) return false;
+    return idleStrip() || !!prefs.crosshair;
+  }
+
   function hideIfIdle() {
     if (hudOpen || toastLive) return;
+    if (wantsIdleOverlay()) {
+      const win = showOverlay();
+      whenOverlayReady('strip', () => {
+        if (!win || win.isDestroyed()) return;
+        setClickThrough(true);
+        if (!win.isVisible()) win.showInactive();
+        sendOverlayLatest('overlay-hud', {
+          open: false,
+          strip: idleStrip(),
+          prefs,
+          lastClipPath,
+          clipStatus,
+        });
+      });
+      return;
+    }
     if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
       overlayWindow.hide();
     }
@@ -253,9 +301,10 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     const win = showOverlay();
     whenOverlayReady('hud', () => {
       if (!win || win.isDestroyed()) return;
-      sendOverlay('overlay-hud', {
+      sendOverlayLatest('overlay-hud', {
         open: hudOpen,
         mode: hudMode,
+        strip: !hudOpen && idleStrip(),
         prefs,
         lastClipPath,
         clipStatus,
@@ -425,11 +474,18 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
 
   function applyPrefs(next) {
     const previous = prefs;
+    const patch = {};
+    Object.entries(next || {}).forEach(([k, v]) => {
+      if (v !== undefined) patch[k] = v;
+    });
     prefs = {
-      overlayEnabled: next.overlayEnabled !== false,
-      clipEnabled: next.clipEnabled !== false,
-      clipSeconds: Math.max(8, Math.min(45, Number(next.clipSeconds) || 20)),
-      hotkeys: resolveHotkeys({ ...prefs.hotkeys, ...(next.hotkeys || {}) }),
+      overlayEnabled: patch.overlayEnabled !== undefined ? patch.overlayEnabled !== false : previous.overlayEnabled,
+      clipEnabled: patch.clipEnabled !== undefined ? patch.clipEnabled !== false : previous.clipEnabled,
+      clipSeconds: patch.clipSeconds !== undefined
+        ? Math.max(8, Math.min(45, Number(patch.clipSeconds) || 20))
+        : previous.clipSeconds,
+      hotkeys: resolveHotkeys({ ...prefs.hotkeys, ...(patch.hotkeys || {}) }),
+      ...resolveHudExtras({ ...prefs, ...patch }),
     };
     savePrefs(prefs);
     registerHotkeys();
@@ -446,6 +502,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     }
     sendOverlayLatest('overlay-prefs', prefs);
     if (!prefs.overlayEnabled && hudOpen) setHudOpen(false);
+    if (!hudOpen) hideIfIdle();
     return prefs;
   }
 
@@ -544,7 +601,11 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
         lastGame = next.game || '';
       }
       sendOverlayLatest('overlay-state', next);
+      if (!hudOpen) hideIfIdle();
       return { ok: true };
+    });
+    ipcMain.on('overlay-action', (_event, payload) => {
+      sendToRenderer('overlay-action', payload || {});
     });
 
     ipcMain.on('clip-recorder-ready', (_event, status) => {
