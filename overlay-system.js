@@ -2,6 +2,29 @@ const { BrowserWindow, ipcMain, screen, globalShortcut, shell, app } = require('
 const path = require('path');
 const fs = require('fs');
 
+const PANEL_IDS = [
+  'session', 'hardware', 'network', 'clock', 'you', 'clip', 'quick',
+  'nexai', 'feed', 'squad', 'friends', 'recap', 'focus', 'notes', 'keys',
+];
+
+const DEFAULT_PANELS = {
+  session: true,
+  hardware: true,
+  network: true,
+  clock: true,
+  you: true,
+  clip: true,
+  quick: true,
+  nexai: true,
+  feed: true,
+  squad: true,
+  friends: true,
+  recap: true,
+  focus: true,
+  notes: false,
+  keys: false,
+};
+
 const DEFAULT_PREFS = {
   overlayEnabled: true,
   clipEnabled: true,
@@ -11,6 +34,8 @@ const DEFAULT_PREFS = {
   crosshairStyle: 'cross',
   stripPosition: 'bottom',
   hudOpacity: 92,
+  hudLook: 'solid',
+  panels: { ...DEFAULT_PANELS },
   hotkeys: {
     overlay: 'CommandOrControl+Shift+O',
     nexai: 'CommandOrControl+Shift+A',
@@ -24,15 +49,34 @@ function clampOpacity(n) {
   return Math.max(40, Math.min(100, Math.round(v)));
 }
 
+function resolvePanels(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  for (const id of PANEL_IDS) {
+    out[id] = src[id] !== undefined ? !!src[id] : DEFAULT_PANELS[id] !== false;
+  }
+  return out;
+}
+
+function resolveHudLook(raw) {
+  const look = String(raw?.hudLook || DEFAULT_PREFS.hudLook);
+  return look === 'glass' || look === 'clear' ? look : 'solid';
+}
+
 function resolveHudExtras(raw = {}) {
   const style = String(raw.crosshairStyle || DEFAULT_PREFS.crosshairStyle);
-  return {
+  const extras = {
     statusStrip: raw.statusStrip !== false,
     crosshair: !!raw.crosshair,
     crosshairStyle: ['cross', 'dot', 'circle', 'plus'].includes(style) ? style : 'cross',
     stripPosition: raw.stripPosition === 'top' ? 'top' : 'bottom',
     hudOpacity: clampOpacity(raw.hudOpacity),
+    hudLook: resolveHudLook(raw),
   };
+  if (raw.panels && typeof raw.panels === 'object') {
+    extras.panels = resolvePanels(raw.panels);
+  }
+  return extras;
 }
 
 function resolveHotkeys(hotkeys) {
@@ -488,7 +532,13 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       ...resolveHudExtras({ ...prefs, ...patch }),
     };
     savePrefs(prefs);
-    registerHotkeys();
+    const sameCore = previous.overlayEnabled === prefs.overlayEnabled
+      && previous.clipEnabled === prefs.clipEnabled
+      && previous.clipSeconds === prefs.clipSeconds
+      && previous.hotkeys.overlay === prefs.hotkeys.overlay
+      && previous.hotkeys.nexai === prefs.hotkeys.nexai
+      && previous.hotkeys.clip === prefs.hotkeys.clip;
+    if (!sameCore) registerHotkeys();
     // Starting the recorder wipes the rolling buffer, so it must only be
     // touched when the clip settings themselves changed — rebinding a hotkey
     // or toggling the overlay used to throw away the buffered footage.
@@ -581,6 +631,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
 
       if (!usable) {
         applyPrefs(previous);
+        registerHotkeys();
         return { ok: false, reason: 'could-not-register', prefs };
       }
 

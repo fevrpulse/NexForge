@@ -146,6 +146,10 @@ export function NexForgeProvider({ children }) {
       crosshairStyle: patch.crosshairStyle ?? current?.crosshairStyle,
       stripPosition: patch.stripPosition ?? current?.stripPosition,
       hudOpacity: patch.hudOpacity ?? current?.hudOpacity,
+      hudLook: patch.hudLook ?? current?.hudLook,
+      panels: patch.panels
+        ? { ...(current?.panels || {}), ...patch.panels }
+        : current?.panels,
     };
     const saved = await window.nexforge?.setOverlayPrefs?.(next);
     const prefs = saved || next;

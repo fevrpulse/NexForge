@@ -35,6 +35,30 @@ const DESK_DEFAULTS = {
   autoCheckUpdates: true,
 };
 
+const OVERLAY_PANELS = [
+  { id: 'session', label: 'Session' },
+  { id: 'hardware', label: 'Hardware' },
+  { id: 'network', label: 'Network' },
+  { id: 'clock', label: 'Clock' },
+  { id: 'you', label: 'You' },
+  { id: 'clip', label: 'Clip' },
+  { id: 'quick', label: 'Quick actions' },
+  { id: 'nexai', label: 'NexAI' },
+  { id: 'feed', label: 'Alerts' },
+  { id: 'squad', label: 'Squad' },
+  { id: 'friends', label: 'Friends' },
+  { id: 'recap', label: 'Last session' },
+  { id: 'focus', label: 'Focus timer' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'keys', label: 'Hotkeys' },
+];
+
+const DEFAULT_OVERLAY_PANELS = {
+  session: true, hardware: true, network: true, clock: true, you: true,
+  clip: true, quick: true, nexai: true, feed: true, squad: true, friends: true,
+  recap: true, focus: true, notes: false, keys: false,
+};
+
 function openUrl(url) {
   if (window.nexforge?.openExternalUrl) {
     window.nexforge.openExternalUrl(url);
@@ -135,6 +159,8 @@ export default function Settings() {
     crosshairStyle: 'cross',
     stripPosition: 'bottom',
     hudOpacity: 92,
+    hudLook: 'solid',
+    panels: { ...DEFAULT_OVERLAY_PANELS },
   });
   const [prefs, setPrefs] = useState(() => getAppPrefs());
   const [desk, setDesk] = useState(DESK_DEFAULTS);
@@ -163,7 +189,13 @@ export default function Settings() {
   }
 
   function patchHud(patch) {
-    setHudExtras((cur) => ({ ...cur, ...patch }));
+    setHudExtras((cur) => {
+      const next = { ...cur, ...patch };
+      if (patch.panels) {
+        next.panels = { ...DEFAULT_OVERLAY_PANELS, ...(cur.panels || {}), ...patch.panels };
+      }
+      return next;
+    });
     applyOverlayPrefs(patch)
       .then((saved) => {
         if (saved) {
@@ -173,7 +205,9 @@ export default function Settings() {
             crosshair: !!saved.crosshair,
             crosshairStyle: saved.crosshairStyle || cur.crosshairStyle,
             stripPosition: saved.stripPosition === 'top' ? 'top' : 'bottom',
-            hudOpacity: Number(saved.hudOpacity) || cur.hudOpacity,
+            hudOpacity: Number.isFinite(Number(saved.hudOpacity)) ? Number(saved.hudOpacity) : cur.hudOpacity,
+            hudLook: saved.hudLook || cur.hudLook,
+            panels: saved.panels ? { ...DEFAULT_OVERLAY_PANELS, ...saved.panels } : cur.panels,
           }));
         }
         showToast('Saved', 'success');
@@ -201,6 +235,8 @@ export default function Settings() {
           crosshairStyle: p.crosshairStyle || 'cross',
           stripPosition: p.stripPosition === 'top' ? 'top' : 'bottom',
           hudOpacity: Number(p.hudOpacity) || 92,
+          hudLook: p.hudLook === 'glass' || p.hudLook === 'clear' ? p.hudLook : 'solid',
+          panels: { ...DEFAULT_OVERLAY_PANELS, ...(p.panels || {}) },
         });
       })
       .catch(() => {});
@@ -568,6 +604,17 @@ export default function Settings() {
                 ]}
               />
               <SelectRow
+                label="Overlay look"
+                hint="Zero black removes the dark dim and panel fill so the game stays fully visible."
+                value={hudExtras.hudLook || 'solid'}
+                onChange={(v) => patchHud({ hudLook: v })}
+                options={[
+                  { value: 'solid', label: 'Solid' },
+                  { value: 'glass', label: 'Glass' },
+                  { value: 'clear', label: 'Zero black' },
+                ]}
+              />
+              <SelectRow
                 label="HUD opacity"
                 hint="Panels, strip, and crosshair. Toasts stay readable."
                 value={String(hudExtras.hudOpacity)}
@@ -579,6 +626,40 @@ export default function Settings() {
                   { value: '100', label: '100%' },
                 ]}
               />
+            </div>
+
+            <div className="card">
+              <div className="card-title">HUD panels</div>
+              <p className="row-sub" style={{ marginBottom: 12 }}>
+                Close a panel with × on the HUD, or turn it off here. Turn it back on anytime from this list or from Panels on the HUD bar.
+              </p>
+              {OVERLAY_PANELS.map((p) => (
+                <SettingToggle
+                  key={p.id}
+                  on={!!(hudExtras.panels?.[p.id] ?? DEFAULT_OVERLAY_PANELS[p.id])}
+                  onChange={(on) => patchHud({ panels: { [p.id]: on } })}
+                  label={p.label}
+                  hint={p.id === 'notes' || p.id === 'keys' ? 'Off by default' : undefined}
+                />
+              ))}
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="action-btn ghost"
+                  onClick={() => patchHud({
+                    panels: Object.fromEntries(OVERLAY_PANELS.map((p) => [p.id, true])),
+                  })}
+                >
+                  Show all panels
+                </button>
+                <button
+                  type="button"
+                  className="action-btn ghost"
+                  onClick={() => patchHud({ panels: { ...DEFAULT_OVERLAY_PANELS } })}
+                >
+                  Restore defaults
+                </button>
+              </div>
             </div>
 
             <div className="card">
@@ -862,7 +943,7 @@ export default function Settings() {
               <div className="row">
                 <div>
                   <div className="row-title">Hardware scan</div>
-                  <div className="row-sub">Refresh CPU, GPU, RAM, and display for Optimize advice.</div>
+                  <div className="row-sub">Refresh CPU, GPU, VRAM, RAM kits, disks, motherboard, and displays for Optimize advice.</div>
                 </div>
                 <button
                   type="button"

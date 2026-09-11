@@ -41,11 +41,27 @@ export function saveHwScan(scan) {
 export function hwScanNote(scan) {
   if (!scan) return null;
   const bits = [];
-  if (scan.gpu?.name) bits.push(scan.gpu.name);
-  if (scan.cpu?.name) bits.push(scan.cpu.name.replace(/\s+/g, ' ').slice(0, 48));
-  if (scan.ramGb) bits.push(`${scan.ramGb} GB RAM`);
+  if (scan.gpu?.name) {
+    bits.push(scan.gpu.vramGb ? `${scan.gpu.name} (${scan.gpu.vramGb} GB VRAM)` : scan.gpu.name);
+  }
+  if (scan.cpu?.name) {
+    const cpu = scan.cpu.name.replace(/\s+/g, ' ').slice(0, 48);
+    const extra = [scan.cpu.cores && `${scan.cpu.cores}C`, scan.cpu.threads && `${scan.cpu.threads}T`].filter(Boolean).join('/');
+    bits.push(extra ? `${cpu} ${extra}` : cpu);
+  }
+  if (scan.ramGb) {
+    const ramBits = [`${scan.ramGb} GB`];
+    if (scan.ram?.type) ramBits.push(scan.ram.type);
+    if (scan.ram?.speedMhz) ramBits.push(`${scan.ram.speedMhz} MHz`);
+    bits.push(`${ramBits.join(' ')} RAM`);
+  }
   const { width, height, refreshHz } = scan.display || {};
   if (width && height) bits.push(`${width}×${height}${refreshHz ? `@${refreshHz}` : ''}`);
+  const disks = Array.isArray(scan.disks) ? scan.disks : [];
+  if (disks.length) {
+    bits.push(disks.map((d) => [d.media || d.bus, d.sizeGb && `${d.sizeGb} GB`].filter(Boolean).join(' ') || d.name).join(', '));
+  }
+  if (scan.os) bits.push(scan.os);
   return bits.length ? `PC specs: ${bits.join(' · ')}` : null;
 }
 
@@ -99,7 +115,14 @@ export function gameLoad(game) {
 }
 
 export function qualityFromScan(scan) {
-  const gpu = scoreGpu(scan?.gpu?.name);
+  let gpu = scoreGpu(scan?.gpu?.name);
+  const vram = Number(scan?.gpu?.vramGb);
+  if (Number.isFinite(vram) && vram > 0) {
+    if (vram >= 16) gpu = Math.min(99, gpu + 6);
+    else if (vram >= 12) gpu = Math.min(99, gpu + 3);
+    else if (vram < 6) gpu = Math.max(8, gpu - 10);
+    else if (vram < 8) gpu = Math.max(8, gpu - 4);
+  }
   const cpu = scoreCpu(scan?.cpu);
   const ramGb = Number(scan?.ramGb) || 8;
   const ram = ramGb >= 32 ? 92 : ramGb >= 16 ? 78 : ramGb >= 12 ? 55 : ramGb >= 8 ? 32 : 14;
@@ -338,6 +361,9 @@ export function recommendSettings(scan, game, goal) {
     warnings.push('No SSD detected — install the game on an SSD if you can.');
   }
   if (!scan?.gpu?.name) warnings.push('GPU was not identified — recommendations are conservative. Rescan on Windows.');
+  if (scan?.gpu?.name && scan.gpu.vramGb == null && !/uhd|iris|hd graphics|adreno|mali/i.test(scan.gpu.name)) {
+    warnings.push('VRAM was not reported — keep textures a step below Ultra if you hitch.');
+  }
   if (scan?.platform && scan.platform !== 'win32') {
     warnings.push('Full GPU scan runs on Windows. These settings use CPU/RAM only.');
   }
@@ -366,9 +392,9 @@ export function formatRecommendationText(scan, game, rec) {
   const lines = [
     `NexForge optimize — ${game} · ${rec.goal === 'competitive' ? 'Competitive' : 'Looks'}`,
     rec.summary,
-    scan?.gpu?.name ? `GPU: ${scan.gpu.name}` : null,
+    scan?.gpu?.name ? `GPU: ${scan.gpu.name}${scan.gpu.vramGb ? ` · ${scan.gpu.vramGb} GB VRAM` : ''}` : null,
     scan?.cpu?.name ? `CPU: ${scan.cpu.name}` : null,
-    scan?.ramGb ? `RAM: ${scan.ramGb} GB` : null,
+    scan?.ramGb ? `RAM: ${scan.ramGb} GB${scan.ram?.type ? ` ${scan.ram.type}` : ''}${scan.ram?.speedMhz ? ` ${scan.ram.speedMhz} MHz` : ''}` : null,
     `Resolution: ${rec.resolution}`,
     `Expected FPS: ${rec.fpsTarget}`,
     rec.fpsCap ? `Cap: ${rec.fpsCap}` : null,

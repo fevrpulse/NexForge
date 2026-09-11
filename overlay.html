@@ -30,13 +30,42 @@
     body.hud-on {
       background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(0,0,0,.28), transparent 70%);
     }
+    body.hud-look-glass.hud-on {
+      background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(0,0,0,.12), transparent 70%);
+    }
+    body.hud-look-glass {
+      --panel: rgba(10, 16, 10, 0.48);
+      --bg: rgba(8, 12, 8, 0.48);
+    }
+    body.hud-look-clear,
+    body.hud-look-clear.hud-on {
+      background: transparent !important;
+      --panel: transparent;
+      --bg: rgba(8, 12, 8, 0.2);
+    }
+    body.hud-look-clear .panel,
+    body.hud-look-clear .hud-bar,
+    body.hud-look-clear #strip,
+    body.hud-look-clear #panel-picker {
+      background: transparent;
+      box-shadow: none;
+    }
+    body.hud-look-clear .notes,
+    body.hud-look-clear .ai-row input,
+    body.hud-look-clear .ai-msg {
+      background: transparent;
+    }
+    body.hud-look-clear .toast {
+      background: rgba(8, 12, 8, 0.92);
+    }
     body.hud-on.nexai-only { background: transparent; }
     body.nexai-only .hud-bar,
     body.nexai-only .hud-panel:not(#panel-nexai),
     body.nexai-only #strip,
     body.nexai-only #crosshair,
     body.nexai-only #panel-picker { display: none !important; }
-    body.nexai-only #panel-nexai { box-shadow: 0 18px 48px rgba(0,0,0,.55); }
+    body.nexai-only #panel-nexai { display: block !important; box-shadow: 0 18px 48px rgba(0,0,0,.55); }
+    body.hud-look-clear.nexai-only #panel-nexai { box-shadow: none; }
     body.hud-on #strip { display: none !important; }
     #hud, #strip, #crosshair { opacity: var(--hud-opacity); }
     .panel-h .panel-x {
@@ -50,6 +79,12 @@
       cursor: pointer;
       font-family: inherit;
       line-height: 1;
+    }
+    .panel-h .panel-title { flex: 1; min-width: 0; }
+    .panel-h .panel-hide { margin-left: auto; }
+    body.hud-on:not(.nexai-only) .panel-h .panel-hide,
+    body.hud-on:not(.nexai-only) .panel-h .panel-clear {
+      display: inline-flex; align-items: center; justify-content: center;
     }
     body.nexai-only .panel-h .panel-x { display: inline-flex; align-items: center; justify-content: center; }
     .panel-h .panel-clear { margin-left: auto; margin-right: 6px; font-size: 12px; }
@@ -251,6 +286,8 @@
     .pick-row button {
       width: 36px; padding: 3px 0; font-size: 10px;
     }
+    .pick-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .pick-actions button { flex: 1; padding: 6px 8px !important; font-size: 11px; }
   </style>
 </head>
 <body>
@@ -272,7 +309,7 @@
   <div id="hud">
     <div class="hud-bar">
       <b>NEXFORGE HUD</b>
-      <span id="hud-hint">Drag panels · same keybind to close</span>
+      <span id="hud-hint">× hides a panel · Panels to restore</span>
       <button type="button" id="hud-clip">Clip</button>
       <button type="button" id="hud-panels">Panels</button>
       <button type="button" id="hud-close">Close</button>
@@ -327,7 +364,7 @@
       </div>
     </div>
     <div class="panel hud-panel" id="panel-nexai" data-id="nexai" style="width:360px">
-      <div class="panel-h">NexAI <button type="button" class="panel-x panel-clear" id="nexai-clear" aria-label="Clear conversation" title="Clear conversation">⌫</button><button type="button" class="panel-x" id="nexai-close" aria-label="Close">×</button></div>
+      <div class="panel-h">NexAI <button type="button" class="panel-x panel-clear" id="nexai-clear" aria-label="Clear conversation" title="Clear conversation">⌫</button><button type="button" class="panel-x panel-hide" id="nexai-close" aria-label="Close">×</button></div>
       <div class="panel-b">
         <div id="ai-log"></div>
         <div class="ai-chips" id="ai-chips">
@@ -477,7 +514,7 @@
       syncAiChips();
     }
     let feed = [];
-    let prefs = { hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8', nexai: 'Ctrl+Shift+A' }, statusStrip: true, crosshair: false, crosshairStyle: 'cross', stripPosition: 'bottom', hudOpacity: 92 };
+    let prefs = { hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8', nexai: 'Ctrl+Shift+A' }, statusStrip: true, crosshair: false, crosshairStyle: 'cross', stripPosition: 'bottom', hudOpacity: 92, hudLook: 'solid' };
     const FOCUS_KEY = 'nf-overlay-focus';
     let focusUntil = 0;
     let focusLen = 5 * 60 * 1000;
@@ -594,6 +631,17 @@
     function saveVisible(vis) {
       try { localStorage.setItem(VISIBLE_KEY, JSON.stringify(vis)); } catch { /* ignore */ }
     }
+    function persistPanels(vis) {
+      saveVisible(vis);
+      api?.setPrefs?.({ panels: vis });
+    }
+    function setPanelVisible(id, on) {
+      if (!id) return;
+      const vis = loadVisible();
+      vis[id] = !!on;
+      persistPanels(vis);
+      applyVisible();
+    }
 
     function applyVisible() {
       const vis = loadVisible();
@@ -609,14 +657,62 @@
       const vis = loadVisible();
       box.innerHTML = PANEL_META.map((p) => (
         `<div class="pick-row"><span>${escapeHtml(p.label)}</span><button type="button" data-toggle="${p.id}">${vis[p.id] === false ? 'Off' : 'On'}</button></div>`
-      )).join('');
+      )).join('') + '<div class="pick-actions"><button type="button" id="pick-all">Show all</button><button type="button" id="pick-reset">Defaults</button></div>';
       box.querySelectorAll('button[data-toggle]').forEach((btn) => {
         btn.onclick = (e) => {
           e.stopPropagation();
           const visNow = loadVisible();
           visNow[btn.dataset.toggle] = visNow[btn.dataset.toggle] === false;
-          saveVisible(visNow);
+          persistPanels(visNow);
           applyVisible();
+        };
+      });
+      const all = document.getElementById('pick-all');
+      const reset = document.getElementById('pick-reset');
+      if (all) {
+        all.onclick = (e) => {
+          e.stopPropagation();
+          const next = {};
+          PANEL_META.forEach((p) => { next[p.id] = true; });
+          persistPanels({ ...DEFAULT_VISIBLE, ...next });
+          applyVisible();
+        };
+      }
+      if (reset) {
+        reset.onclick = (e) => {
+          e.stopPropagation();
+          persistPanels({ ...DEFAULT_VISIBLE });
+          applyVisible();
+        };
+      }
+    }
+
+    function ensureHideButtons() {
+      document.querySelectorAll('.hud-panel').forEach((el) => {
+        const h = el.querySelector('.panel-h');
+        if (!h) return;
+        if (!h.querySelector('.panel-title')) {
+          const title = document.createElement('span');
+          title.className = 'panel-title';
+          while (h.firstChild && h.firstChild.nodeType === 3) {
+            title.appendChild(h.firstChild);
+          }
+          if (title.textContent.trim()) h.insertBefore(title, h.firstChild);
+        }
+        if (el.id === 'panel-nexai' || h.querySelector('[data-hide]')) return;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'panel-x panel-hide';
+        btn.dataset.hide = el.dataset.id;
+        btn.setAttribute('aria-label', 'Hide panel');
+        btn.title = 'Hide — turn back on from Panels';
+        btn.textContent = '×';
+        h.appendChild(btn);
+        btn.onmousedown = (e) => e.stopPropagation();
+        btn.onclick = (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setPanelVisible(el.dataset.id, false);
         };
       });
     }
@@ -674,7 +770,8 @@
       return `<div class="spark">${nums.map((n) => `<i style="height:${Math.max(8, (n / max) * 100)}%"></i>`).join('')}</div>`;
     }
 
-    function applyChrome(nextPrefs) {
+    let panelsMigrated = false;
+    function applyChrome(nextPrefs, fromMain) {
       if (nextPrefs) prefs = { ...prefs, ...nextPrefs };
       const opacity = Math.max(40, Math.min(100, Number(prefs.hudOpacity) || 92)) / 100;
       document.documentElement.style.setProperty('--hud-opacity', String(opacity));
@@ -683,6 +780,16 @@
       document.body.classList.remove('xh-cross', 'xh-dot', 'xh-circle', 'xh-plus');
       const xh = ['cross', 'dot', 'circle', 'plus'].includes(prefs.crosshairStyle) ? prefs.crosshairStyle : 'cross';
       document.body.classList.add('xh-' + xh);
+      document.body.classList.remove('hud-look-solid', 'hud-look-glass', 'hud-look-clear');
+      const look = prefs.hudLook === 'glass' || prefs.hudLook === 'clear' ? prefs.hudLook : 'solid';
+      document.body.classList.add('hud-look-' + look);
+      if (nextPrefs && nextPrefs.panels && typeof nextPrefs.panels === 'object') {
+        saveVisible({ ...DEFAULT_VISIBLE, ...nextPrefs.panels });
+        applyVisible();
+      } else if (fromMain && nextPrefs && !nextPrefs.panels && !panelsMigrated) {
+        panelsMigrated = true;
+        persistPanels(loadVisible());
+      }
       const keys = document.getElementById('keys-body');
       if (keys) {
         keys.innerHTML = [
@@ -997,7 +1104,11 @@
       e.stopPropagation();
       document.getElementById('panel-picker').classList.toggle('open');
     };
-    document.getElementById('nexai-close').onclick = (e) => { e.preventDefault(); e.stopPropagation(); api.closeHud(); };
+    document.getElementById('nexai-close').onclick = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      if (document.body.classList.contains('nexai-only')) api.closeHud();
+      else setPanelVisible('nexai', false);
+    };
     document.getElementById('nexai-close').onmousedown = (e) => e.stopPropagation();
     document.getElementById('nexai-clear').onclick = (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -1065,6 +1176,7 @@
       });
     }
 
+    ensureHideButtons();
     applyVisible();
     placePanels();
     window.addEventListener('resize', placePanels);
@@ -1100,9 +1212,9 @@
       document.body.classList.toggle('hud-on', open);
       document.body.classList.toggle('nexai-only', open && mode === 'nexai');
       document.body.classList.toggle('strip-on', !open && !!payload?.strip);
-      if (payload?.prefs) applyChrome(payload.prefs);
+      if (payload?.prefs) applyChrome(payload.prefs, true);
       document.getElementById('hud-hint').textContent =
-        'Drag panels · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes · ' + formatAcc(prefs.hotkeys?.clip) + ' clips';
+        '× hides a panel · Panels restores · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes';
       if (payload?.clipStatus) applyClipUi(payload.clipStatus);
       if (payload?.lastClipPath) {
         document.getElementById('clip-last').textContent = payload.lastClipPath.split(/[/\\]/).pop();
@@ -1116,7 +1228,7 @@
         document.getElementById('panel-picker').classList.remove('open');
       }
     });
-    api?.onPrefs((p) => { if (p) applyChrome(p); });
+    api?.onPrefs((p) => { if (p) applyChrome(p, true); });
     api?.onState(applyState);
     api?.onAiReply((payload) => {
       if (payload?.requestId && payload.requestId !== aiReq) return;

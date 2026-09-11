@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.12.0',
+    highlights: [
+      'Rig scan reads VRAM, RAM kits, disks, motherboard, BIOS, monitors, and network — not just CPU, GPU name, and RAM total',
+      'Optimize shows the extra specs and can copy the full sheet',
+      'Overlay look: Solid, Glass, or Zero black so the HUD can sit on the game with no dim',
+      'Hide any HUD panel with ×; restore from Panels on the HUD or Settings → Overlay',
+    ],
+  },
+  {
     version: '4.11.0',
     highlights: [
       'In-game overlay HUD adds hardware, network, squad, friends, recap, you, and a focus timer',

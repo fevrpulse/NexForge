@@ -19,4 +19,5 @@ contextBridge.exposeInMainWorld('nexforgeOverlay', {
   askAi: (payload) => ipcRenderer.send('overlay-ai-ask', payload),
   clipNow: () => ipcRenderer.invoke('overlay-clip-now'),
   action: (payload) => ipcRenderer.send('overlay-action', payload),
+  setPrefs: (prefs) => ipcRenderer.invoke('set-overlay-prefs', prefs),
 });
