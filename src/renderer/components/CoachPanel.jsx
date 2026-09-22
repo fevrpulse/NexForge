@@ -2,18 +2,12 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 
-function tiltClass(score) {
-  if (score >= 50) return 'high';
-  if (score >= 25) return 'medium';
-  return 'low';
-}
-
 function coachMissing(err) {
   const msg = String(err?.message || '');
   return /could not find the function|schema cache|404|not found|generate_coach_report|get_my_coach_report/i.test(msg);
 }
 
-/** Weekly coach insights from sessions + W/L (server-side rules). */
+/** Weekly coach insights from sessions and ping. */
 export default function CoachPanel({ compact = false }) {
   const { user, guestMode, showToast, reportCloudError, sessionSaveTick } = useNexForge();
   const [report, setReport] = useState(null);
@@ -84,8 +78,10 @@ export default function CoachPanel({ compact = false }) {
   if (guestMode || !user) return null;
 
   const weekly = report?.weekly || {};
-  const insights = Array.isArray(report?.insights) ? report.insights : [];
-  const tilt = report?.tilt_score ?? 0;
+  const insights = (Array.isArray(report?.insights) ? report.insights : []).filter((tip) => {
+    const t = `${tip?.title || ''} ${tip?.body || ''}`;
+    return !/\b(wins?|losses?|win[- ]?loss|W–L|W\/L|losing streak|win streak)\b/i.test(t);
+  });
   const shown = compact ? insights.slice(0, 2) : insights;
 
   let emptyCopy = 'Play a few sessions to unlock tips.';
@@ -100,16 +96,13 @@ export default function CoachPanel({ compact = false }) {
           <div className="card-title" style={{ marginBottom: 4 }}>AI Coach</div>
           <div className="coach-sub">
             {unavailable
-              ? 'Tips from sessions, ping, and W/L — waiting on the server RPC.'
-              : (report?.summary || (loading ? 'Reading your last 7 days…' : 'Tips from sessions, ping, and W/L'))}
+              ? 'Tips from sessions and ping — waiting on the server RPC.'
+              : ((report?.summary && !/\b(wins?|losses?|W–L|W\/L)\b/i.test(report.summary))
+                ? report.summary
+                : (loading ? 'Reading your last 7 days…' : 'Tips from sessions and ping'))}
           </div>
         </div>
         <div className="coach-panel-actions">
-          {!unavailable && (
-            <span className={`coach-tilt tilt-${tiltClass(tilt)}`} title="Tilt risk from loss streaks + conditions">
-              Tilt {tilt}
-            </span>
-          )}
           <button
             type="button"
             className="action-btn ghost"
@@ -125,14 +118,7 @@ export default function CoachPanel({ compact = false }) {
       {report && !unavailable && (
         <div className="coach-weekly">
           <span>{weekly.sessions ?? 0} sessions</span>
-          <span>{weekly.wins ?? 0}W–{weekly.losses ?? 0}L</span>
           {weekly.avg_ping_ms != null && <span>avg {weekly.avg_ping_ms} ms</span>}
-          {weekly.streak_kind === 'win' && weekly.streak_len > 1 && (
-            <span className="coach-streak win">{weekly.streak_len}W streak</span>
-          )}
-          {weekly.streak_kind === 'loss' && weekly.streak_len > 1 && (
-            <span className="coach-streak loss">{weekly.streak_len}L streak</span>
-          )}
         </div>
       )}
 

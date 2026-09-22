@@ -1,6 +1,7 @@
 const { BrowserWindow, ipcMain, screen, globalShortcut, shell, app } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { createPerfMonitor } = require('./perf-monitor');
 
 const PANEL_IDS = [
   'session', 'hardware', 'network', 'clock', 'you', 'clip', 'quick',
@@ -25,6 +26,17 @@ const DEFAULT_PANELS = {
   keys: false,
 };
 
+const STAT_KEYS = ['gpuUsage', 'gpuTemp', 'cpuUsage', 'cpuTemp', 'fps', 'ram'];
+
+const DEFAULT_STATS = {
+  gpuUsage: true,
+  gpuTemp: true,
+  cpuUsage: true,
+  cpuTemp: true,
+  fps: true,
+  ram: true,
+};
+
 const DEFAULT_PREFS = {
   overlayEnabled: true,
   clipEnabled: true,
@@ -35,6 +47,9 @@ const DEFAULT_PREFS = {
   stripPosition: 'bottom',
   hudOpacity: 92,
   hudLook: 'solid',
+  statsHud: true,
+  statsPos: 'top-left',
+  stats: { ...DEFAULT_STATS },
   panels: { ...DEFAULT_PANELS },
   hotkeys: {
     overlay: 'CommandOrControl+Shift+O',
@@ -63,6 +78,28 @@ function resolveHudLook(raw) {
   return look === 'glass' || look === 'clear' ? look : 'solid';
 }
 
+function resolveStats(raw) {
+  const src = raw && typeof raw === 'object' ? raw : {};
+  const out = {};
+  for (const id of STAT_KEYS) {
+    out[id] = src[id] !== undefined ? !!src[id] : DEFAULT_STATS[id] !== false;
+  }
+  return out;
+}
+
+function resolveStatsPos(raw) {
+  const pos = String(raw || DEFAULT_PREFS.statsPos);
+  return ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(pos)
+    ? pos
+    : 'top-left';
+}
+
+function statsHudActive(prefs) {
+  if (!prefs || prefs.statsHud === false) return false;
+  const stats = prefs.stats || DEFAULT_STATS;
+  return STAT_KEYS.some((id) => stats[id] !== false);
+}
+
 function resolveHudExtras(raw = {}) {
   const style = String(raw.crosshairStyle || DEFAULT_PREFS.crosshairStyle);
   const extras = {
@@ -72,6 +109,9 @@ function resolveHudExtras(raw = {}) {
     stripPosition: raw.stripPosition === 'top' ? 'top' : 'bottom',
     hudOpacity: clampOpacity(raw.hudOpacity),
     hudLook: resolveHudLook(raw),
+    statsHud: raw.statsHud !== false,
+    statsPos: resolveStatsPos(raw.statsPos),
+    stats: resolveStats(raw.stats),
   };
   if (raw.panels && typeof raw.panels === 'object') {
     extras.panels = resolvePanels(raw.panels);
@@ -137,7 +177,7 @@ function safeName(value) {
   return String(value || 'clip').replace(/[<>:"/\\|?*]+/g, '').replace(/\s+/g, '_').slice(0, 40) || 'clip';
 }
 
-function createOverlaySystem({ getMainWindow, sendToRenderer }) {
+function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
   let overlayWindow = null;
   let overlayReady = false;
   let pendingReady = null;
@@ -148,6 +188,8 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   let prefs = loadPrefs();
   let lastClipPath = null;
   let lastGame = '';
+  let lastPerf = {};
+  let perfMonitor = null;
 
   // The overlay window is created lazily on the first hotkey press, long after
   // the renderer has pushed sign-in state, prefs and clip status. Without the
@@ -195,15 +237,50 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     win.setBounds(overlayBounds());
   }
 
-  function setClickThrough(through) {
+  let pointerHover = false;
+  let pointerTyping = false;
+
+  function watchMainFocus() {
+    const main = getMainWindow?.();
+    if (!main || main.isDestroyed() || main.__nfPointerWatch) return;
+    main.__nfPointerWatch = true;
+    const refresh = () => applyPointer();
+    main.on('focus', refresh);
+    main.on('blur', refresh);
+  }
+
+  // While a game is in front, the overlay is visual only: stats stay up, and
+  // every click and key goes to the game. Mouse capture is only for editing
+  // the HUD while the NexForge window itself is focused.
+  function releasePointer() {
+    const win = overlayWindow;
+    if (!win || win.isDestroyed()) return;
+    try {
+      if (win.isFocused()) win.blur();
+    } catch { /* ignore */ }
+    if (win.isFocusable()) win.setFocusable(false);
+    // setFocusable rebuilds the window style and can drop click-through,
+    // so ignore-mouse has to be the last call. No mouse forwarding — on
+    // Windows, forwarding keeps the window in the hit-test path.
+    win.setIgnoreMouseEvents(true);
+  }
+
+  function gameplayClickThrough() {
+    if (!hudOpen) return true;
+    return !!lastGame && !isMainFocused();
+  }
+
+  function applyPointer() {
+    watchMainFocus();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    if (through) {
-      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-      overlayWindow.setFocusable(false);
-    } else {
-      overlayWindow.setIgnoreMouseEvents(false);
-      overlayWindow.setFocusable(true);
+    if (gameplayClickThrough()) {
+      pointerHover = false;
+      pointerTyping = false;
+      releasePointer();
+      return;
     }
+    overlayWindow.setIgnoreMouseEvents(false);
+    overlayWindow.setFocusable(true);
   }
 
   function getOverlayWindow() {
@@ -227,6 +304,9 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       skipTaskbar: true,
       hasShadow: false,
       fullscreenable: false,
+      thickFrame: false,
+      roundedCorners: false,
+      backgroundColor: '#00000000',
       title: 'NexForge Overlay',
       webPreferences: {
         preload: path.join(__dirname, 'overlay-preload.js'),
@@ -239,7 +319,10 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     try { overlayWindow.setContentProtection(true); } catch { /* older Windows */ }
-    setClickThrough(true);
+    overlayWindow.on('show', () => applyPointer());
+    overlayWindow.on('focus', () => {
+      if (gameplayClickThrough()) releasePointer();
+    });
     overlayWindow.setMenu(null);
     overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
     overlayWindow.webContents.on('did-finish-load', () => {
@@ -252,6 +335,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
         if (!queued || !queued.has(`channel:${channel}`)) sendOverlay(channel, payload);
       }
       if (queued) for (const fn of queued.values()) fn();
+      applyPointer();
     });
     overlayWindow.on('closed', () => {
       overlayWindow = null;
@@ -287,6 +371,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       if (!win || win.isDestroyed()) return;
       positionOverlay(win);
       if (!win.isVisible()) win.showInactive();
+      applyPointer();
     });
     return win;
   }
@@ -296,8 +381,9 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
   }
 
   function wantsIdleOverlay() {
-    if (prefs.overlayEnabled === false || !lastGame) return false;
-    return idleStrip() || !!prefs.crosshair;
+    if (prefs.overlayEnabled === false) return false;
+    if (!lastGame) return false;
+    return idleStrip() || !!prefs.crosshair || statsHudActive(prefs);
   }
 
   function hideIfIdle() {
@@ -306,7 +392,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       const win = showOverlay();
       whenOverlayReady('strip', () => {
         if (!win || win.isDestroyed()) return;
-        setClickThrough(true);
+        applyPointer();
         if (!win.isVisible()) win.showInactive();
         sendOverlayLatest('overlay-hud', {
           open: false,
@@ -320,6 +406,28 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
     }
     if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.isVisible()) {
       overlayWindow.hide();
+    }
+  }
+
+  function pushPerf(sample) {
+    lastPerf = sample && typeof sample === 'object' ? sample : {};
+    sendToRenderer('perf-sample', lastPerf);
+    const prev = overlayReplay.get('overlay-state') || {};
+    sendOverlayLatest('overlay-state', {
+      ...prev,
+      sysCpuPct: lastPerf.cpuPct ?? null,
+      sysGpuPct: lastPerf.gpuPct ?? null,
+      sysCpuTempC: lastPerf.cpuTempC ?? null,
+      sysGpuTempC: lastPerf.gpuTempC ?? null,
+      sysRamPct: lastPerf.ramPct ?? null,
+      sysRamUsedGb: lastPerf.ramUsedGb ?? null,
+      sysRamTotalGb: lastPerf.ramTotalGb ?? null,
+      sysFps: lastPerf.fps ?? null,
+    });
+    if (!hudOpen && !toastLive && lastGame && statsHudActive(prefs) && prefs.overlayEnabled !== false) {
+      if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) {
+        hideIfIdle();
+      }
     }
   }
 
@@ -354,13 +462,14 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
         clipStatus,
       });
       if (hudOpen) {
-        // Both modes must accept input: a click-through window cannot hold
-        // keyboard focus, so NexAI could not be typed into. The hotkey closes it.
-        setClickThrough(false);
-        win.show();
-        win.focus();
+        pointerHover = false;
+        pointerTyping = false;
+        applyPointer();
+        if (!win.isVisible()) win.showInactive();
       } else {
-        setClickThrough(true);
+        pointerHover = false;
+        pointerTyping = false;
+        applyPointer();
         hideIfIdle();
       }
     });
@@ -581,6 +690,18 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
 
     ipcMain.on('overlay-hud-close', () => setHudOpen(false));
 
+    ipcMain.on('overlay-interactive', (_event, on) => {
+      pointerHover = !!on;
+      if (!pointerHover) pointerTyping = false;
+      applyPointer();
+    });
+
+    ipcMain.on('overlay-typing', (_event, on) => {
+      pointerTyping = !!on;
+      if (pointerTyping) pointerHover = true;
+      applyPointer();
+    });
+
     ipcMain.on('overlay-ai-ask', (_event, payload) => {
       sendToRenderer('overlay-ai-ask', payload);
     });
@@ -600,6 +721,8 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
       clipStatus,
       clipsDir: clipsDir(),
     }));
+
+    ipcMain.handle('get-perf-sample', () => lastPerf);
 
     ipcMain.handle('set-overlay-prefs', (_event, next) => applyPrefs(next || {}));
 
@@ -735,8 +858,28 @@ function createOverlaySystem({ getMainWindow, sendToRenderer }) {
 
   function destroy() {
     globalShortcut.unregisterAll();
+    if (pointerTimer) {
+      clearInterval(pointerTimer);
+      pointerTimer = null;
+    }
+    if (perfMonitor) {
+      try { perfMonitor.stop(); } catch { /* ignore */ }
+      perfMonitor = null;
+    }
     destroyWindows();
   }
+
+  let pointerTimer = setInterval(() => {
+    if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) return;
+    if (gameplayClickThrough()) releasePointer();
+  }, 400);
+  if (pointerTimer.unref) pointerTimer.unref();
+
+  perfMonitor = createPerfMonitor({
+    getActiveGame: () => (typeof getActiveGame === 'function' ? getActiveGame() : null),
+    onSample: pushPerf,
+  });
+  perfMonitor.start();
 
   return {
     setupIpc,

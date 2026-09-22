@@ -17,6 +17,7 @@ import {
   withSessionHistory,
 } from '../lib/session.js';
 import { getAppPref, resolveHomeScreen } from '../lib/app-prefs.js';
+import { hwScanNote, loadHwScan, qualityFromScan } from '../lib/optimize.js';
 
 const NexForgeContext = createContext(null);
 
@@ -91,7 +92,6 @@ export function NexForgeProvider({ children }) {
   useEffect(() => { liveSessionRef.current = liveSession; }, [liveSession]);
   // Bumped whenever a finished session is saved so screens can refetch history.
   const [sessionSaveTick, setSessionSaveTick] = useState(0);
-  const [pendingMatchLog, setPendingMatchLog] = useState(null);
   const [lastSessionRecap, setLastSessionRecap] = useState(null);
   const lastSessionRecapRef = useRef(null);
   useEffect(() => { lastSessionRecapRef.current = lastSessionRecap; }, [lastSessionRecap]);
@@ -147,6 +147,11 @@ export function NexForgeProvider({ children }) {
       stripPosition: patch.stripPosition ?? current?.stripPosition,
       hudOpacity: patch.hudOpacity ?? current?.hudOpacity,
       hudLook: patch.hudLook ?? current?.hudLook,
+      statsHud: patch.statsHud ?? current?.statsHud,
+      statsPos: patch.statsPos ?? current?.statsPos,
+      stats: patch.stats
+        ? { ...(current?.stats || {}), ...patch.stats }
+        : current?.stats,
       panels: patch.panels
         ? { ...(current?.panels || {}), ...patch.panels }
         : current?.panels,
@@ -442,8 +447,6 @@ export function NexForgeProvider({ children }) {
   const clearPendingFriendChat = useCallback(() => {
     setPendingFriendChatId(null);
   }, []);
-
-  const clearPendingMatchLog = useCallback(() => setPendingMatchLog(null), []);
 
   useEffect(() => {
     if (!user?.id) {
@@ -799,10 +802,23 @@ export function NexForgeProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    const scan = loadHwScan();
+    const rig = scan
+      ? {
+          gpu: scan.gpu?.name || null,
+          vramGb: scan.gpu?.vramGb ?? null,
+          cpu: scan.cpu?.name ? String(scan.cpu.name).replace(/\s+/g, ' ').slice(0, 42) : null,
+          ramGb: scan.ramGb ?? null,
+          ramType: scan.ram?.type || null,
+          display: scan.display?.width && scan.display?.height
+            ? `${scan.display.width}×${scan.display.height}${scan.display.refreshHz ? `@${scan.display.refreshHz}` : ''}`
+            : null,
+          quality: qualityFromScan(scan),
+        }
+      : null;
     window.nexforge?.overlaySyncState?.({
       signedIn: !!user,
       tag: profile?.gamer_tag || (guestMode ? 'Guest' : 'Player'),
-      mmr: profile?.mmr ?? null,
       clanTag: profile?.clan_tag || null,
       mainGame: profile?.main_game || null,
       game: liveSession?.game || null,
@@ -835,9 +851,10 @@ export function NexForgeProvider({ children }) {
         }
         : null,
       friends: user && !guestMode ? overlayFriends : [],
+      rig,
     });
   }, [
-    user, guestMode, profile?.gamer_tag, profile?.mmr, profile?.clan_tag, profile?.main_game,
+    user, guestMode, profile?.gamer_tag, profile?.clan_tag, profile?.main_game,
     liveSession, unreadTotal, dndEnabled, lastSessionRecap, overlayLobby, party, overlayFriends,
   ]);
 
@@ -949,19 +966,6 @@ export function NexForgeProvider({ children }) {
           }
         }
         if (error) throw error;
-        const sessionId = data?.id != null ? Number(data.id) : null;
-        if (getAppPref('winLossPrompt') !== false) {
-          setPendingMatchLog({
-            game: summary.game,
-            mode: null,
-            sessionId: Number.isFinite(sessionId) ? sessionId : null,
-            durationSec: summary.durationSec,
-            avgCpuPct: summary.avgCpuPct,
-            avgGpuPct: summary.avgGpuPct,
-            avgRamMb: summary.avgRamMb,
-            tip: Array.isArray(summary.tips) ? summary.tips[0] : null,
-          });
-        }
         const tip = Array.isArray(summary.tips) && summary.tips[0] ? String(summary.tips[0]) : '';
         if (getAppPref('sessionToasts') !== false) {
           showToast(
@@ -1501,8 +1505,6 @@ export function NexForgeProvider({ children }) {
     pendingFriendChatId,
     openFriendChat,
     clearPendingFriendChat,
-    pendingMatchLog,
-    clearPendingMatchLog,
     lastSessionRecap,
     party,
     refreshParty,

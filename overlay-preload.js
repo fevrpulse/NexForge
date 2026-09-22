@@ -20,4 +20,6 @@ contextBridge.exposeInMainWorld('nexforgeOverlay', {
   clipNow: () => ipcRenderer.invoke('overlay-clip-now'),
   action: (payload) => ipcRenderer.send('overlay-action', payload),
   setPrefs: (prefs) => ipcRenderer.invoke('set-overlay-prefs', prefs),
+  setInteractive: (on) => ipcRenderer.send('overlay-interactive', !!on),
+  setTyping: (on) => ipcRenderer.send('overlay-typing', !!on),
 });

@@ -226,7 +226,6 @@ export default function Shop() {
     [catalog, slot],
   );
 
-  const mmr = profile?.mmr || 1200;
   const coins = profile?.forge_coins ?? 0;
   const claimed = justClaimed || isDailyClaimed(profile?.forge_coins_claimed_at);
   const equipped = {
@@ -237,8 +236,7 @@ export default function Shop() {
 
   function isOwned(item) {
     if (owned.has(item.id)) return true;
-    if (item.price === 0 && item.min_mmr === 0) return true;
-    if (item.price === 0 && mmr >= item.min_mmr) return true;
+    if (item.price === 0) return true;
     return false;
   }
 
@@ -460,8 +458,7 @@ export default function Shop() {
           </div>
         ) : filtered.map((item) => {
           const ownedItem = isOwned(item);
-          const lockedMmr = mmr < item.min_mmr;
-          const canBuy = !lockedMmr && (item.price === 0 || coins >= item.price);
+          const canBuy = item.price === 0 || coins >= item.price;
           const showGift = ownedItem || canBuy;
           const cashPrice = (item.real_money_cents || 0) / 100;
           const awaitingPayment = pendingCash.has(item.id);
@@ -480,25 +477,23 @@ export default function Shop() {
               <div className="shop-card-desc">{item.description}</div>
               <div className="shop-card-meta">
                 <span className={`rarity-pill rarity-${item.rarity}`}>{item.rarity}</span>
-                <span>{item.price > 0 ? `${item.price} coins` : (item.min_mmr > 0 ? 'Unlock required' : 'Free')}</span>
+                <span>{item.price > 0 ? `${item.price} coins` : 'Free'}</span>
                 {cashPrice > 0 && <span className="cash-price">${cashPrice.toFixed(2)}</span>}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button
                   className={`action-btn ${active ? 'ghost' : 'primary'} full`}
                   style={{ flex: 1 }}
-                  disabled={!!busyId || lockedMmr || (item.price > 0 && !ownedItem && coins < item.price)}
+                  disabled={!!busyId || (item.price > 0 && !ownedItem && coins < item.price)}
                   onClick={() => buyOrEquip(item)}
                 >
                   {busyId === item.id && !giftingThis
                     ? '…'
-                    : lockedMmr
-                      ? 'Locked'
-                      : active
-                        ? 'Equipped'
-                        : ownedItem || item.price === 0
-                          ? 'Equip'
-                          : `Buy · ${item.price}`}
+                    : active
+                      ? 'Equipped'
+                      : ownedItem || item.price === 0
+                        ? 'Equip'
+                        : `Buy · ${item.price}`}
                 </button>
                 {showGift && (
                   <button
@@ -518,13 +513,13 @@ export default function Shop() {
                   className="action-btn cash full"
                   disabled={!!cashBusyId || awaitingPayment}
                   onClick={() => buyWithMoney(item)}
-                  title="Cash purchase bypasses unlock and Forge Coin requirements"
+                  title="Cash purchase uses a card instead of Forge Coins"
                 >
                   {cashBusyId === item.id
                     ? 'Opening secure checkout…'
                     : awaitingPayment
                       ? 'Waiting for payment…'
-                      : `Skip requirements · $${cashPrice.toFixed(2)}`}
+                      : `Buy with card · $${cashPrice.toFixed(2)}`}
                 </button>
               )}
               {giftingThis && (

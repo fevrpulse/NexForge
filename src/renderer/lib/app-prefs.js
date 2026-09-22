@@ -33,7 +33,6 @@ export const DEFAULT_APP_PREFS = {
   callSounds: true,
   sessionToasts: true,
   heatAlerts: true,
-  winLossPrompt: true,
   sharePresence: true,
   whatsNew: true,
   pingProbeHost: '',

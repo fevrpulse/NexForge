@@ -331,6 +331,7 @@ function ensureOverlaySystem() {
   overlaySystem = createOverlaySystem({
     getMainWindow: () => mainWindow,
     sendToRenderer,
+    getActiveGame: () => gameTracker.getActiveSession(),
   });
   overlaySystem.setupIpc();
   return overlaySystem;

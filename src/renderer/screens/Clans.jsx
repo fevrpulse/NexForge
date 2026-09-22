@@ -6,7 +6,6 @@ import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 export default function Clans() {
   const {
     user,
-    profile,
     clan,
     createClan,
     inviteToClan,
@@ -47,7 +46,6 @@ export default function Clans() {
     () => (clan?.members || []).filter((m) => m.status === 'invited'),
     [clan],
   );
-  const myMmr = profile?.mmr ?? 1200;
 
   const loadFriends = useCallback(async () => {
     if (!user || guestMode) {
@@ -69,14 +67,13 @@ export default function Clans() {
       }
       const { data: profs, error: pErr } = await sb
         .from('profiles')
-        .select('id,gamer_tag,display_name,mmr,clan_tag')
+        .select('id,gamer_tag,display_name,clan_tag')
         .in('id', otherIds);
       if (pErr) throw pErr;
       setFriends((profs || []).map((p) => ({
         id: p.id,
         gamer_tag: p.gamer_tag || 'Player',
         display_name: p.display_name || null,
-        mmr: p.mmr ?? 1200,
         clan_tag: p.clan_tag,
       })));
     } catch (err) {
@@ -152,13 +149,12 @@ export default function Clans() {
         <div className="card-title">Clan invite</div>
         <div className="clan-sub">
           [{clan.tag}] {clan.name}
-          {clan.min_mmr > 0 ? ' · requirements to join' : ''}
         </div>
         <div className="party-panel-actions" style={{ marginTop: 12 }}>
           <button
             type="button"
             className="action-btn primary"
-            disabled={busy || myMmr < (clan.min_mmr || 0)}
+            disabled={busy}
             onClick={() => run(() => respondClanInvite(clan.id, true))}
           >
             Accept
@@ -172,11 +168,6 @@ export default function Clans() {
             Decline
           </button>
         </div>
-        {myMmr < (clan.min_mmr || 0) && (
-          <div className="clan-sub" style={{ marginTop: 10, color: 'var(--red)' }}>
-            You don't meet this clan's join requirements.
-          </div>
-        )}
       </div>
     );
   }
@@ -211,32 +202,28 @@ export default function Clans() {
               <div className="clan-sub">No open clans yet — create one and set it to open.</div>
             ) : (
               <div className="clan-browse-list">
-                {openClans.map((c) => {
-                  const locked = myMmr < (c.min_mmr || 0);
-                  return (
+                {openClans.map((c) => (
                     <div className="clan-browse-row" key={c.id}>
                       <div>
                         <div className="clan-browse-name">
                           <span className="clan-tag-prefix">[{c.tag}]</span> {c.name}
                         </div>
                         <div className="clan-sub">
-          {c.member_count || 0} members
-                          {(c.min_mmr || 0) > 0 ? ' · requirements' : ' · open to all'}
+                          {c.member_count || 0} members · open to all
                         </div>
                       </div>
                       <button
                         type="button"
                         className="action-btn primary"
                         style={{ padding: '6px 12px', fontSize: 11 }}
-                        disabled={busy || locked}
-                        title={locked ? "You don't meet this clan's join requirements" : 'Join this clan'}
+                        disabled={busy}
+                        title="Join this clan"
                         onClick={() => run(() => joinClan(c.id))}
                       >
-                        {locked ? 'Locked' : 'Join'}
+                        Join
                       </button>
                     </div>
-                  );
-                })}
+                  ))}
               </div>
             )}
             <button
@@ -405,7 +392,7 @@ export default function Clans() {
             style={{ marginTop: 10, padding: '6px 12px', fontSize: 11 }}
             disabled={busy}
             onClick={() => run(() => updateClanSettings({
-              minMmr: clan.min_mmr ?? 0,
+              minMmr: 0,
               isOpen: settingsOpen,
             }))}
           >
@@ -430,8 +417,8 @@ export default function Clans() {
                     type="button"
                     className="action-btn ghost"
                     style={{ padding: '4px 10px', fontSize: 11 }}
-                    disabled={busy || f.mmr < (clan.min_mmr || 0)}
-                    title={f.mmr < (clan.min_mmr || 0) ? "Doesn't meet this clan's join requirements" : 'Send invite'}
+                    disabled={busy}
+                    title="Send invite"
                     onClick={() => run(() => inviteToClan(f.id))}
                   >
                     Invite

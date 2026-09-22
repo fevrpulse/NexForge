@@ -270,7 +270,7 @@ function nodeFallback() {
   return {
     cpuName: cpu.model || null,
     cores: cpus.length || null,
-    threads: cpus.length || null,
+    threads: (typeof os.availableParallelism === 'function' ? os.availableParallelism() : 0) || cpus.length || null,
     clockMhz: cpu.speed || null,
     ramGb: Math.round((os.totalmem() / (1024 ** 3)) * 10) / 10,
     ramFreeGb: Math.round((os.freemem() / (1024 ** 3)) * 10) / 10,

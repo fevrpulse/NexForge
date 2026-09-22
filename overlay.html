@@ -26,12 +26,13 @@
       font-family: 'Segoe UI', system-ui, sans-serif;
       color: var(--text);
       user-select: none;
+      pointer-events: none;
     }
-    body.hud-on {
-      background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(0,0,0,.28), transparent 70%);
-    }
-    body.hud-look-glass.hud-on {
-      background: radial-gradient(ellipse 80% 70% at 50% 50%, rgba(0,0,0,.12), transparent 70%);
+    body.hud-on,
+    body.hud-look-glass.hud-on,
+    body.hud-look-clear,
+    body.hud-look-clear.hud-on {
+      background: transparent;
     }
     body.hud-look-glass {
       --panel: rgba(10, 16, 10, 0.48);
@@ -46,7 +47,8 @@
     body.hud-look-clear .panel,
     body.hud-look-clear .hud-bar,
     body.hud-look-clear #strip,
-    body.hud-look-clear #panel-picker {
+    body.hud-look-clear #panel-picker,
+    body.hud-look-clear #stats-osd {
       background: transparent;
       box-shadow: none;
     }
@@ -67,7 +69,7 @@
     body.nexai-only #panel-nexai { display: block !important; box-shadow: 0 18px 48px rgba(0,0,0,.55); }
     body.hud-look-clear.nexai-only #panel-nexai { box-shadow: none; }
     body.hud-on #strip { display: none !important; }
-    #hud, #strip, #crosshair { opacity: var(--hud-opacity); }
+    #hud, #strip, #crosshair, #stats-osd { opacity: var(--hud-opacity); }
     .panel-h .panel-x {
       display: none;
       border: 1px solid var(--border);
@@ -146,8 +148,9 @@
       font-size: 12px; color: var(--muted); margin-top: 1px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    #hud { display: none; position: fixed; inset: 0; z-index: 10; }
+    #hud { display: none; position: fixed; inset: 0; z-index: 10; pointer-events: none; }
     body.hud-on #hud { display: block; }
+    .panel, .hud-bar, #panel-picker { pointer-events: auto; }
     .hud-bar {
       position: absolute; left: 50%; top: 16px; transform: translateX(-50%);
       display: flex; align-items: center; gap: 10px;
@@ -263,6 +266,35 @@
       left: 0; top: 6px; width: 5px; height: 2px;
       box-shadow: 9px 0 0 0 var(--neon);
     }
+    #stats-osd {
+      display: none;
+      position: fixed;
+      z-index: 9;
+      pointer-events: none;
+      font-family: Consolas, monospace;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.38;
+      letter-spacing: .03em;
+      text-shadow: 0 1px 2px #000, 0 0 8px #000, 1px 1px 0 #000;
+    }
+    body.stats-on:not(.nexai-only) #stats-osd { display: block; }
+    body.stats-tl #stats-osd { top: 14px; left: 16px; }
+    body.stats-tr #stats-osd { top: 14px; right: 16px; text-align: right; }
+    body.stats-bl #stats-osd { bottom: 18px; left: 16px; }
+    body.stats-br #stats-osd { bottom: 18px; right: 16px; text-align: right; }
+    body.strip-on.stats-bl #stats-osd { bottom: 56px; }
+    body.strip-on.stats-br #stats-osd { bottom: 56px; }
+    body.strip-top.stats-tl #stats-osd { top: 56px; }
+    body.strip-top.stats-tr #stats-osd { top: 56px; }
+    .stats-row { display: grid; grid-template-columns: 38px auto; gap: 10px; align-items: baseline; }
+    body.stats-tr .stats-row, body.stats-br .stats-row { grid-template-columns: auto 38px; }
+    body.stats-tr .stats-row .k, body.stats-br .stats-row .k { order: 2; }
+    body.stats-tr .stats-row .v, body.stats-br .stats-row .v { order: 1; }
+    .stats-row .k { color: var(--muted); font-weight: 700; }
+    .stats-row .v { color: var(--neon); }
+    .stats-row.warm .v { color: var(--warm); }
+    .stats-row.hot .v { color: var(--red); }
     .timer-big { font-size: 32px; font-weight: 800; letter-spacing: .06em; font-family: Consolas, monospace; color: var(--hud); }
     .you-tag { font-weight: 800; font-size: 18px; margin-bottom: 4px; }
     .qual { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; font-weight: 800; }
@@ -292,6 +324,7 @@
 </head>
 <body>
   <div id="crosshair" aria-hidden="true"></div>
+  <div id="stats-osd" aria-hidden="true"></div>
   <div id="strip">
     <b>NF</b>
     <span class="sep">·</span>
@@ -327,7 +360,7 @@
     <div class="panel hud-panel" id="panel-hardware" data-id="hardware">
       <div class="panel-h">Hardware</div>
       <div class="panel-b" id="hardware-body">
-        <div class="muted">Meters fill once a session is tracked.</div>
+        <div class="muted">Live meters fill in a moment.</div>
       </div>
     </div>
     <div class="panel hud-panel" id="panel-clock" data-id="clock">
@@ -514,7 +547,20 @@
       syncAiChips();
     }
     let feed = [];
-    let prefs = { hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8', nexai: 'Ctrl+Shift+A' }, statusStrip: true, crosshair: false, crosshairStyle: 'cross', stripPosition: 'bottom', hudOpacity: 92, hudLook: 'solid' };
+    let prefs = {
+      hotkeys: { overlay: 'Ctrl+Shift+O', clip: 'F8', nexai: 'Ctrl+Shift+A' },
+      statusStrip: true,
+      crosshair: false,
+      crosshairStyle: 'cross',
+      stripPosition: 'bottom',
+      hudOpacity: 92,
+      hudLook: 'solid',
+      statsHud: true,
+      statsPos: 'top-left',
+      stats: { gpuUsage: true, gpuTemp: true, cpuUsage: true, cpuTemp: true, fps: true, ram: true },
+    };
+    const DEFAULT_STATS = { gpuUsage: true, gpuTemp: true, cpuUsage: true, cpuTemp: true, fps: true, ram: true };
+    const STAT_KEYS = ['gpuUsage', 'gpuTemp', 'cpuUsage', 'cpuTemp', 'fps', 'ram'];
     const FOCUS_KEY = 'nf-overlay-focus';
     let focusUntil = 0;
     let focusLen = 5 * 60 * 1000;
@@ -798,6 +844,58 @@
           ['Clip', prefs.hotkeys?.clip],
         ].map(([k, v]) => `<div class="stat-row"><span>${k}</span><span class="kbd">${escapeHtml(formatAcc(v))}</span></div>`).join('');
       }
+      renderStats();
+    }
+
+    function fmtSysPct(n) {
+      return Number.isFinite(Number(n)) ? Math.round(Number(n)) + '%' : '—';
+    }
+    function fmtSysTemp(n) {
+      return Number.isFinite(Number(n)) ? Math.round(Number(n)) + '°C' : '—';
+    }
+    function fmtSysRam(state) {
+      const used = Number(state?.sysRamUsedGb);
+      const total = Number(state?.sysRamTotalGb);
+      if (!Number.isFinite(used)) return '—';
+      return Number.isFinite(total) ? used.toFixed(1) + '/' + Math.round(total) + ' GB' : used.toFixed(1) + ' GB';
+    }
+    function statTone(kind, n) {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return '';
+      if (kind === 'temp') return v >= 85 ? 'hot' : v >= 70 ? 'warm' : '';
+      if (kind === 'pct') return v >= 95 ? 'hot' : v >= 85 ? 'warm' : '';
+      if (kind === 'fps') return v > 0 && v < 30 ? 'hot' : v < 50 ? 'warm' : '';
+      return '';
+    }
+    function statsRow(label, value, tone) {
+      return `<div class="stats-row ${tone}"><span class="k">${label}</span><span class="v">${escapeHtml(value)}</span></div>`;
+    }
+    function renderStats() {
+      const el = document.getElementById('stats-osd');
+      if (!el) return;
+      const stats = { ...DEFAULT_STATS, ...(prefs.stats || {}) };
+      const on = prefs.statsHud !== false && STAT_KEYS.some((k) => stats[k] !== false);
+      document.body.classList.toggle('stats-on', on);
+      document.body.classList.remove('stats-tl', 'stats-tr', 'stats-bl', 'stats-br');
+      const pos = prefs.statsPos || 'top-left';
+      const map = { 'top-left': 'stats-tl', 'top-right': 'stats-tr', 'bottom-left': 'stats-bl', 'bottom-right': 'stats-br' };
+      document.body.classList.add(map[pos] || 'stats-tl');
+      if (!on) {
+        el.innerHTML = '';
+        return;
+      }
+      const s = overlayState;
+      const rows = [];
+      if (stats.gpuUsage) rows.push(statsRow('GPU', fmtSysPct(s.sysGpuPct), statTone('pct', s.sysGpuPct)));
+      if (stats.gpuTemp) rows.push(statsRow('GPU', fmtSysTemp(s.sysGpuTempC), statTone('temp', s.sysGpuTempC)));
+      if (stats.cpuUsage) rows.push(statsRow('CPU', fmtSysPct(s.sysCpuPct), statTone('pct', s.sysCpuPct)));
+      if (stats.cpuTemp) rows.push(statsRow('CPU', fmtSysTemp(s.sysCpuTempC), statTone('temp', s.sysCpuTempC)));
+      if (stats.fps) {
+        const fps = Number.isFinite(Number(s.sysFps)) ? Number(s.sysFps) : localFps;
+        rows.push(statsRow('FPS', Number.isFinite(fps) ? String(Math.round(fps)) : '—', statTone('fps', fps)));
+      }
+      if (stats.ram) rows.push(statsRow('RAM', fmtSysRam(s), statTone('pct', s.sysRamPct)));
+      el.innerHTML = rows.join('');
     }
 
     function pingQuality(ms) {
@@ -885,6 +983,22 @@
       return Math.max(0, base + (Date.now() - durationAt) / 1000);
     }
 
+    let localFps = null;
+    let fpsFrames = 0;
+    let fpsStamp = 0;
+    function fpsLoop(now) {
+      if (!fpsStamp) fpsStamp = now;
+      fpsFrames += 1;
+      if (now - fpsStamp >= 1000) {
+        localFps = Math.round((fpsFrames * 1000) / (now - fpsStamp));
+        fpsFrames = 0;
+        fpsStamp = now;
+        if (!Number.isFinite(Number(overlayState.sysFps))) renderStats();
+      }
+      requestAnimationFrame(fpsLoop);
+    }
+    requestAnimationFrame(fpsLoop);
+
     function applyState(state) {
       if (!state || typeof state !== 'object') return;
       overlayState = { ...overlayState, ...state };
@@ -950,7 +1064,25 @@
 
       const hw = document.getElementById('hardware-body');
       if (hw) {
-        if (game) {
+        const cpu = overlayState.sysCpuPct ?? (game ? overlayState.cpuPct : null);
+        const gpu = overlayState.sysGpuPct ?? (game ? overlayState.gpuPct : null);
+        const ramPct = overlayState.sysRamPct;
+        const liveBits =
+          meterHtml('CPU', cpu, '%') +
+          (overlayState.sysCpuTempC != null ? `<div class="stat-row"><span>CPU temp</span><b>${Math.round(Number(overlayState.sysCpuTempC))}°C</b></div>` : '') +
+          meterHtml('GPU', gpu, '%') +
+          (overlayState.sysGpuTempC != null ? `<div class="stat-row"><span>GPU temp</span><b>${Math.round(Number(overlayState.sysGpuTempC))}°C</b></div>` : '') +
+          (Number.isFinite(Number(overlayState.sysFps))
+            ? `<div class="stat-row"><span>FPS</span><b>${Math.round(Number(overlayState.sysFps))}</b></div>`
+            : '') +
+          (ramPct != null
+            ? meterHtml('RAM', ramPct, '%') + `<div class="stat-row"><span>RAM used</span><b>${escapeHtml(fmtSysRam(overlayState))}</b></div>`
+            : (game ? meterHtml('RAM', overlayState.ramMb, ' MB', Math.max(16000, Number(overlayState.ramMb) * 1.2 || 16000)) : ''));
+        const hasLive = cpu != null || gpu != null || ramPct != null || overlayState.sysCpuTempC != null || overlayState.sysGpuTempC != null;
+        if (hasLive) {
+          hw.innerHTML = liveBits +
+            (game ? meterHtml('Disk', overlayState.diskPct, '%') + meterHtml('Wi-Fi', overlayState.wifiPct, '%') + meterHtml('Ping', overlayState.pingMs, 'ms', 200) + `<div class="stat-row"><span>Heat</span><b>${escapeHtml(overlayState.heat || '—')}</b></div>` + sparkHtml(overlayState.pingHistory) : '');
+        } else if (game) {
           hw.innerHTML =
             meterHtml('CPU', overlayState.cpuPct, '%') +
             meterHtml('GPU', overlayState.gpuPct, '%') +
@@ -961,9 +1093,18 @@
             `<div class="stat-row"><span>Heat</span><b>${escapeHtml(overlayState.heat || '—')}</b></div>` +
             sparkHtml(overlayState.pingHistory);
         } else {
-          hw.innerHTML = '<div class="muted">Meters fill once a session is tracked.</div>';
+          const rig = overlayState.rig;
+          const rows = [];
+          if (rig?.gpu) rows.push(`<div class="stat-row"><span>GPU</span><b>${escapeHtml(rig.gpu)}${rig.vramGb ? ' · ' + rig.vramGb + ' GB' : ''}</b></div>`);
+          if (rig?.cpu) rows.push(`<div class="stat-row"><span>CPU</span><b>${escapeHtml(rig.cpu)}</b></div>`);
+          if (rig?.ramGb) rows.push(`<div class="stat-row"><span>RAM</span><b>${rig.ramGb} GB${rig.ramType ? ' ' + escapeHtml(String(rig.ramType)) : ''}</b></div>`);
+          if (rig?.display) rows.push(`<div class="stat-row"><span>Display</span><b>${escapeHtml(rig.display)}</b></div>`);
+          hw.innerHTML = rows.length
+            ? rows.join('') + '<div class="muted">Live meters fill in a moment.</div>'
+            : '<div class="muted">Live meters fill in a moment.</div>';
         }
       }
+      renderStats();
 
       const net = document.getElementById('network-body');
       const q = pingQuality(overlayState.pingMs);
@@ -986,7 +1127,6 @@
         ? [overlayState.clanTag ? '[' + overlayState.clanTag + ']' : null, overlayState.mainGame || null].filter(Boolean).join(' · ') || 'Online'
         : 'Sign in to fill this out.';
       document.getElementById('you-stats').innerHTML =
-        (overlayState.mmr != null ? `<div class="stat-row"><span>MMR</span><b>${escapeHtml(String(overlayState.mmr))}</b></div>` : '') +
         `<div class="stat-row"><span>Unread</span><b>${overlayState.unread || 0}</b></div>` +
         `<div class="stat-row"><span>DND</span><b>${dnd ? 'On' : 'Off'}</b></div>` +
         `<div class="stat-row"><span>Boost</span><b>${boost ? 'On' : 'Idle'}</b></div>` +
@@ -1242,6 +1382,34 @@
     api?.onClipStatus((s) => { if (s) applyClipUi(s); });
     api?.onClipSaved((payload) => {
       if (payload?.path) document.getElementById('clip-last').textContent = String(payload.path).split(/[/\\]/).pop();
+    });
+
+    let hoverHit = false;
+    function hitTarget(node) {
+      return !!(node && node.closest && node.closest('.panel, .hud-bar, #panel-picker'));
+    }
+    document.addEventListener('mousemove', (e) => {
+      if (!document.body.classList.contains('hud-on')) return;
+      const hit = hitTarget(e.target);
+      if (hit === hoverHit) return;
+      hoverHit = hit;
+      api?.setInteractive?.(hit);
+    });
+    document.addEventListener('mouseleave', () => {
+      if (!hoverHit) return;
+      hoverHit = false;
+      api?.setInteractive?.(false);
+    });
+    document.addEventListener('mousedown', (e) => {
+      const field = e.target && e.target.closest && e.target.closest('input, textarea');
+      if (field) api?.setTyping?.(true);
+      else if (e.target && e.target.closest && e.target.closest('button')) e.preventDefault();
+    }, true);
+    document.addEventListener('focusout', () => {
+      setTimeout(() => {
+        const ae = document.activeElement;
+        if (!ae || !ae.matches || !ae.matches('input, textarea')) api?.setTyping?.(false);
+      }, 40);
     });
   </script>
 </body>

@@ -59,6 +59,19 @@ const DEFAULT_OVERLAY_PANELS = {
   recap: true, focus: true, notes: false, keys: false,
 };
 
+const DEFAULT_STATS = {
+  gpuUsage: true, gpuTemp: true, cpuUsage: true, cpuTemp: true, fps: true, ram: true,
+};
+
+const STAT_ITEMS = [
+  { id: 'gpuUsage', label: 'GPU usage' },
+  { id: 'gpuTemp', label: 'GPU temperature', hint: 'NVIDIA via nvidia-smi; AMD if a sensor service is running' },
+  { id: 'cpuUsage', label: 'CPU usage' },
+  { id: 'cpuTemp', label: 'CPU temperature', hint: 'Needs Windows thermal sensors or Libre Hardware Monitor' },
+  { id: 'fps', label: 'FPS', hint: 'On-screen present rate while a game is tracked' },
+  { id: 'ram', label: 'RAM usage' },
+];
+
 function openUrl(url) {
   if (window.nexforge?.openExternalUrl) {
     window.nexforge.openExternalUrl(url);
@@ -121,6 +134,42 @@ function SelectRow({ label, hint, value, onChange, options }) {
   );
 }
 
+function fmtPreviewPct(n) {
+  return n != null && Number.isFinite(Number(n)) ? `${Math.round(Number(n))}%` : '—';
+}
+function fmtPreviewTemp(n) {
+  return n != null && Number.isFinite(Number(n)) ? `${Math.round(Number(n))}°C` : '—';
+}
+function fmtPreviewRam(sample) {
+  const used = Number(sample?.ramUsedGb);
+  const total = Number(sample?.ramTotalGb);
+  if (!Number.isFinite(used)) return '—';
+  return Number.isFinite(total) ? `${used.toFixed(1)}/${Math.round(total)} GB` : `${used.toFixed(1)} GB`;
+}
+
+function StatsPreview({ sample, stats }) {
+  const rows = [];
+  if (stats?.gpuUsage !== false) rows.push(['GPU', fmtPreviewPct(sample?.gpuPct)]);
+  if (stats?.gpuTemp !== false) rows.push(['GPU', fmtPreviewTemp(sample?.gpuTempC)]);
+  if (stats?.cpuUsage !== false) rows.push(['CPU', fmtPreviewPct(sample?.cpuPct)]);
+  if (stats?.cpuTemp !== false) rows.push(['CPU', fmtPreviewTemp(sample?.cpuTempC)]);
+  if (stats?.fps !== false) {
+    rows.push(['FPS', sample?.fps != null && Number.isFinite(Number(sample.fps)) ? String(Math.round(Number(sample.fps))) : '—']);
+  }
+  if (stats?.ram !== false) rows.push(['RAM', fmtPreviewRam(sample)]);
+  if (!rows.length) return <div className="stats-preview muted">Nothing selected.</div>;
+  return (
+    <div className="stats-preview" aria-live="polite">
+      {rows.map(([k, v], i) => (
+        <div className="stats-preview-row" key={`${k}-${i}`}>
+          <span>{k}</span>
+          <b>{v}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Settings() {
   const {
     profile,
@@ -160,6 +209,9 @@ export default function Settings() {
     stripPosition: 'bottom',
     hudOpacity: 92,
     hudLook: 'solid',
+    statsHud: true,
+    statsPos: 'top-left',
+    stats: { gpuUsage: true, gpuTemp: true, cpuUsage: true, cpuTemp: true, fps: true, ram: true },
     panels: { ...DEFAULT_OVERLAY_PANELS },
   });
   const [prefs, setPrefs] = useState(() => getAppPrefs());
@@ -168,6 +220,7 @@ export default function Settings() {
   const [micInputs, setMicInputs] = useState([]);
   const [speakers, setSpeakers] = useState([]);
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [perf, setPerf] = useState(null);
   const latest = CHANGELOG[0];
   const tag = profile?.gamer_tag || (guestMode ? 'Guest' : 'Player');
   const win = appPlatform === 'win32' || String(appPlatform || '').toLowerCase().includes('win');
@@ -194,6 +247,9 @@ export default function Settings() {
       if (patch.panels) {
         next.panels = { ...DEFAULT_OVERLAY_PANELS, ...(cur.panels || {}), ...patch.panels };
       }
+      if (patch.stats) {
+        next.stats = { ...DEFAULT_STATS, ...(cur.stats || {}), ...patch.stats };
+      }
       return next;
     });
     applyOverlayPrefs(patch)
@@ -207,6 +263,9 @@ export default function Settings() {
             stripPosition: saved.stripPosition === 'top' ? 'top' : 'bottom',
             hudOpacity: Number.isFinite(Number(saved.hudOpacity)) ? Number(saved.hudOpacity) : cur.hudOpacity,
             hudLook: saved.hudLook || cur.hudLook,
+            statsHud: saved.statsHud !== false,
+            statsPos: saved.statsPos || cur.statsPos,
+            stats: saved.stats ? { ...DEFAULT_STATS, ...saved.stats } : cur.stats,
             panels: saved.panels ? { ...DEFAULT_OVERLAY_PANELS, ...saved.panels } : cur.panels,
           }));
         }
@@ -236,10 +295,22 @@ export default function Settings() {
           stripPosition: p.stripPosition === 'top' ? 'top' : 'bottom',
           hudOpacity: Number(p.hudOpacity) || 92,
           hudLook: p.hudLook === 'glass' || p.hudLook === 'clear' ? p.hudLook : 'solid',
+          statsHud: p.statsHud !== false,
+          statsPos: ['top-left', 'top-right', 'bottom-left', 'bottom-right'].includes(p.statsPos) ? p.statsPos : 'top-left',
+          stats: { ...DEFAULT_STATS, ...(p.stats || {}) },
           panels: { ...DEFAULT_OVERLAY_PANELS, ...(p.panels || {}) },
         });
       })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    window.nexforge?.getPerfSample?.()
+      .then((sample) => { if (sample) setPerf(sample); })
+      .catch(() => {});
+    return window.nexforge?.onPerfSample?.((sample) => {
+      if (sample) setPerf(sample);
+    });
   }, []);
 
   useEffect(() => {
@@ -542,14 +613,14 @@ export default function Settings() {
 
         {tab === 'overlay' && (
           <>
-            <p className="settings-lead">In-game HUD, NexAI, clips, status strip, crosshair, and extra panels.</p>
+            <p className="settings-lead">In-game HUD, live GPU/CPU/RAM/FPS stats, NexAI, clips, status strip, and extra panels.</p>
             <div className="card">
               <div className="card-title">In-game overlay</div>
               <SettingToggle
                 on={overlayEnabled}
                 onChange={setOverlayEnabled}
                 label="Show overlay while you play"
-                hint="Toasts for messages and calls over borderless / windowed games. Exclusive fullscreen cannot be drawn over."
+                hint="Click-through over borderless and windowed games — mouse and keys stay in the game. Stats sit on this same overlay. Exclusive fullscreen cannot be drawn over."
               />
               <KeybindRow
                 label="Open & edit overlay"
@@ -626,6 +697,51 @@ export default function Settings() {
                   { value: '100', label: '100%' },
                 ]}
               />
+            </div>
+
+            <div className="card">
+              <div className="card-title">On-screen stats</div>
+              <p className="row-sub" style={{ marginBottom: 12 }}>
+                Click-through with the overlay. Clicks pass through to the game. Turn each reading on or off.
+              </p>
+              <SettingToggle
+                on={hudExtras.statsHud !== false}
+                onChange={(on) => patchHud({ statsHud: on })}
+                label="Show performance stats"
+                hint="GPU, CPU, RAM, temps, and FPS on the corner of the screen while a game is tracked."
+              />
+              <SelectRow
+                label="Stats corner"
+                hint="Where the stack sits. Move it if it covers a HUD or minimap."
+                value={hudExtras.statsPos || 'top-left'}
+                onChange={(v) => patchHud({ statsPos: v })}
+                options={[
+                  { value: 'top-left', label: 'Top left' },
+                  { value: 'top-right', label: 'Top right' },
+                  { value: 'bottom-left', label: 'Bottom left' },
+                  { value: 'bottom-right', label: 'Bottom right' },
+                ]}
+              />
+              {STAT_ITEMS.map((item) => (
+                <SettingToggle
+                  key={item.id}
+                  on={hudExtras.stats?.[item.id] !== false}
+                  onChange={(on) => patchHud({ stats: { [item.id]: on } })}
+                  label={item.label}
+                  hint={item.hint}
+                />
+              ))}
+              <div className="settings-actions">
+                <button
+                  type="button"
+                  className="action-btn ghost"
+                  onClick={() => patchHud({ stats: { ...DEFAULT_STATS } })}
+                >
+                  Show all stats
+                </button>
+              </div>
+              <div className="row-sub" style={{ margin: '12px 0 8px' }}>Live preview</div>
+              <StatsPreview sample={perf} stats={hudExtras.stats} />
             </div>
 
             <div className="card">
@@ -892,12 +1008,6 @@ export default function Settings() {
                 onChange={(on) => patchPref('sharePresence', on)}
                 label="Share what you are playing"
                 hint="Friends see the tracked game next to your online dot. Last-seen is still updated."
-              />
-              <SettingToggle
-                on={prefs.winLossPrompt !== false}
-                onChange={(on) => patchPref('winLossPrompt', on)}
-                label="Ask won or lost after a session"
-                hint="The one-tap prompt when a tracked game closes. Esc still skips it."
               />
               {win ? (
                 <SettingToggle

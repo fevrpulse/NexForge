@@ -3,7 +3,7 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import {
   modeMark, modesForGame,
-  honestServerLabel, isShooterGame,
+  honestServerLabel,
 } from '../lib/games.js';
 import GameCatalogGrid from '../components/GameCatalogGrid.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
@@ -12,44 +12,8 @@ import { friendQueueTarget, isVisibleOpenQueue, publicServerLabel } from '../lib
 
 const STEP_LABELS = ['1 · Game', '2 · Queue', '3 · Details'];
 
-function CombatInputs({ values, onChange }) {
-  return (
-    <div className="field" style={{ marginBottom: 10 }}>
-      <label>Your K / D / A</label>
-      <div className="combat-stat-grid">
-        <input type="number" min={0} step={1} placeholder="K" value={values.kills}
-          onChange={(e) => onChange({ ...values, kills: e.target.value })} />
-        <input type="number" min={0} step={1} placeholder="D" value={values.deaths}
-          onChange={(e) => onChange({ ...values, deaths: e.target.value })} />
-        <input type="number" min={0} step={1} placeholder="A" value={values.assists}
-          onChange={(e) => onChange({ ...values, assists: e.target.value })} />
-      </div>
-      <div className="field-hint" style={{ marginTop: 8 }}>
-        Optional — enter your scoreboard line if you want.
-      </div>
-    </div>
-  );
-}
-
-function readCombat(values) {
-  const rawK = (values.kills ?? '').toString().trim();
-  const rawD = (values.deaths ?? '').toString().trim();
-  const rawA = (values.assists ?? '').toString().trim();
-  if (!rawK && !rawD && !rawA) return { ok: true, stats: null };
-  if (!rawK || !rawD || !rawA) {
-    return { ok: false, error: 'Enter kills, deaths, and assists together (or leave all blank).' };
-  }
-  const kills = parseInt(rawK, 10);
-  const deaths = parseInt(rawD, 10);
-  const assists = parseInt(rawA, 10);
-  if (![kills, deaths, assists].every((n) => Number.isFinite(n) && n >= 0)) {
-    return { ok: false, error: 'Combat stats must be non-negative numbers.' };
-  }
-  return { ok: true, stats: { kills, deaths, assists } };
-}
-
 export default function Matchmaking() {
-  const { user, profile, showToast, setCloudOffline, reportCloudError, gameCatalog, refreshProfile } = useNexForge();
+  const { user, profile, showToast, setCloudOffline, reportCloudError, gameCatalog } = useNexForge();
 
   const [step, setStep] = useState(1);
   const [selectedGame, setSelectedGame] = useState(profile?.main_game || 'Valorant');
@@ -64,9 +28,7 @@ export default function Matchmaking() {
   const [myOpenDuel, setMyOpenDuel] = useState(null);
   const [myActiveDuel, setMyActiveDuel] = useState(null);
   const [posting, setPosting] = useState(false);
-  const [winnerPick, setWinnerPick] = useState('');
-  const [combat, setCombat] = useState({ kills: '', deaths: '', assists: '' });
-  const [submittingWinner, setSubmittingWinner] = useState(false);
+  const [finishingDuel, setFinishingDuel] = useState(false);
 
   const [duoOpen, setDuoOpen] = useState(false);
   const [duoResults, setDuoResults] = useState(null);
@@ -149,13 +111,6 @@ export default function Matchmaking() {
     pollRef.current = setInterval(refreshDuels, 4000);
     return () => clearInterval(pollRef.current);
   }, [refreshDuels]);
-
-  useEffect(() => {
-    if (myActiveDuel) {
-      const mine = user && myActiveDuel.host_id === user.id ? myActiveDuel.host_winner_pick : myActiveDuel.challenger_winner_pick;
-      setWinnerPick(mine || '');
-    }
-  }, [myActiveDuel, user]);
 
   function selectGame(game) {
     gameTouchedRef.current = true;
@@ -265,57 +220,32 @@ export default function Matchmaking() {
       const { data, error } = await sb.rpc('accept_duel', { p_duel_id: duelId });
       if (error) throw error;
       setMyActiveDuel(data);
-      showToast(`Duel accepted vs ${data.host_tag}. Play, then both pick the winner.`, 'success');
+      showToast(`Duel accepted vs ${data.host_tag}. Play, then close the duel when you are done.`, 'success');
       refreshDuels();
     } catch (err) {
       showToast(err?.message || 'Could not accept duel.', 'error');
     }
   }
 
-  async function submitWinner() {
-    if (!user || !myActiveDuel) return;
-    if (!winnerPick) {
-      showToast('Select who won.', 'error');
-      return;
-    }
-    const combatResult = readCombat(combat);
-    if (!combatResult.ok) {
-      showToast(combatResult.error, 'error');
-      return;
-    }
-
-    setSubmittingWinner(true);
+  async function finishDuel() {
+    if (!user || !myActiveDuel || finishingDuel) return;
+    setFinishingDuel(true);
     try {
-      const rpcArgs = { p_duel_id: myActiveDuel.id, p_winner_id: winnerPick };
-      if (combatResult.stats) {
-        rpcArgs.p_kills = combatResult.stats.kills;
-        rpcArgs.p_deaths = combatResult.stats.deaths;
-        rpcArgs.p_assists = combatResult.stats.assists;
-      }
-      const { data, error } = await sb.rpc('submit_duel_winner', rpcArgs);
+      const { error } = await sb.rpc('finish_duel', { p_duel_id: myActiveDuel.id });
       if (error) throw error;
-
-      if (data.status === 'completed') {
-        setMyActiveDuel(null);
-        setCombat({ kills: '', deaths: '', assists: '' });
-        const iWon = data.winner_id === user.id;
-        showToast(
-          iWon ? 'Duel recorded · +25 Forge Coins' : 'Duel recorded',
-          iWon ? 'success' : 'error'
-        );
-        await refreshProfile();
-      } else if (!data.host_winner_pick && !data.challenger_winner_pick) {
-        setMyActiveDuel(data);
-        showToast('Results do not match — both players must select the same winner.', 'error');
-      } else {
-        setMyActiveDuel(data);
-        showToast('Result submitted — waiting for opponent to confirm the same winner.', 'success');
-      }
+      setMyActiveDuel(null);
+      showToast('Duel closed', 'success');
       refreshDuels();
     } catch (err) {
-      showToast(err?.message || 'Could not submit result.', 'error');
+      const msg = String(err?.message || '');
+      showToast(
+        /could not find the function|schema cache|404|not found|finish_duel/i.test(msg)
+          ? 'Run v161-duel-close-tournament-proof.sql in Supabase to close duels without a winner.'
+          : (err?.message || 'Could not close duel.'),
+        'error',
+      );
     } finally {
-      setSubmittingWinner(false);
+      setFinishingDuel(false);
     }
   }
 
@@ -360,7 +290,6 @@ export default function Matchmaking() {
   }
 
   const modes = modesForGame(selectedGame);
-  const shooter = isShooterGame(selectedGame);
   const colors = ['#C9FF00', '#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#FF3D1F'];
 
   return (
@@ -543,20 +472,11 @@ export default function Matchmaking() {
             {publicServerLabel(myActiveDuel.server) && <><br />Server {publicServerLabel(myActiveDuel.server)}</>}
             {myActiveDuel.details && <><br />{myActiveDuel.details}</>}
           </div>
-          <div className="field">
-            <label>Who won? (both players must pick the same winner)</label>
-            <select value={winnerPick} onChange={(e) => setWinnerPick(e.target.value)}>
-              <option value="">Select winner…</option>
-              <option value={myActiveDuel.host_id}>{myActiveDuel.host_tag}</option>
-              <option value={myActiveDuel.challenger_id}>{myActiveDuel.challenger_tag || 'Challenger'}</option>
-            </select>
+          <div className="field-hint" style={{ margin: '0 0 12px', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', lineHeight: 1.5 }}>
+            No winner is recorded. Close this when you are done playing.
           </div>
-          {shooter && <CombatInputs values={combat} onChange={setCombat} />}
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)', margin: '8px 0 12px', lineHeight: 1.5 }}>
-            Only the two players in this duel can report the result.
-          </div>
-          <button className="action-btn primary full" onClick={submitWinner} disabled={submittingWinner}>
-            {submittingWinner ? 'Submitting…' : 'Submit Result'}
+          <button className="action-btn primary full" onClick={finishDuel} disabled={finishingDuel}>
+            {finishingDuel ? 'Closing…' : 'Close duel'}
           </button>
         </div>
       )}

@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '4.13.0',
+    highlights: [
+      'On-screen stats while you play: GPU usage and temp, CPU usage and temp, FPS, and RAM. Choose which ones show and which corner they sit in.',
+      'The overlay stays click-through, so you can still click and play. Stats stay on that same overlay.',
+      'Duels close with no winner. Tournaments only move on when a player concedes — nobody picks who won.',
+      'W/L and MMR gates are gone from coach, clans, and the shop.',
+    ],
+  },
+  {
     version: '4.12.0',
     highlights: [
       'Rig scan reads VRAM, RAM kits, disks, motherboard, BIOS, monitors, and network — not just CPU, GPU name, and RAM total',

@@ -14,7 +14,7 @@ const WELCOME = {
 const SUGGESTIONS = [
   'Give me a 10-minute warmup',
   'What in-game settings should I use?',
-  'Tips after a losing streak',
+  'Warm-up after a rough session',
 ];
 
 function timeLabel(iso) {

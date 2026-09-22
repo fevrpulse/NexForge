@@ -814,10 +814,11 @@
 .bracket-match{border:1px solid var(--border);border-radius:10px;padding:6px;background:var(--panel)}
 .bracket-match.status-ready{border-color:rgba(59,126,255,.4)}
 .bracket-match.status-done{border-color:rgba(201,255,0,.3)}
-.bracket-slot{display:block;width:100%;text-align:left;padding:7px 8px;margin-bottom:4px;border:none;border-radius:6px;background:transparent;color:var(--text);font-size:12px;font-weight:600;cursor:pointer}
+.bracket-slot{display:block;width:100%;text-align:left;padding:7px 8px;margin-bottom:4px;border:none;border-radius:6px;background:transparent;color:var(--text);font-size:12px;font-weight:600;cursor:default}
+div.bracket-slot{cursor:default}
 .bracket-slot:disabled{cursor:default;opacity:.85}
 .bracket-slot.winner{color:var(--neon);background:rgba(201,255,0,.08)}
-.bracket-winner-label{font-family:var(--mono);font-size:10px;color:var(--neon);padding:2px 4px}
+.bracket-winner-label{font-family:var(--mono);font-size:10px;color:var(--neon);padding:2px 4px;line-height:1.4}
 .bracket-empty,.bracket-complete{font-family:var(--mono);font-size:11px;color:var(--muted2);padding:8px 0}
 
 /* Battle pass */
@@ -1606,6 +1607,13 @@
 }
 .setting-switch.on .setting-switch-knob{transform:translateX(20px);background:#081008}
 .settings-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+.stats-preview{
+  font-family:var(--mono);font-size:12px;line-height:1.45;
+  padding:12px 14px;border:1px solid var(--border);border-radius:12px;
+  background:var(--panel);display:flex;flex-direction:column;gap:4px;
+}
+.stats-preview-row{display:flex;justify-content:space-between;gap:12px}
+.stats-preview-row b{color:var(--neon);font-weight:700}
 .settings-kbd{
   font-family:var(--mono);font-size:11px;color:var(--neon);
   padding:4px 8px;border-radius:8px;border:1px solid rgba(201,255,0,.22);

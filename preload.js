@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('nexforge', {
   onOverlayAction: (callback) => subscribe('overlay-action', callback),
   getOverlayPrefs: () => ipcRenderer.invoke('get-overlay-prefs'),
   setOverlayPrefs: (prefs) => ipcRenderer.invoke('set-overlay-prefs', prefs),
+  getPerfSample: () => ipcRenderer.invoke('get-perf-sample'),
+  onPerfSample: (callback) => subscribe('perf-sample', callback),
   setOverlayHotkey: (payload) => ipcRenderer.invoke('set-overlay-hotkey', payload),
   openClipsFolder: () => ipcRenderer.invoke('open-clips-folder'),
   clipNow: () => ipcRenderer.invoke('overlay-clip-now'),

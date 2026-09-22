@@ -3,13 +3,19 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import { maskAccount, formatPrizeLabel } from '../lib/format.js';
 
+function proofCaption(m) {
+  if (!m) return '';
+  if (m.proof_method === 'concede') return 'Opponent conceded';
+  return m.winner_tag ? `→ ${m.winner_tag}` : '';
+}
+
 function BracketView({
   tournament,
   bracket,
   userId,
   isHost,
   busy,
-  onReport,
+  onConcede,
 }) {
   const matches = Array.isArray(bracket?.matches) ? bracket.matches : [];
   if (!matches.length) {
@@ -26,33 +32,43 @@ function BracketView({
         <div className="bracket-round" key={round}>
           <div className="bracket-round-label">Round {round}</div>
           {matches.filter((m) => m.round === round).map((m) => {
-            const canReport = isHost
+            const inMatch = !!userId && (userId === m.slot_a || userId === m.slot_b);
+            const canConcede = inMatch
               && m.status === 'ready'
               && m.slot_a
               && m.slot_b
               && !m.winner_id;
             return (
               <div className={`bracket-match status-${m.status}`} key={`${m.round}-${m.match_index}`}>
-                <button
-                  type="button"
-                  className={`bracket-slot ${m.winner_id === m.slot_a ? 'winner' : ''}`}
-                  disabled={!canReport || busy || !m.slot_a}
-                  onClick={() => onReport(m, m.slot_a)}
-                >
+                <div className={`bracket-slot ${m.winner_id === m.slot_a ? 'winner' : ''}`}>
                   {m.tag_a || (m.slot_a ? 'Player' : 'Bye')}
                   {m.slot_a === userId ? ' (you)' : ''}
-                </button>
-                <button
-                  type="button"
-                  className={`bracket-slot ${m.winner_id === m.slot_b ? 'winner' : ''}`}
-                  disabled={!canReport || busy || !m.slot_b}
-                  onClick={() => onReport(m, m.slot_b)}
-                >
+                </div>
+                <div className={`bracket-slot ${m.winner_id === m.slot_b ? 'winner' : ''}`}>
                   {m.tag_b || (m.slot_b ? 'Player' : 'Bye')}
                   {m.slot_b === userId ? ' (you)' : ''}
-                </button>
-                {m.status === 'done' && m.winner_tag && (
-                  <div className="bracket-winner-label">→ {m.winner_tag}</div>
+                </div>
+                {canConcede && (
+                  <button
+                    type="button"
+                    className="action-btn ghost"
+                    style={{ width: '100%', padding: '5px 8px', fontSize: 11, marginTop: 2 }}
+                    disabled={busy}
+                    onClick={() => onConcede(m)}
+                  >
+                    I lost
+                  </button>
+                )}
+                {m.status === 'ready' && !canConcede && (
+                  <div className="bracket-winner-label" style={{ color: 'var(--muted2)' }}>
+                    Waiting for a player to concede
+                  </div>
+                )}
+                {m.status === 'done' && (m.winner_tag || m.proof_method) && (
+                  <div className="bracket-winner-label">
+                    {m.winner_tag ? `→ ${m.winner_tag}` : ''}
+                    {m.proof_method ? `${m.winner_tag ? ' · ' : ''}${proofCaption(m)}` : ''}
+                  </div>
                 )}
               </div>
             );
@@ -144,7 +160,10 @@ const emptyForm = {
 };
 
 export default function Tournaments() {
-  const { user, profile, guestMode, showToast, setCloudOffline, reportCloudError, setLockMessage, knownGames } = useNexForge();
+  const {
+    user, profile, guestMode, showToast, setCloudOffline, reportCloudError, setLockMessage, knownGames,
+    lastClipPath, clipStatus, clipEnabled,
+  } = useNexForge();
   const [tournaments, setTournaments] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState('open');
@@ -157,6 +176,10 @@ export default function Tournaments() {
   const [checkedIn, setCheckedIn] = useState({});
   const [bracketBusy, setBracketBusy] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [verify, setVerify] = useState(null);
+  const [matchId, setMatchId] = useState('');
+  const [proofNote, setProofNote] = useState('');
+  const [attachClip, setAttachClip] = useState(false);
 
   async function loadTournaments() {
     try {
@@ -191,6 +214,17 @@ export default function Tournaments() {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedId]);
+
+  useEffect(() => {
+    if (!verify) return undefined;
+    const onKey = (e) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      closeVerify();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [verify, bracketBusy]);
 
   function updateField(key, value) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -478,20 +512,34 @@ export default function Tournaments() {
     }
   }
 
-  async function reportWinner(tournamentId, match, winnerId) {
-    if (bracketBusy || !winnerId) return;
+  function openVerify(tournamentId, match) {
+    setVerify({ tournamentId, match });
+    setMatchId('');
+    setProofNote('');
+    setAttachClip(false);
+  }
+
+  function closeVerify() {
+    if (bracketBusy) return;
+    setVerify(null);
+  }
+
+  async function reportConcede(tournamentId, match, proof) {
+    if (bracketBusy) return;
     setBracketBusy(true);
     try {
-      const { data, error } = await sb.rpc('host_report_bracket_winner', {
+      const { data, error } = await sb.rpc('concede_bracket_match', {
         p_tournament_id: tournamentId,
         p_round: match.round,
         p_match_index: match.match_index,
-        p_winner_id: winnerId,
+        p_proof_ref: proof.ref || null,
+        p_proof_note: proof.note || null,
       });
       if (error) throw error;
       setBrackets((prev) => ({ ...prev, [tournamentId]: data }));
+      setVerify(null);
       await loadTournaments();
-      showToast('Match result recorded', 'success');
+      showToast('You conceded — opponent advances', 'success');
 
       // After refresh, attempt payout if this completed a funded cash tournament
       const refreshed = await sb.from('tournaments_public')
@@ -520,11 +568,27 @@ export default function Tournaments() {
         }
       }
     } catch (err) {
-      showToast(err?.message || 'Could not report winner.', 'error');
+      const msg = String(err?.message || '');
+      showToast(
+        /could not find the function|schema cache|404|not found|concede_bracket_match/i.test(msg)
+          ? 'Run v161-duel-close-tournament-proof.sql in Supabase so a player can concede without picking a winner.'
+          : (err?.message || 'Could not concede.'),
+        'error',
+      );
       await reportCloudError(err);
     } finally {
       setBracketBusy(false);
     }
+  }
+
+  async function submitVerify() {
+    if (!verify || bracketBusy) return;
+    const noteBits = [proofNote.trim(), matchId.trim() ? `match ${matchId.trim()}` : ''].filter(Boolean);
+    const proof = {
+      ref: attachClip && lastClipPath ? lastClipPath : (matchId.trim() || null),
+      note: noteBits.join(' · ') || null,
+    };
+    await reportConcede(verify.tournamentId, verify.match, proof);
   }
 
   const filtered = tournaments.filter((t) => {
@@ -857,7 +921,7 @@ export default function Tournaments() {
                     <span>
                       Check-ins · {bracket?.checkins ?? '—'}
                       {Array.isArray(bracket?.matches) && bracket.matches.length
-                        ? ` · ${bracket.matches.length} matches`
+                        ? ` · ${bracket.matches.length} matches · the loser concedes`
                         : ''}
                     </span>
                     {isHost && !(bracket?.matches?.length) && (
@@ -878,7 +942,7 @@ export default function Tournaments() {
                     userId={user?.id}
                     isHost={isHost}
                     busy={bracketBusy}
-                    onReport={(match, winnerId) => reportWinner(t.id, match, winnerId)}
+                    onConcede={(match) => openVerify(t.id, match)}
                   />
                 </div>
               )}
@@ -886,6 +950,70 @@ export default function Tournaments() {
           );
         })}
         </>
+      )}
+      {verify && (
+        <div
+          className="lock-modal"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeVerify();
+          }}
+        >
+          <div className="lock-box opt-popup" role="dialog" aria-modal="true" aria-labelledby="verify-win-title">
+            <div className="card-title" id="verify-win-title" style={{ marginBottom: 6 }}>Confirm you lost</div>
+            <div className="coach-sub" style={{ marginBottom: 14 }}>
+              {(verify.match.slot_a === user?.id ? verify.match.tag_b : verify.match.tag_a) || 'Opponent'}
+              {' '}advances. Nobody picks a winner.
+            </div>
+            <div className="field" style={{ marginBottom: 10 }}>
+              <label>Match / lobby ID (optional)</label>
+              <input
+                type="text"
+                value={matchId}
+                maxLength={80}
+                placeholder="If you have one"
+                onChange={(e) => setMatchId(e.target.value)}
+              />
+            </div>
+            <label className="clan-check" style={{ marginBottom: 10 }}>
+              <input
+                type="checkbox"
+                checked={attachClip}
+                onChange={(e) => setAttachClip(e.target.checked)}
+              />
+              Attach last NexForge clip
+              {lastClipPath ? ` (${String(lastClipPath).split(/[/\\]/).pop()})` : ' — save a clip first'}
+            </label>
+            {attachClip && (
+              <button
+                type="button"
+                className="action-btn ghost"
+                style={{ marginBottom: 10, padding: '6px 12px', fontSize: 12 }}
+                disabled={!clipEnabled || !!clipStatus?.buffering}
+                onClick={() => window.nexforge?.clipNow?.()}
+              >
+                {!clipEnabled ? 'Clips off' : clipStatus?.buffering ? 'Buffering…' : 'Clip now'}
+              </button>
+            )}
+            <div className="field" style={{ marginBottom: 12 }}>
+              <label>Note (optional)</label>
+              <input
+                type="text"
+                value={proofNote}
+                maxLength={240}
+                placeholder="Scoreline, map, or round"
+                onChange={(e) => setProofNote(e.target.value)}
+              />
+            </div>
+            <div className="opt-popup-actions">
+              <button type="button" className="action-btn primary" disabled={bracketBusy} onClick={submitVerify}>
+                {bracketBusy ? 'Saving…' : 'I lost'}
+              </button>
+              <button type="button" className="action-btn ghost" disabled={bracketBusy} onClick={closeVerify}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
