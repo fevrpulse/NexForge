@@ -45,8 +45,10 @@
 
   function mimeType() {
     const types = [
-      'video/webm;codecs=vp8,opus',
+      'video/webm;codecs=h264,opus',
+      'video/webm;codecs=h264',
       'video/webm;codecs=vp9,opus',
+      'video/webm;codecs=vp8,opus',
       'video/webm;codecs=vp8',
       'video/webm',
     ];
@@ -76,7 +78,7 @@
   async function start(payload) {
     stopTracks();
     seconds = clampSeconds(payload?.seconds);
-    const video = { frameRate: 15, width: 1280, height: 720 };
+    const video = { frameRate: 12, width: 1280, height: 720 };
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({ video, audio: true });
     } catch {
@@ -87,7 +89,7 @@
         return;
       }
     }
-    const opts = { videoBitsPerSecond: 2500000 };
+    const opts = { videoBitsPerSecond: 1600000 };
     const mime = mimeType();
     if (mime) opts.mimeType = mime;
     try {

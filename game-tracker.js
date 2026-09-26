@@ -3,7 +3,6 @@ const os = require('os');
 const { EventEmitter } = require('events');
 const { identifyGame, PROCESS_GAME_MAP } = require('./game-detect');
 
-const POLL_MS = 3000;
 const MIN_SESSION_SEC = 45;
 const MIN_ACTIVE_RAM_MB = 80;
 const DEFAULT_PROBE = '1.1.1.1';
@@ -116,6 +115,9 @@ class GameTracker extends EventEmitter {
     this._lastGpuPct = null;
     this._gpuInFlight = null;
     this._lastIo = { diskPct: null, wifiPct: null };
+    this._lastPing = null;
+    this._deepAt = 0;
+    this._pollMs = 0;
     this._ioInFlight = null;
     this._ioWarned = false;
   }
@@ -127,10 +129,16 @@ class GameTracker extends EventEmitter {
     }
     if (this._running) return;
     this._running = true;
+    this._schedule(8000);
     this._tick().catch((err) => console.error('Game tracker tick error:', err));
+  }
+
+  _schedule(ms) {
+    if (this._timer) clearInterval(this._timer);
+    this._pollMs = ms;
     this._timer = setInterval(() => {
       this._tick().catch((err) => console.error('Game tracker tick error:', err));
-    }, POLL_MS);
+    }, ms);
     if (this._timer.unref) this._timer.unref();
   }
 
@@ -223,6 +231,10 @@ class GameTracker extends EventEmitter {
       });
     } finally {
       this._ticking = false;
+      if (this._running) {
+        const want = this._session ? 4000 : 8000;
+        if (this._pollMs !== want) this._schedule(want);
+      }
     }
   }
 
@@ -241,6 +253,8 @@ class GameTracker extends EventEmitter {
       at: Date.now(),
     };
     this._lastGpuPct = null;
+    this._lastPing = null;
+    this._deepAt = 0;
     this._lastIo = { diskPct: null, wifiPct: null };
     this.emit('started', this._publicSession(this._session));
   }
@@ -363,11 +377,24 @@ Get-Process -ErrorAction SilentlyContinue |
     };
 
     const probe = this._resolveProbe(found.game);
-    const [pingMs, gpuPct, io] = await Promise.all([
-      this._ping(probe),
-      this._gpuUsage(found.pid),
-      this._ioUsage(),
-    ]);
+    const deep = !this._deepAt || (now - this._deepAt) >= 8000;
+    let pingMs = this._lastPing;
+    let gpuPct = this._lastGpuPct;
+    let io = this._lastIo;
+    if (deep) {
+      this._deepAt = now;
+      const [ping, gpu, ioNext] = await Promise.all([
+        this._ping(probe),
+        this._gpuUsage(found.pid),
+        this._ioUsage(),
+      ]);
+      if (typeof ping === 'number') {
+        pingMs = ping;
+        this._lastPing = ping;
+      }
+      gpuPct = gpu;
+      io = ioNext || this._lastIo;
+    }
 
     return {
       at: new Date().toISOString(),

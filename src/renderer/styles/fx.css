@@ -36,6 +36,15 @@
   -webkit-mask-image:radial-gradient(ellipse 85% 65% at 50% 0%, #000 8%, transparent 76%);
   mask-image:radial-gradient(ellipse 85% 65% at 50% 0%, #000 8%, transparent 76%);
 }
+html[data-app-idle] body::before,
+html[data-app-idle] body::after,
+html[data-app-idle] .topbar-icon::before,
+html[data-app-idle] .sb-brand > div span,
+html[data-app-idle] .ui-atmosphere::before,
+html[data-app-idle] .np-orbit,
+html[data-app-idle] .np-fab{
+  animation-play-state:paused;
+}
 .topbar,.content{position:relative;z-index:1}
 
 /* ── Signature flourishes ─────────────────────────────────── */
@@ -446,7 +455,6 @@
   background-image:
     linear-gradient(rgba(210,255,42,.045) 1px, transparent 1px),
     linear-gradient(90deg, rgba(210,255,42,.045) 1px, transparent 1px);
-  animation:fx-max-grid 28s linear infinite;
 }
 @keyframes fx-max-grid{
   from{background-position:0 0, 0 0}
@@ -460,22 +468,17 @@
 }
 :root[data-fx="max"] .ui-grain{opacity:.07}
 :root[data-fx="max"] .topbar{
-  backdrop-filter:blur(18px) saturate(1.25);
-  -webkit-backdrop-filter:blur(18px) saturate(1.25);
+  background:rgba(7,11,7,.98);
   box-shadow:inset 0 -1px 0 rgba(210,255,42,.16), 0 12px 32px rgba(0,0,0,.25);
 }
 :root[data-fx="max"] .topbar::after{
-  height:2px;opacity:1;
-  box-shadow:0 0 16px rgba(210,255,42,.55);
-  animation-duration:3.2s;
+  height:2px;opacity:.85;
 }
 :root[data-fx="max"] .topbar-title{
   text-shadow:0 0 28px rgba(210,255,42,.35);
 }
 :root[data-fx="max"] .sb-brand > div span{
   background-size:180% 100%;
-  animation:fx-shimmer 3.6s ease-in-out infinite;
-  filter:drop-shadow(0 0 10px rgba(210,255,42,.45));
 }
 :root[data-fx="max"] .sidebar{
   box-shadow:inset -1px 0 0 rgba(210,255,42,.12), 18px 0 40px rgba(0,0,0,.18);
@@ -518,7 +521,7 @@
 :root[data-fx="max"] .auth-box,
 :root[data-fx="max"] .np-panel,
 :root[data-fx="max"] .modal-box,
-:root[data-fx="max"] .lock-box{
+:root[data-fx="max"] .lock-box:not(.opt-popup){
   backdrop-filter:blur(26px) saturate(1.2);
   -webkit-backdrop-filter:blur(26px) saturate(1.2);
   box-shadow:0 30px 80px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.08), 0 0 90px rgba(210,255,42,.12);

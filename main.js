@@ -13,6 +13,9 @@ const desktopPrefs = require('./desktop-prefs');
 // title match even when running unpackaged.
 app.setName('NexForge');
 process.title = 'NexForge';
+// Raster stays on the graphics card. These have to be set before the app is ready.
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
 if (process.platform === 'win32') {
   // Groups the taskbar icon under NexForge instead of Electron.
   app.setAppUserModelId('com.nexforge.app');
@@ -93,15 +96,18 @@ function setupGameTracker() {
       console.warn('Game boost failed:', err && err.message ? err.message : err);
     }
     sendToRenderer('game-session-started', { ...session, boost });
+    overlaySystem?.setClipLive(true);
   });
   gameTracker.on('sample', (payload) => sendToRenderer('game-session-sample', payload));
   gameTracker.on('ended', (summary) => {
     sendToRenderer('game-session-ended', summary);
     gameBoost.restore();
+    overlaySystem?.setClipLive(false);
   });
   gameTracker.on('cancelled', (payload) => {
     sendToRenderer('game-session-cancelled', payload || {});
     gameBoost.restore();
+    overlaySystem?.setClipLive(false);
   });
 }
 

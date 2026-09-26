@@ -891,7 +891,7 @@
       if (stats.cpuUsage) rows.push(statsRow('CPU usage', fmtSysPct(s.sysCpuPct), statTone('pct', s.sysCpuPct)));
       if (stats.cpuTemp) rows.push(statsRow('CPU temp', fmtSysTemp(s.sysCpuTempC), statTone('temp', s.sysCpuTempC)));
       if (stats.fps) {
-        const fps = Number.isFinite(Number(s.sysFps)) ? Number(s.sysFps) : localFps;
+        const fps = Number.isFinite(Number(s.sysFps)) ? Number(s.sysFps) : null;
         rows.push(statsRow('FPS', Number.isFinite(fps) ? String(Math.round(fps)) : '—', statTone('fps', fps)));
       }
       if (stats.ram) rows.push(statsRow('RAM', fmtSysRam(s), statTone('pct', s.sysRamPct)));
@@ -982,22 +982,6 @@
       if (!durationAt) return Math.max(0, base);
       return Math.max(0, base + (Date.now() - durationAt) / 1000);
     }
-
-    let localFps = null;
-    let fpsFrames = 0;
-    let fpsStamp = 0;
-    function fpsLoop(now) {
-      if (!fpsStamp) fpsStamp = now;
-      fpsFrames += 1;
-      if (now - fpsStamp >= 1000) {
-        localFps = Math.round((fpsFrames * 1000) / (now - fpsStamp));
-        fpsFrames = 0;
-        fpsStamp = now;
-        if (!Number.isFinite(Number(overlayState.sysFps))) renderStats();
-      }
-      requestAnimationFrame(fpsLoop);
-    }
-    requestAnimationFrame(fpsLoop);
 
     function applyState(state) {
       if (!state || typeof state !== 'object') return;

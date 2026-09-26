@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import GameCatalogGrid from '../components/GameCatalogGrid.jsx';
 import { GameIcon, hasGameIcon } from '../components/icons.jsx';
@@ -390,9 +391,9 @@ export default function Optimize() {
         />
       </div>
 
-      {openGame && rec && (
+      {openGame && createPortal(
         <div
-          className="lock-modal"
+          className="lock-modal opt-modal"
           onClick={(e) => {
             if (e.target === e.currentTarget) closePopup();
           }}
@@ -405,7 +406,7 @@ export default function Optimize() {
                 </div>
                 <div>
                   <div className="card-title" id="opt-popup-title" style={{ marginBottom: 4 }}>{openGame}</div>
-                  <div className="coach-sub">{rec.headline}</div>
+                  <div className="coach-sub">{rec?.headline || 'Settings for this PC'}</div>
                 </div>
               </div>
               <button type="button" className="action-btn ghost opt-popup-close" onClick={closePopup}>
@@ -413,50 +414,59 @@ export default function Optimize() {
               </button>
             </div>
 
-            <div className="opt-goal-row" style={{ marginBottom: 12 }}>
-              <button
-                type="button"
-                className={`prize-type-btn ${goal === 'competitive' ? 'active' : ''}`}
-                onClick={() => setGoal('competitive')}
-              >
-                Competitive
-              </button>
-              <button
-                type="button"
-                className={`prize-type-btn ${goal === 'quality' ? 'active' : ''}`}
-                onClick={() => setGoal('quality')}
-              >
-                Looks
-              </button>
-            </div>
-
-            <div className="opt-rec-meta">
-              <span>Play at <b>{rec.resolution}</b></span>
-              <span>Expect <b>{rec.fpsTarget} FPS</b></span>
-              {rec.fpsCap && <span>Cap <b>{rec.fpsCap}</b></span>}
-            </div>
-            <div className="opt-res-why">{rec.resolutionWhy}</div>
-            <div className="opt-settings">
-              {rec.settings.map((s) => (
-                <div className="opt-setting-row" key={s.name}>
-                  <span>{s.name}</span>
-                  <span>{s.value}</span>
+            {rec ? (
+              <>
+                <div className="opt-goal-row" style={{ marginBottom: 12 }}>
+                  <button
+                    type="button"
+                    className={`prize-type-btn ${goal === 'competitive' ? 'active' : ''}`}
+                    onClick={() => setGoal('competitive')}
+                  >
+                    Competitive
+                  </button>
+                  <button
+                    type="button"
+                    className={`prize-type-btn ${goal === 'quality' ? 'active' : ''}`}
+                    onClick={() => setGoal('quality')}
+                  >
+                    Looks
+                  </button>
                 </div>
-              ))}
-            </div>
-            {rec.warnings.map((w) => (
-              <div key={w} className="opt-warn">{w}</div>
-            ))}
-            <div className="opt-popup-actions">
-              <button type="button" className="action-btn primary" onClick={copyRec}>
-                {copied ? 'Copied' : 'Copy settings'}
-              </button>
+
+                <div className="opt-rec-meta">
+                  <span>Play at <b>{rec.resolution}</b></span>
+                  <span>Expect <b>{rec.fpsTarget} FPS</b></span>
+                  {rec.fpsCap && <span>Cap <b>{rec.fpsCap}</b></span>}
+                </div>
+                <div className="opt-res-why">{rec.resolutionWhy}</div>
+                <div className="opt-settings">
+                  {rec.settings.map((s) => (
+                    <div className="opt-setting-row" key={s.name}>
+                      <span>{s.name}</span>
+                      <span>{s.value}</span>
+                    </div>
+                  ))}
+                </div>
+                {rec.warnings.map((w) => (
+                  <div key={w} className="opt-warn">{w}</div>
+                ))}
+                <div className="opt-popup-actions">
+                  <button type="button" className="action-btn primary" onClick={copyRec}>
+                    {copied ? 'Copied' : 'Copy settings'}
+                  </button>
+                  <div className="coach-empty" style={{ margin: 0 }}>
+                    Apply these in the game’s video menu. NexForge does not write config files.
+                  </div>
+                </div>
+              </>
+            ) : (
               <div className="coach-empty" style={{ margin: 0 }}>
-                Apply these in the game’s video menu. NexForge does not write config files.
+                Scan this PC in the desktop app, then pick the game again.
               </div>
-            </div>
+            )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

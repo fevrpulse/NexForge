@@ -316,7 +316,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
         contextIsolation: true,
         nodeIntegration: false,
         sandbox: false,
-        backgroundThrottling: false,
+        backgroundThrottling: true,
       },
     });
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
@@ -555,13 +555,23 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
     sendClip(channel, payload);
   }
 
+  let clipLive = false;
+
+  function setClipLive(on) {
+    const next = !!on;
+    if (next === clipLive) return;
+    clipLive = next;
+    syncClipBuffer();
+  }
+
   function syncClipBuffer() {
     lastClipStartAt = Date.now();
     if (clipRestartTimer) {
       clearTimeout(clipRestartTimer);
       clipRestartTimer = null;
     }
-    if (prefs.clipEnabled) {
+    // Screen capture encodes the whole display. Only run it while a game is tracked.
+    if (prefs.clipEnabled && clipLive) {
       sendClip('clip-recorder-start', { seconds: prefs.clipSeconds });
       setClipStatus({
         enabled: true,
@@ -875,8 +885,8 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
 
   let pointerTimer = setInterval(() => {
     if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) return;
-    if (gameplayClickThrough()) releasePointer();
-  }, 400);
+    if (gameplayClickThrough() && (overlayWindow.isFocused() || overlayWindow.isFocusable())) releasePointer();
+  }, 2000);
   if (pointerTimer.unref) pointerTimer.unref();
 
   perfMonitor = createPerfMonitor({
@@ -889,6 +899,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
     setupIpc,
     registerHotkeys,
     syncClipBuffer,
+    setClipLive,
     destroy,
     destroyWindows,
     notify: showOverlayMessage,

@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.2.3',
+    highlights: [
+      'Optimize opens the settings for the game you click, centered on the window.',
+      'NexForge uses less CPU. Drawing stays on the graphics card, and the screen is only recorded while a game is running.',
+    ],
+  },
+  {
     version: '5.2.0',
     highlights: [
       'On-screen stats are labeled GPU usage, GPU temp, CPU usage, and CPU temp.',

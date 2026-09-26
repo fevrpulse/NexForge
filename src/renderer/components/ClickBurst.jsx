@@ -30,25 +30,10 @@ export default function ClickBurst() {
     if (media?.matches) return undefined;
     if (!clickFx && !cursorLamp) return undefined;
 
-    let x = window.innerWidth / 2;
-    let y = window.innerHeight / 2;
-    let tx = x;
-    let ty = y;
-    let raf = 0;
-
-    function tick() {
-      x += (tx - x) * 0.18;
-      y += (ty - y) * 0.18;
-      if (lampRef.current) {
-        lampRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-      }
-      raf = window.requestAnimationFrame(tick);
-    }
-    if (cursorLamp) raf = window.requestAnimationFrame(tick);
-
     function onMove(e) {
-      tx = e.clientX;
-      ty = e.clientY;
+      const el = lampRef.current;
+      if (!el) return;
+      el.style.transform = `translate3d(${e.clientX}px, ${e.clientY}px, 0)`;
     }
 
     function spawn(e) {
@@ -65,7 +50,6 @@ export default function ClickBurst() {
     if (cursorLamp) window.addEventListener('pointermove', onMove, { passive: true });
     if (clickFx) window.addEventListener('pointerdown', spawn);
     return () => {
-      window.cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerdown', spawn);
     };

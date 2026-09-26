@@ -143,7 +143,7 @@ body::after{
   transform:perspective(420px) rotateX(62deg);
   transform-origin:center bottom;
   mask-image:linear-gradient(180deg, transparent, #000 40%, transparent);
-  opacity:.7;animation:forge-grid 18s linear infinite;
+  opacity:.7;
 }
 @keyframes forge-grid{
   from{background-position:0 0, 0 0}
@@ -266,15 +266,13 @@ body::after{
 .topbar{
   min-height:64px;border-bottom:1px solid var(--border);display:flex;
   align-items:center;justify-content:space-between;padding:10px 32px;
-  background:rgba(6,10,6,.72);backdrop-filter:blur(22px) saturate(1.2);flex-shrink:0;
+  background:rgba(7,11,7,.96);flex-shrink:0;
   box-shadow:inset 0 -1px 0 rgba(210,255,42,.08);position:relative;overflow:hidden;
 }
 .topbar::after{
   content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
   background:linear-gradient(90deg, transparent 5%, var(--neon) 38%, var(--hud) 50%, var(--neon) 62%, transparent 95%);
-  background-size:220% 100%;opacity:.85;
-  animation:topbar-scan 4.6s linear infinite;
-  box-shadow:0 0 10px rgba(201,255,0,.35);
+  opacity:.7;
 }
 @keyframes topbar-scan{
   from{background-position:120% 0}
@@ -297,7 +295,7 @@ body::after{
 }
 .badge-neon{
   background:rgba(201,255,0,.1);color:var(--neon);border:1px solid rgba(201,255,0,.2);
-  box-shadow:0 0 12px rgba(201,255,0,.12);animation:badge-glow 2.8s ease-in-out infinite;
+  box-shadow:0 0 12px rgba(201,255,0,.12);
 }
 @keyframes badge-glow{
   0%,100%{box-shadow:0 0 10px rgba(201,255,0,.1)}
@@ -320,8 +318,8 @@ body::after{
 }
 .content:has(.communities-layout) .communities-layout{flex:1;min-height:0}
 @keyframes ui-rise{
-  from{opacity:0;transform:translateY(7px)}
-  to{opacity:1;transform:none}
+  from{opacity:0}
+  to{opacity:1}
 }
 
 /* SCREENS */
@@ -521,8 +519,8 @@ body::after{
 .action-btn.primary::after{
   content:"";position:absolute;inset:0;transform:translateX(-120%) skewX(-18deg);
   background:linear-gradient(90deg, transparent, rgba(255,255,255,.38), transparent);
-  animation:btn-sheen 2.8s ease-in-out infinite;
 }
+.action-btn.primary:hover::after{animation:btn-sheen .7s var(--ease)}
 @keyframes btn-sheen{
   0%,55%{transform:translateX(-120%) skewX(-18deg)}
   75%,100%{transform:translateX(140%) skewX(-18deg)}
