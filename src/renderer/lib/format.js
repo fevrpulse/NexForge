@@ -8,20 +8,3 @@ export function formatDuration(sec) {
   }
   return `${m}:${String(r).padStart(2, '0')}`;
 }
-
-export function maskAccount(num) {
-  const s = String(num || '');
-  if (s.length <= 4) return '••••';
-  return '••••' + s.slice(-4);
-}
-
-export function formatPrizeLabel(t) {
-  const parts = [];
-  if ((t.prize_type === 'cash' || t.prize_type === 'both') && t.cash_amount) {
-    parts.push('$' + Number(t.cash_amount).toLocaleString());
-  }
-  if (t.prize_type === 'inapp' || t.prize_type === 'both') {
-    parts.push(t.inapp_reward ? 'In-App' : 'Reward');
-  }
-  return parts.join(' + ') || 'Prize TBD';
-}

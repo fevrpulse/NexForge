@@ -4,11 +4,21 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.2.0',
+    highlights: [
+      'On-screen stats are labeled GPU usage, GPU temp, CPU usage, and CPU temp.',
+      'The overlay stays click-through while you play, so the game still gets your mouse and keyboard.',
+      'Tournaments are gone. Duels still close with no winner.',
+      'Squad Finder: write a title and details, post it publicly, and other players can accept.',
+      'Link Discord, Steam, Riot, Epic, or Tracker by typing the name. Friends can see it on your profile.',
+    ],
+  },
+  {
     version: '4.13.0',
     highlights: [
       'On-screen stats while you play: GPU usage and temp, CPU usage and temp, FPS, and RAM. Choose which ones show and which corner they sit in.',
       'The overlay stays click-through, so you can still click and play. Stats stay on that same overlay.',
-      'Duels close with no winner. Tournaments only move on when a player concedes — nobody picks who won.',
+      'Duels close with no winner. Nobody picks who won.',
       'W/L and MMR gates are gone from coach, clans, and the shop.',
     ],
   },

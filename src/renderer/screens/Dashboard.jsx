@@ -108,14 +108,8 @@ export default function Dashboard() {
           <span className="dash-tile-title">Find a Match</span>
           <span className="dash-tile-sub">Queues, lobbies, and ready-up</span>
         </button>
-        <button type="button" className="dash-tile tile-tourney" onClick={() => setScreen('tournaments')}>
-          <span className="dash-tile-idx">02</span>
-          <span className="dash-tile-kicker">Compete</span>
-          <span className="dash-tile-title">Tournaments</span>
-          <span className="dash-tile-sub">Brackets, check-in, prizes</span>
-        </button>
         <button type="button" className="dash-tile tile-analytics" onClick={() => setScreen('optimize')}>
-          <span className="dash-tile-idx">03</span>
+          <span className="dash-tile-idx">02</span>
           <span className="dash-tile-kicker">Hardware</span>
           <span className="dash-tile-title">Optimize</span>
           <span className="dash-tile-sub">Scan this PC and pick in-game settings</span>
@@ -132,14 +126,14 @@ export default function Dashboard() {
               }
             }}
           >
-            <span className="dash-tile-idx">04</span>
+            <span className="dash-tile-idx">03</span>
             <span className="dash-tile-kicker">Phone</span>
             <span className="dash-tile-title">Companion</span>
             <span className="dash-tile-sub">Chat and lobby codes on the go</span>
           </button>
         ) : (
           <button type="button" className="dash-tile tile-shop" onClick={() => setScreen('shop')}>
-            <span className="dash-tile-idx">04</span>
+            <span className="dash-tile-idx">03</span>
             <span className="dash-tile-kicker">Style</span>
             <span className="dash-tile-title">Shop</span>
             <span className="dash-tile-sub">Frames, banners, nameplates</span>

@@ -350,7 +350,6 @@ export function NexForgeProvider({ children }) {
     setActiveSeason(null);
     setSeasonRating(null);
     setBattlePassXp(null);
-    setPendingMatchLog(null);
     setPendingFriendChatId(null);
     setProfile(GUEST_PROFILE);
     setScreenState(resolveHomeScreen(true, GUEST_LOCKED_SCREENS));
@@ -360,7 +359,6 @@ export function NexForgeProvider({ children }) {
     if (guestMode) {
       setGuestMode(false);
       setProfile(null);
-      setPendingMatchLog(null);
       setPendingFriendChatId(null);
       setScreenState('dashboard');
       return;
@@ -376,7 +374,6 @@ export function NexForgeProvider({ children }) {
       setActiveSeason(null);
       setSeasonRating(null);
       setBattlePassXp(null);
-      setPendingMatchLog(null);
       setPendingFriendChatId(null);
       setScreenState('dashboard');
       signingOutRef.current = false;
@@ -431,7 +428,7 @@ export function NexForgeProvider({ children }) {
   }, [loadProfileFor, showToast]);
 
   const setScreen = useCallback((id) => {
-    if (id === 'leaderboard') id = 'dashboard';
+    if (id === 'leaderboard' || id === 'tournaments') id = 'dashboard';
     if (guestMode && GUEST_LOCKED_SCREENS.includes(id)) {
       setLockMessage(GUEST_LOCKED_LABELS[id] || 'This feature requires an account');
       return;
@@ -542,7 +539,6 @@ export function NexForgeProvider({ children }) {
         setActiveSeason(null);
         setSeasonRating(null);
         setBattlePassXp(null);
-        setPendingMatchLog(null);
         setPendingFriendChatId(null);
         setUnreadBySender({});
         setScreenState('dashboard');

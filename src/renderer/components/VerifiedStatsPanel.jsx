@@ -88,7 +88,7 @@ async function openExternal(url) {
 
 export function LinkedAccountChips({ links, className = '' }) {
   const shown = (links || []).filter((l) => {
-    if (!l?.provider || !['discord', 'steam', 'riot', 'epic'].includes(l.provider)) return false;
+    if (!l?.provider || !['discord', 'steam', 'riot', 'epic', 'tracker'].includes(l.provider)) return false;
     return !l.status || l.status === 'verified';
   });
   if (!shown.length) return null;
@@ -127,7 +127,6 @@ export default function VerifiedStatsPanel() {
   });
   const [pollingUntil, setPollingUntil] = useState(0);
   const [pollBaseline, setPollBaseline] = useState(null);
-  const [showHandle, setShowHandle] = useState({});
   const pollVerifiedRef = useRef(new Set());
 
   const load = useCallback(async (opts = {}) => {
@@ -244,14 +243,12 @@ export default function VerifiedStatsPanel() {
     } catch (err) {
       if (err?.code === 'oauth_not_configured') {
         if (err.capabilities) setCapabilities((c) => ({ ...c, ...err.capabilities }));
-        if (provider === 'steam') setShowHandle((s) => ({ ...s, steam: true }));
-        showToast(err.message || 'This provider is not set up for sign-in yet.', 'error');
+        showToast(err.message || 'This provider is not set up for sign-in yet. Type the handle and press Link.', 'error');
       } else {
-        if (provider === 'steam') setShowHandle((s) => ({ ...s, steam: true }));
         const msg = String(err?.message || '');
         showToast(
           /not found|404|Failed to send/i.test(msg)
-            ? 'Account linking server is not live yet. Steam profile codes still work.'
+            ? 'Sign-in linking is not live. Type the handle and press Link.'
             : (err?.message || 'Could not start linking.'),
           'error',
         );
@@ -262,59 +259,39 @@ export default function VerifiedStatsPanel() {
     }
   }
 
-  async function linkAccount(provider) {
-    const handle = (drafts[provider] || '').trim();
+  async function linkAccount(provider, handleOverride) {
+    const handle = String(handleOverride || drafts[provider] || '').trim();
     if (!handle) {
       showToast('Enter a handle first.', 'error');
       return;
     }
+    const label = LINK_PROVIDERS.find((p) => p.id === provider)?.label || 'Account';
     await run(`link-${provider}`, async () => {
       const { data, error } = await sb.rpc('link_stat_account', {
         p_provider: provider,
         p_handle: handle,
       });
-      if (error) throw error;
-      return data;
-    }, provider === 'tracker' ? 'Tracker label saved on your profile' : 'Code ready — prove this Steam profile next');
-  }
-
-  async function verifySteam() {
-    await run('verify-steam', async () => {
-      const { data, error } = await sb.functions.invoke('verify-account-link', {
-        body: { provider: 'steam' },
-      });
-      let payload = data;
       if (error) {
-        let detail = error.message || 'Steam verification failed';
-        try {
-          const parsed = typeof error.context?.json === 'function' ? await error.context.json() : null;
-          if (parsed?.error) detail = parsed.error;
-          if (parsed) payload = parsed;
-        } catch { /* ignore */ }
-        if (/not found|404|Failed to send/i.test(detail)) {
-          detail = 'Steam verify is not live on the server yet. Paste the code in your public About and try again after the next deploy.';
+        const msg = String(error.message || '');
+        if (/provider must be|stat_links_provider_check|violates check constraint/i.test(msg)) {
+          throw new Error('Run v163-link-accounts-save.sql in Supabase, then link the account again.');
         }
-        throw new Error(detail);
+        throw error;
       }
-      if (payload?.error) throw new Error(String(payload.error));
-      return payload;
-    }, 'Steam linked — this account is now yours on NexForge');
-  }
-
-  async function copyCode(code) {
-    try {
-      await navigator.clipboard.writeText(code);
-      showToast('Code copied', 'success');
-    } catch {
-      showToast('Copy failed — select the code and copy it', 'error');
-    }
+      const row = (data?.links || []).find((l) => l.provider === provider);
+      if (row && row.status !== 'verified') {
+        throw new Error('Run v163-link-accounts-save.sql in Supabase so this account stays on your profile.');
+      }
+      setDrafts((d) => ({ ...d, [provider]: '' }));
+      return data;
+    }, `${label} linked`);
   }
 
   function methodLabel(link) {
     if (link?.link_method === 'proof') return 'Verified via public Steam About';
     if (link?.link_method === 'openid') return 'Verified via Steam login';
     if (link?.link_method === 'oauth') return 'Verified via sign-in';
-    if (link?.provider === 'tracker') return 'Saved on your profile';
+    if (link?.provider === 'tracker' || link?.link_method === 'handle') return 'Saved on your profile';
     return 'Verified on your NexForge profile';
   }
 
@@ -334,9 +311,8 @@ export default function VerifiedStatsPanel() {
     <div className="card verified-panel">
       <div className="card-title">Linked accounts</div>
       <div className="verified-sub">
-        Linked accounts are stored on your NexForge profile and shown to friends — not just a label in this window.
-        Discord, Riot, and Epic prove ownership by signing in with that provider.
-        Steam can sign in with OpenID, or you can put a one-time code in your public Steam About and verify it here.
+        Linked accounts stay on your profile and show up for friends.
+        Type the name you use on that service and press Link.
       </div>
 
       <LinkedAccountChips links={links} />
@@ -353,8 +329,6 @@ export default function VerifiedStatsPanel() {
         <div className="verified-list">
           {LINK_PROVIDERS.map((p) => {
             const link = linkFor(p.id);
-            const oauthReady = p.oauthLabel && capabilities[p.id];
-            const handleOpen = showHandle[p.id] || !oauthReady;
             return (
               <div className="verified-row" key={p.id}>
                 <div className="verified-row-head">
@@ -378,7 +352,7 @@ export default function VerifiedStatsPanel() {
                     {p.oauthLabel && capabilities[p.id] && (
                       <button
                         type="button"
-                        className="action-btn primary"
+                        className="action-btn ghost"
                         style={{ padding: '8px 12px', fontSize: 12, alignSelf: 'flex-start' }}
                         disabled={!!busy}
                         onClick={() => connectOAuth(p.id)}
@@ -386,123 +360,51 @@ export default function VerifiedStatsPanel() {
                         {busy === `oauth-${p.id}` ? 'Opening…' : p.oauthLabel}
                       </button>
                     )}
-                    {p.id === 'steam' && !handleOpen && (
+                    <div className="verified-link-form">
+                      <input
+                        type="text"
+                        maxLength={64}
+                        placeholder={p.placeholder}
+                        value={drafts[p.id]}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
+                      />
                       <button
                         type="button"
-                        className="verified-handle-toggle"
-                        onClick={() => setShowHandle((s) => ({ ...s, steam: true }))}
+                        className="action-btn primary"
+                        style={{ padding: '8px 12px', fontSize: 12 }}
+                        disabled={!!busy}
+                        onClick={() => linkAccount(p.id)}
                       >
-                        Or verify with a Steam profile code
+                        {busy === `link-${p.id}` ? 'Linking…' : 'Link'}
                       </button>
-                    )}
-                    {p.oauthLabel && !capabilities[p.id] && p.id !== 'steam' && (
-                      <div className="verified-hint" style={{ marginTop: 8 }}>
-                        {p.label} sign-in is not set up on the server yet — a typed handle would only be a display claim.
-                      </div>
-                    )}
-                    {(p.id === 'tracker' || (p.id === 'steam' && handleOpen)) && (
-                      <div className="verified-link-form">
-                        <input
-                          type="text"
-                          maxLength={64}
-                          placeholder={p.placeholder}
-                          value={drafts[p.id]}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: e.target.value }))}
-                        />
-                        <button
-                          type="button"
-                          className="action-btn ghost"
-                          style={{ padding: '8px 12px', fontSize: 12 }}
-                          disabled={!!busy}
-                          onClick={() => linkAccount(p.id)}
-                        >
-                          {p.id === 'steam' ? 'Start Steam verify' : 'Save tracker'}
-                        </button>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 )}
 
                 {link?.status === 'pending' && (
                   <div className="verified-pending">
                     <div className="verified-handle">{link.handle}</div>
-                    {p.id === 'steam' ? (
-                      <>
-                        <div className="verified-code-box">
-                          Open your <b>public</b> Steam profile → Edit Profile → About, paste this code, and save:
-                          <div className="verified-code-value">{link.verify_code}</div>
-                          Friends only see this Steam account after verify succeeds.
-                        </div>
-                        <div className="verified-actions">
-                          <button
-                            type="button"
-                            className="action-btn ghost"
-                            style={{ padding: '6px 10px', fontSize: 11 }}
-                            onClick={() => copyCode(link.verify_code)}
-                          >
-                            Copy code
-                          </button>
-                          {capabilities.steam && (
-                            <button
-                              type="button"
-                              className="action-btn ghost"
-                              style={{ padding: '6px 10px', fontSize: 11 }}
-                              disabled={!!busy}
-                              onClick={() => connectOAuth(p.id)}
-                            >
-                              Connect Steam instead
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="action-btn primary"
-                            style={{ padding: '6px 10px', fontSize: 11 }}
-                            disabled={!!busy}
-                            onClick={() => verifySteam()}
-                          >
-                            {busy === 'verify-steam' ? 'Checking…' : 'Verify Steam profile'}
-                          </button>
-                          <button
-                            type="button"
-                            className="action-btn ghost"
-                            style={{ padding: '6px 10px', fontSize: 11 }}
-                            disabled={!!busy}
-                            onClick={() => unlink(p.id)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="verified-code-box">
-                          That handle is only a claim until you connect {p.label}.
-                          NexForge has to see you sign in on {p.label} before friends will see it.
-                        </div>
-                        <div className="verified-actions">
-                          {p.oauthLabel && capabilities[p.id] && (
-                            <button
-                              type="button"
-                              className="action-btn primary"
-                              style={{ padding: '6px 10px', fontSize: 11 }}
-                              disabled={!!busy}
-                              onClick={() => connectOAuth(p.id)}
-                            >
-                              {p.oauthLabel}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="action-btn ghost"
-                            style={{ padding: '6px 10px', fontSize: 11 }}
-                            disabled={!!busy}
-                            onClick={() => unlink(p.id)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </>
-                    )}
+                    <div className="verified-hint">This name is not on your profile yet.</div>
+                    <div className="verified-actions">
+                      <button
+                        type="button"
+                        className="action-btn primary"
+                        style={{ padding: '6px 10px', fontSize: 11 }}
+                        disabled={!!busy}
+                        onClick={() => linkAccount(p.id, link.handle)}
+                      >
+                        {busy === `link-${p.id}` ? 'Linking…' : 'Link'}
+                      </button>
+                      <button
+                        type="button"
+                        className="action-btn ghost"
+                        style={{ padding: '6px 10px', fontSize: 11 }}
+                        disabled={!!busy}
+                        onClick={() => unlink(p.id)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
                   </div>
                 )}
 

@@ -1,6 +1,6 @@
 # NexForge Desktop
 
-Electron + **React** desktop client for NexForge — public duel queues, tournaments, session performance tracking, and career stats backed by Supabase.
+Electron + **React** desktop client for NexForge — public duel queues, session performance tracking, and career stats backed by Supabase. Duels close with no winner.
 
 **First stable release: 1.2.0.** Install from [GitHub Releases](https://github.com/fevrpulse/NexForge/releases) only (not from cloning/source unless you are developing). Earlier **Beta** builds are unsupported for new installs.
 
@@ -47,23 +47,22 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 3. **`security-hardening.sql`** (bank/PII lockdown, duel cancel policy, profile authority, `add_session_combat`)
 4. **`community-games.sql`** (promote popular custom “Other” main games into a Community catalog)
 5. **`profile-onboarding.sql`** only on **legacy** databases that already had `profiles` before onboarding columns existed (safe no-op if columns are present)
-6. **`tournament-id-default.sql`** if tournament creates fail with `null value in column "id"` (adds `gen_random_uuid()` default)
-7. **`gpu-session-metrics.sql`** (avg/max GPU % on `game_sessions`)
-8. **`friends-messages.sql`** (friendships + direct messages with RLS)
-9. **`message-replies-photos.sql`** (message replies + private `chat-images` storage bucket)
-10. **`presence-reactions-delete.sql`** (online presence / now-playing, emoji reactions, sender message deletion)
-11. **`v127-social-extras.sql`** (custom status, friend pins, typing signals, friend activity feed RPC)
-12. **`friend-profile.sql`** (accepted-friends-only profile / recent matches / sessions RPC)
-13. **`v128-blocks-privacy-profile.sql`** (block/report, hide match history privacy, richer friend profiles)
-14. **`cosmetics-avatars.sql`** (Forge Coins, cosmetics shop RPCs, public `avatars` storage bucket)
-15. **`v129-cosmetics-extras.sql`** (match-win coin rewards, gift cosmetics RPC, avatar presets)
-16. **`premium-ring-payments.sql`** (high-MMR ring pricing, cash prices, Stripe payment audit)
-17. **`match-result-log.sql`** (casual/session W/L logging via `log_match_result`, match `source` tags)
-18. **`cosmetic-cash-prices.sql`** (rarity-based USD price tags for shop cosmetics)
+6. **`gpu-session-metrics.sql`** (avg/max GPU % on `game_sessions`)
+7. **`friends-messages.sql`** (friendships + direct messages with RLS)
+8. **`message-replies-photos.sql`** (message replies + private `chat-images` storage bucket)
+9. **`presence-reactions-delete.sql`** (online presence / now-playing, emoji reactions, sender message deletion)
+10. **`v127-social-extras.sql`** (custom status, friend pins, typing signals, friend activity feed RPC)
+11. **`friend-profile.sql`** (accepted-friends-only profile / recent matches / sessions RPC)
+12. **`v128-blocks-privacy-profile.sql`** (block/report, hide match history privacy, richer friend profiles)
+13. **`cosmetics-avatars.sql`** (Forge Coins, cosmetics shop RPCs, public `avatars` storage bucket)
+14. **`v129-cosmetics-extras.sql`** (match-win coin rewards, gift cosmetics RPC, avatar presets)
+15. **`premium-ring-payments.sql`** (high-MMR ring pricing, cash prices, Stripe payment audit)
+16. **`match-result-log.sql`** (casual/session W/L logging via `log_match_result`, match `source` tags)
+17. **`cosmetic-cash-prices.sql`** (rarity-based USD price tags for shop cosmetics)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 
-When **5+ players** share the same custom main-game name, `sync_community_games` marks it `live` and the desktop app shows it under **Community** in matchmaking / profile / tournaments / squad finder.
+When **5+ players** share the same custom main-game name, `sync_community_games` marks it `live` and the desktop app shows it under **Community** in matchmaking / profile / squad finder.
 
 ## Auth
 
@@ -79,8 +78,7 @@ Browser sign-in supports email/password and **Continue with Google**.
 
 ### Security notes
 
-- Tournament bank/routing/account are **not** world-readable; clients browse `tournaments_public`.
-- MMR / wins / losses / kill totals are updated only via security-definer RPCs (not free client updates).
+- MMR / wins / losses / kill totals are updated only via security-definer RPCs (not free client updates). Nobody picks a duel winner in the app.
 - Auth callback requires a one-time nonce from the Electron app.
 - Do **not** put a Supabase `service_role` key in this repo or the desktop client.
 - Clients may only update identity profile fields (`gamer_tag`, `platform`, `main_game`, `main_game_description`, `onboarding_done`).
@@ -101,11 +99,9 @@ function serves only a static confirmation page.
 
 ## Features
 
-- Public open queues + mutual duel result confirmation (player-hosted lobbies — NexForge does not host game servers)
-- Shooter K/D/A reporting on duels and tracked sessions
+- Public open queues that close with no winner (player-hosted lobbies — NexForge does not host game servers)
 - Session RAM / CPU / GPU / probe ping summaries (Windows process tracking)
 - Friends with online / now-playing presence, custom status, pins, typing, chat search, direct messages with replies + photos + emoji reactions + deletion, duel challenges from chat, Do Not Disturb, overlay hotkey (Ctrl+Shift+O), NexAI dock (Ctrl+Shift+A), and an in-game message overlay
 - Per-session RAM / CPU / GPU / ping graphs and side-by-side session compare in Analytics
 - Linked accounts on your profile, NexAI starter prompts, and a phone companion for chat and lobby codes
-- Cash / in-app tournaments with host-only payout fields
 - Community-promoted custom games, guest browse mode, and first-run main-game onboarding

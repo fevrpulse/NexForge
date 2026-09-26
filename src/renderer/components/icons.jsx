@@ -44,16 +44,6 @@ const NAV_ICONS = {
       <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
     </>
   ),
-  tournaments: (
-    <>
-      <path d="M8 3.5h8V10a4 4 0 0 1-8 0V3.5z" />
-      <path d="M8 5.5H4.8c-.4 0-.8.3-.8.8C4 8.8 5.7 10.5 8 10.8" />
-      <path d="M16 5.5h3.2c.4 0 .8.3.8.8 0 2.5-1.7 4.2-4 4.5" />
-      <line x1="12" y1="14" x2="12" y2="17.5" />
-      <path d="M8.5 20.5h7" />
-      <path d="M9.5 17.5h5v3h-5z" />
-    </>
-  ),
   optimize: (
     <>
       <path d="M4 16.5l4.2-4.2 2.6 2.6L20 5.5" />

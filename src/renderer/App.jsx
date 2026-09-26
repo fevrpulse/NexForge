@@ -10,7 +10,6 @@ import OnboardingModal from './components/OnboardingModal.jsx';
 import WhatsNewModal from './components/WhatsNewModal.jsx';
 import Dashboard from './screens/Dashboard.jsx';
 import Matchmaking from './screens/Matchmaking.jsx';
-import Tournaments from './screens/Tournaments.jsx';
 import Profile from './screens/Profile.jsx';
 import Analytics from './screens/Analytics.jsx';
 import Squad from './screens/Squad.jsx';
@@ -28,7 +27,6 @@ import { probeFrameRate, TIER_LABELS } from './lib/fx.js';
 const SCREEN_META = {
   dashboard: { title: 'Dashboard', badge: 'LIVE' },
   matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
-  tournaments: { title: 'Tournaments', badge: 'OPEN' },
   friends: { title: 'Friends', badge: 'SOCIAL' },
   communities: { title: 'Communities', badge: 'LOUNGES' },
   clans: { title: 'Clans', badge: 'CREW' },
@@ -43,7 +41,6 @@ const SCREEN_META = {
 const SCREEN_COMPONENTS = {
   dashboard: Dashboard,
   matchmaking: Matchmaking,
-  tournaments: Tournaments,
   friends: Friends,
   communities: Communities,
   clans: Clans,
@@ -103,7 +100,7 @@ function AppShell() {
       <div className={`offline-banner ${cloudOffline ? 'show' : ''}`}>
         <span>
           <b>Local-only mode</b> — Cloud sync unavailable.
-          {cloudReason ? ` (${cloudReason})` : ' Duels/tournaments may not sync until Supabase is reachable.'}
+          {cloudReason ? ` (${cloudReason})` : ' Duels may not sync until Supabase is reachable.'}
         </span>
         <button type="button" className="offline-retry-btn" onClick={probeCloud}>
           Retry

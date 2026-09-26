@@ -29,12 +29,6 @@ export default function Matchmaking() {
   const [myActiveDuel, setMyActiveDuel] = useState(null);
   const [posting, setPosting] = useState(false);
   const [finishingDuel, setFinishingDuel] = useState(false);
-
-  const [duoOpen, setDuoOpen] = useState(false);
-  const [duoResults, setDuoResults] = useState(null);
-  const [duoSearching, setDuoSearching] = useState(false);
-  const [duoStyle, setDuoStyle] = useState('Any');
-  const [duoPlat, setDuoPlat] = useState('Any');
   const [queueLoadError, setQueueLoadError] = useState(null);
   const gameTouchedRef = useRef(false);
 
@@ -133,16 +127,10 @@ export default function Matchmaking() {
 
   function selectQueueMode(mode) {
     fillQueueForm(mode.name, mode.details || mode.desc, mode.server);
-    if (selectedGame === 'Fortnite' && mode.name === 'Tournament Duo') {
-      setDuoOpen(true);
-    } else {
-      setDuoOpen(false);
-    }
     setStep(3);
   }
 
   function selectCustomQueue() {
-    setDuoOpen(false);
     setTitle('');
     setDetails('');
     setServer('');
@@ -240,7 +228,7 @@ export default function Matchmaking() {
       const msg = String(err?.message || '');
       showToast(
         /could not find the function|schema cache|404|not found|finish_duel/i.test(msg)
-          ? 'Run v161-duel-close-tournament-proof.sql in Supabase to close duels without a winner.'
+          ? 'Run v161-duel-close-tournament-proof.sql in Supabase so duels can close.'
           : (err?.message || 'Could not close duel.'),
         'error',
       );
@@ -249,48 +237,7 @@ export default function Matchmaking() {
     }
   }
 
-  async function searchFnDuo() {
-    setDuoSearching(true);
-    setDuoResults(null);
-    try {
-      let query = sb.from('profiles')
-        .select('id,gamer_tag,platform,main_game,custom_status,main_game_description')
-        .eq('main_game', 'Fortnite')
-        .neq('id', user?.id || '00000000-0000-0000-0000-000000000000')
-        .limit(40);
-      if (duoPlat !== 'Any') query = query.eq('platform', duoPlat);
-      const { data, error } = await query;
-      if (error) throw error;
-      setCloudOffline(false);
-      const style = duoStyle;
-      const matchesStyle = (p) => {
-        if (style === 'Any') return true;
-        const blob = `${p.custom_status || ''} ${p.main_game_description || ''}`.toLowerCase();
-        if (blob.includes(style.toLowerCase())) return true;
-        if (style === 'Aggressive') return /aggro|w-?key|push/.test(blob);
-        if (style === 'Passive') return /passive|rat|stealth/.test(blob);
-        if (style === 'Builder') return /build|box|edit/.test(blob);
-        return false;
-      };
-      const rows = (data || []).map((p) => ({ ...p, styleMatch: matchesStyle(p) }));
-      const preferred = rows.filter((p) => p.styleMatch);
-      const rest = rows.filter((p) => !p.styleMatch);
-      setDuoResults({
-        hint: style !== 'Any' && !preferred.length
-          ? 'Nobody listed that play style yet — showing Fortnite players.'
-          : null,
-        players: [...preferred, ...rest].slice(0, 8),
-      });
-    } catch (err) {
-      await reportCloudError(err);
-      setDuoResults({ hint: err?.message || 'Could not search for duos.', players: [] });
-    } finally {
-      setDuoSearching(false);
-    }
-  }
-
   const modes = modesForGame(selectedGame);
-  const colors = ['#C9FF00', '#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#FF3D1F'];
 
   return (
     <div>
@@ -370,72 +317,6 @@ export default function Matchmaking() {
               <span>Game · <b>{selectedGame}</b></span>
             </div>
 
-            {duoOpen ? (
-              <div id="fn-duo-finder">
-                <div className="card-title" style={{ marginBottom: 10 }}>Find a duo partner</div>
-                <div className="filter-row" style={{ marginBottom: 12 }}>
-                  <select value={duoStyle} onChange={(e) => setDuoStyle(e.target.value)}>
-                    <option>Any</option><option>Aggressive</option><option>Passive</option><option>Builder</option>
-                  </select>
-                  <select value={duoPlat} onChange={(e) => setDuoPlat(e.target.value)}>
-                    <option>Any</option><option>PC</option><option>PS5</option><option>Xbox</option>
-                  </select>
-                </div>
-                <button className="action-btn primary full" onClick={searchFnDuo} disabled={duoSearching}>
-                  {duoSearching ? 'Searching…' : 'Search for Duo'}
-                </button>
-                <div style={{ marginTop: 12 }}>
-                  {duoSearching ? (
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', textAlign: 'center', padding: '12px 0' }}>
-                      Searching for duo partners...
-                    </div>
-                  ) : duoResults && duoResults.players?.length === 0 ? (
-                    <div style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--muted2)', textAlign: 'center', padding: '20px 0', lineHeight: 1.5 }}>
-                      {duoResults.hint || 'No real players found yet. Invite friends to NexForge or open a public duel queue.'}
-                    </div>
-                  ) : duoResults?.players ? (
-                    <>
-                      {duoResults.hint && (
-                        <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', marginBottom: 10, lineHeight: 1.45 }}>
-                          {duoResults.hint}
-                        </div>
-                      )}
-                    {duoResults.players.map((p, i) => {
-                      const col = colors[i % colors.length];
-                      const init = (p.gamer_tag || '?').slice(0, 2).toUpperCase();
-                      return (
-                        <div key={p.id || p.gamer_tag} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 12, background: 'var(--panel)', borderRadius: 10, marginBottom: 8, border: '1px solid var(--border)' }}>
-                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${col}22`, color: col, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
-                            {init}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
-                              <span style={{ fontSize: 13, fontWeight: 700 }}>{p.gamer_tag}</span>
-                            </div>
-                            <div style={{ fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--muted2)' }}>
-                              {p.platform || 'PC'}
-                              {p.styleMatch && duoStyle !== 'Any' ? ` · ${duoStyle}` : ''}
-                            </div>
-                          </div>
-                          <button className="action-btn ghost" style={{ padding: '5px 12px', fontSize: 11 }}
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(p.gamer_tag || '');
-                                showToast(`Copied ${p.gamer_tag}`, 'success');
-                              } catch {
-                                showToast(p.gamer_tag || 'No tag', 'success');
-                              }
-                            }}>
-                            Copy tag
-                          </button>
-                        </div>
-                      );
-                    })}
-                    </>
-                  ) : null}
-                </div>
-              </div>
-            ) : (
               <div className="mm-box-actions">
                 <button className="action-btn primary" onClick={postQueue} disabled={posting}>
                   {myOpenDuel ? 'Cancel Queue' : posting ? 'Posting…' : 'Post Open Queue'}
@@ -458,7 +339,6 @@ export default function Matchmaking() {
                   </div>
                 )}
               </div>
-            )}
           </div>
         </div>
       )}

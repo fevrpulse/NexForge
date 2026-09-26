@@ -149,10 +149,10 @@ function fmtPreviewRam(sample) {
 
 function StatsPreview({ sample, stats }) {
   const rows = [];
-  if (stats?.gpuUsage !== false) rows.push(['GPU', fmtPreviewPct(sample?.gpuPct)]);
-  if (stats?.gpuTemp !== false) rows.push(['GPU', fmtPreviewTemp(sample?.gpuTempC)]);
-  if (stats?.cpuUsage !== false) rows.push(['CPU', fmtPreviewPct(sample?.cpuPct)]);
-  if (stats?.cpuTemp !== false) rows.push(['CPU', fmtPreviewTemp(sample?.cpuTempC)]);
+  if (stats?.gpuUsage !== false) rows.push(['GPU usage', fmtPreviewPct(sample?.gpuPct)]);
+  if (stats?.gpuTemp !== false) rows.push(['GPU temp', fmtPreviewTemp(sample?.gpuTempC)]);
+  if (stats?.cpuUsage !== false) rows.push(['CPU usage', fmtPreviewPct(sample?.cpuPct)]);
+  if (stats?.cpuTemp !== false) rows.push(['CPU temp', fmtPreviewTemp(sample?.cpuTempC)]);
   if (stats?.fps !== false) {
     rows.push(['FPS', sample?.fps != null && Number.isFinite(Number(sample.fps)) ? String(Math.round(Number(sample.fps))) : '—']);
   }

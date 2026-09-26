@@ -1,127 +1,200 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 
-const PLATFORMS = ['Any Platform', 'PC', 'PS5', 'Xbox', 'Mobile'];
-const COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
+function missingSquadRpc(err) {
+  return /could not find the function|schema cache|404|not found|post_squad|list_squad_posts|accept_squad_post|close_squad_post/i
+    .test(String(err?.message || ''));
+}
+
+function memberLine(members) {
+  const tags = (members || []).map((m) => m.gamer_tag).filter(Boolean);
+  if (!tags.length) return 'No one has accepted yet';
+  return `Accepted by ${tags.join(', ')}`;
+}
 
 export default function Squad() {
-  const { user, showToast, knownGames, reportCloudError } = useNexForge();
-  const [game, setGame] = useState('Any Game');
-  const [platform, setPlatform] = useState('Any Platform');
-  const [players, setPlayers] = useState(null);
-  const [searching, setSearching] = useState(false);
-  const [addingId, setAddingId] = useState(null);
+  const { user, showToast, reportCloudError } = useNexForge();
+  const [title, setTitle] = useState('');
+  const [details, setDetails] = useState('');
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
+  const [posting, setPosting] = useState(false);
+  const [busyId, setBusyId] = useState(null);
+  const [rpcMissing, setRpcMissing] = useState(false);
 
-  async function searchSquad() {
-    setSearching(true);
-    setPlayers(null);
+  const loadPosts = useCallback(async () => {
+    if (!user?.id) {
+      setPosts([]);
+      setLoading(false);
+      return;
+    }
     try {
-      let query = sb.from('profiles').select('id,gamer_tag,main_game,platform').limit(24);
-      if (user?.id) query = query.neq('id', user.id);
-      if (game !== 'Any Game') query = query.eq('main_game', game);
-      if (platform !== 'Any Platform') query = query.eq('platform', platform);
-      const { data, error } = await query;
+      const { data, error } = await sb.rpc('list_squad_posts');
       if (error) throw error;
-      setPlayers(data || []);
+      const rows = Array.isArray(data) ? data : [];
+      setPosts(rows);
+      setLoadError(null);
+      setRpcMissing(false);
     } catch (err) {
-      showToast(err?.message || 'Could not search for squadmates.', 'error');
-      setPlayers([]);
+      setPosts([]);
+      setRpcMissing(missingSquadRpc(err));
+      setLoadError(
+        missingSquadRpc(err)
+          ? 'Run v162-squad-posts.sql in Supabase so squad posts can be shared.'
+          : (err?.message || 'Could not load squad posts.'),
+      );
       await reportCloudError?.(err);
     } finally {
-      setSearching(false);
+      setLoading(false);
+    }
+  }, [user?.id, reportCloudError]);
+
+  useEffect(() => {
+    loadPosts();
+    if (!user?.id || rpcMissing) return undefined;
+    const timer = setInterval(loadPosts, 15000);
+    return () => clearInterval(timer);
+  }, [loadPosts, user?.id, rpcMissing]);
+
+  async function postSquad() {
+    if (!user?.id || posting) return;
+    const nextTitle = title.trim();
+    const nextDetails = details.trim();
+    if (!nextTitle || !nextDetails) {
+      showToast('Enter a title and the details of the squad you want.', 'error');
+      return;
+    }
+    setPosting(true);
+    try {
+      const { error } = await sb.rpc('post_squad', {
+        p_title: nextTitle,
+        p_details: nextDetails,
+      });
+      if (error) throw error;
+      setTitle('');
+      setDetails('');
+      showToast('Squad posted', 'success');
+      await loadPosts();
+    } catch (err) {
+      showToast(
+        missingSquadRpc(err)
+          ? 'Run v162-squad-posts.sql in Supabase so squad posts can be shared.'
+          : (err?.message || 'Could not post squad.'),
+        'error',
+      );
+      await reportCloudError?.(err);
+    } finally {
+      setPosting(false);
     }
   }
 
-  async function addFriend(p) {
-    if (!user?.id || !p?.id || addingId) return;
-    setAddingId(p.id);
+  async function acceptSquad(id) {
+    if (!user?.id || busyId) return;
+    setBusyId(id);
     try {
-      const { error } = await sb.from('friendships').insert({
-        requester_id: user.id,
-        addressee_id: p.id,
-      });
-      if (error) {
-        if (error.code === '23505') {
-          showToast(`Already friends or pending with ${p.gamer_tag}`, 'error');
-          return;
-        }
-        throw error;
-      }
-      showToast(`Friend request sent to ${p.gamer_tag}`, 'success');
+      const { error } = await sb.rpc('accept_squad_post', { p_post_id: id });
+      if (error) throw error;
+      showToast('You accepted this squad', 'success');
+      await loadPosts();
     } catch (err) {
-      showToast(err?.message || 'Could not send request.', 'error');
+      showToast(err?.message || 'Could not accept squad.', 'error');
+      await reportCloudError?.(err);
     } finally {
-      setAddingId(null);
+      setBusyId(null);
+    }
+  }
+
+  async function closeSquad(id) {
+    if (!user?.id || busyId) return;
+    setBusyId(id);
+    try {
+      const { error } = await sb.rpc('close_squad_post', { p_post_id: id });
+      if (error) throw error;
+      showToast('Squad post closed', 'success');
+      await loadPosts();
+    } catch (err) {
+      showToast(err?.message || 'Could not close squad post.', 'error');
+      await reportCloudError?.(err);
+    } finally {
+      setBusyId(null);
     }
   }
 
   return (
     <div>
       <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-title">Find Squadmates</div>
-        <div className="filter-row">
-          <select value={game} onChange={(e) => setGame(e.target.value)}>
-            <option>Any Game</option>
-            {knownGames.map((g) => <option key={g}>{g}</option>)}
-          </select>
-          <select value={platform} onChange={(e) => setPlatform(e.target.value)}>
-            {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
-          </select>
+        <div className="card-title">Want a squad</div>
+        <div className="field">
+          <label>Title</label>
+          <input
+            type="text"
+            maxLength={80}
+            placeholder="e.g. Need a ranked stack tonight"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
         </div>
-        <button className="action-btn primary full" onClick={searchSquad} disabled={searching}>
-          {searching ? 'Searching…' : 'Search Players'}
+        <div className="field">
+          <label>Details</label>
+          <textarea
+            maxLength={600}
+            placeholder="Game, roles, rank, platform, and when you want to play."
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+          />
+        </div>
+        <div className="field-hint" style={{ marginBottom: 12 }}>
+          This posts to the public board. Other players can accept it.
+        </div>
+        <button className="action-btn primary" onClick={postSquad} disabled={posting || !user?.id}>
+          {posting ? 'Posting…' : 'Post squad'}
         </button>
       </div>
 
       <div className="card">
-        <div className="card-title">Players on NexForge</div>
-        {players === null ? (
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '16px 0', textAlign: 'center' }}>
-            Search to find squadmates
-          </div>
-        ) : players.length === 0 ? (
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '16px 0', textAlign: 'center' }}>
-            No players found — invite friends to join NexForge!
-          </div>
+        <div className="card-title">Public squads</div>
+        {loading ? (
+          <div className="squad-empty">Loading squad posts…</div>
+        ) : loadError ? (
+          <div className="squad-empty">{loadError}</div>
+        ) : posts.length === 0 ? (
+          <div className="squad-empty">No public squads yet. Post one above.</div>
         ) : (
-          players.map((p, i) => {
-            const col = COLORS[i % COLORS.length];
-            const init = (p.gamer_tag || '?').slice(0, 2).toUpperCase();
-            return (
-              <div className="player-row" key={p.id || `${p.gamer_tag}-${i}`}>
-                <div className="player-av" style={{ background: `${col}22`, color: col }}>{init}</div>
-                <div className="player-info">
-                  <div className="player-tag">{p.gamer_tag}</div>
-                  <div className="player-game">{p.main_game || '—'} · {p.platform || 'PC'}</div>
-                </div>
-                <button
-                  className="action-btn ghost"
-                  style={{ padding: '5px 12px', fontSize: 11 }}
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(p.gamer_tag || '');
-                      showToast(`Copied ${p.gamer_tag}`, 'success');
-                    } catch {
-                      showToast(p.gamer_tag || 'No tag', 'success');
-                    }
-                  }}
-                >
-                  Copy tag
-                </button>
-                {user?.id && p.id && (
+          posts.map((post) => (
+            <div className="squad-post" key={post.id}>
+              <div className="squad-post-title">{post.title}</div>
+              <div className="squad-post-details">{post.details}</div>
+              <div className="squad-post-meta">
+                {post.host_tag || 'Player'}
+                {post.is_host ? ' · your post' : ''}
+                <br />
+                {memberLine(post.members)}
+              </div>
+              <div className="squad-post-actions">
+                {post.is_host ? (
+                  <button
+                    className="action-btn ghost"
+                    disabled={busyId === post.id}
+                    onClick={() => closeSquad(post.id)}
+                  >
+                    {busyId === post.id ? 'Closing…' : 'Close post'}
+                  </button>
+                ) : post.accepted ? (
+                  <button className="action-btn ghost" disabled>Accepted</button>
+                ) : (
                   <button
                     className="action-btn primary"
-                    style={{ padding: '5px 12px', fontSize: 11 }}
-                    disabled={addingId === p.id}
-                    onClick={() => addFriend(p)}
+                    disabled={busyId === post.id}
+                    onClick={() => acceptSquad(post.id)}
                   >
-                    {addingId === p.id ? '…' : 'Add friend'}
+                    {busyId === post.id ? 'Accepting…' : 'Accept'}
                   </button>
                 )}
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
     </div>

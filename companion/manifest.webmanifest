@@ -1,7 +1,7 @@
 {
   "name": "NexForge Companion",
   "short_name": "NexForge",
-  "description": "Chat, party, lobby codes, and tournament check-in while you play on desktop.",
+  "description": "Chat, party, and lobby codes while you play on desktop.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#080808",

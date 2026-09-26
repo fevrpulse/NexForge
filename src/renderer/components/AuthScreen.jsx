@@ -40,11 +40,11 @@ export default function AuthScreen() {
           <p className="auth-brand-kicker">Competitive operating system</p>
           <h1 className="auth-brand-title">Forge the<br />match.</h1>
           <p className="auth-brand-lede">
-            Overlay, NexAI, tournaments, and hardware intel — one floor for the crew.
+            Overlay, NexAI, and hardware intel — one floor for the crew.
           </p>
           <ul className="auth-brand-list">
             <li>In-game overlay that stays out of the way</li>
-            <li>Lobbies, brackets, and ready-up</li>
+            <li>Lobbies and ready-up</li>
             <li>Session hardware tracked while you play</li>
           </ul>
         </div>

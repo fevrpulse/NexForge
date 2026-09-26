@@ -249,25 +249,28 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
     main.on('blur', refresh);
   }
 
-  // While a game is in front, the overlay is visual only: stats stay up, and
-  // every click and key goes to the game. Mouse capture is only for editing
-  // the HUD while the NexForge window itself is focused.
+  // The overlay is paint-only while you play. Clicks and keys stay with the
+  // game. Mouse capture happens only when the NexForge window is focused and
+  // the HUD is open, so those panels can be edited.
   function releasePointer() {
     const win = overlayWindow;
     if (!win || win.isDestroyed()) return;
     try {
       if (win.isFocused()) win.blur();
     } catch { /* ignore */ }
-    if (win.isFocusable()) win.setFocusable(false);
+    try {
+      if (win.isFocusable()) win.setFocusable(false);
+    } catch { /* ignore */ }
     // setFocusable rebuilds the window style and can drop click-through,
     // so ignore-mouse has to be the last call. No mouse forwarding — on
     // Windows, forwarding keeps the window in the hit-test path.
-    win.setIgnoreMouseEvents(true);
+    try {
+      win.setIgnoreMouseEvents(true);
+    } catch { /* ignore */ }
   }
 
   function gameplayClickThrough() {
-    if (!hudOpen) return true;
-    return !!lastGame && !isMainFocused();
+    return !(hudOpen && isMainFocused());
   }
 
   function applyPointer() {
@@ -319,6 +322,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
     overlayWindow.setAlwaysOnTop(true, 'screen-saver');
     overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     try { overlayWindow.setContentProtection(true); } catch { /* older Windows */ }
+    releasePointer();
     overlayWindow.on('show', () => applyPointer());
     overlayWindow.on('focus', () => {
       if (gameplayClickThrough()) releasePointer();
@@ -346,9 +350,9 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
       toastLive = false;
     });
     overlayWindow.on('blur', () => {
-      if (hudOpen && overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.setAlwaysOnTop(true, 'screen-saver');
-      }
+      if (!overlayWindow || overlayWindow.isDestroyed()) return;
+      if (hudOpen) overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+      if (gameplayClickThrough()) releasePointer();
     });
     return overlayWindow;
   }

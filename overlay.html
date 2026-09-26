@@ -287,11 +287,11 @@
     body.strip-on.stats-br #stats-osd { bottom: 56px; }
     body.strip-top.stats-tl #stats-osd { top: 56px; }
     body.strip-top.stats-tr #stats-osd { top: 56px; }
-    .stats-row { display: grid; grid-template-columns: 38px auto; gap: 10px; align-items: baseline; }
-    body.stats-tr .stats-row, body.stats-br .stats-row { grid-template-columns: auto 38px; }
+    .stats-row { display: grid; grid-template-columns: max-content auto; gap: 10px; align-items: baseline; }
+    body.stats-tr .stats-row, body.stats-br .stats-row { grid-template-columns: auto max-content; }
     body.stats-tr .stats-row .k, body.stats-br .stats-row .k { order: 2; }
     body.stats-tr .stats-row .v, body.stats-br .stats-row .v { order: 1; }
-    .stats-row .k { color: var(--muted); font-weight: 700; }
+    .stats-row .k { color: var(--muted); font-weight: 700; white-space: nowrap; }
     .stats-row .v { color: var(--neon); }
     .stats-row.warm .v { color: var(--warm); }
     .stats-row.hot .v { color: var(--red); }
@@ -886,10 +886,10 @@
       }
       const s = overlayState;
       const rows = [];
-      if (stats.gpuUsage) rows.push(statsRow('GPU', fmtSysPct(s.sysGpuPct), statTone('pct', s.sysGpuPct)));
-      if (stats.gpuTemp) rows.push(statsRow('GPU', fmtSysTemp(s.sysGpuTempC), statTone('temp', s.sysGpuTempC)));
-      if (stats.cpuUsage) rows.push(statsRow('CPU', fmtSysPct(s.sysCpuPct), statTone('pct', s.sysCpuPct)));
-      if (stats.cpuTemp) rows.push(statsRow('CPU', fmtSysTemp(s.sysCpuTempC), statTone('temp', s.sysCpuTempC)));
+      if (stats.gpuUsage) rows.push(statsRow('GPU usage', fmtSysPct(s.sysGpuPct), statTone('pct', s.sysGpuPct)));
+      if (stats.gpuTemp) rows.push(statsRow('GPU temp', fmtSysTemp(s.sysGpuTempC), statTone('temp', s.sysGpuTempC)));
+      if (stats.cpuUsage) rows.push(statsRow('CPU usage', fmtSysPct(s.sysCpuPct), statTone('pct', s.sysCpuPct)));
+      if (stats.cpuTemp) rows.push(statsRow('CPU temp', fmtSysTemp(s.sysCpuTempC), statTone('temp', s.sysCpuTempC)));
       if (stats.fps) {
         const fps = Number.isFinite(Number(s.sysFps)) ? Number(s.sysFps) : localFps;
         rows.push(statsRow('FPS', Number.isFinite(fps) ? String(Math.round(fps)) : '—', statTone('fps', fps)));
@@ -1361,7 +1361,6 @@
       }
       if (open) {
         placePanels();
-        if (mode === 'nexai' && !wasOpen) requestAnimationFrame(() => document.getElementById('ai-input')?.focus());
       } else if (wasOpen) {
         aiBusy = false;
         aiReq += 1;

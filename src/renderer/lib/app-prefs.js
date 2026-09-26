@@ -6,7 +6,6 @@ export const HOME_SCREENS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'matchmaking', label: 'Matchmaking' },
   { id: 'optimize', label: 'Optimize' },
-  { id: 'tournaments', label: 'Tournaments' },
   { id: 'friends', label: 'Friends' },
   { id: 'communities', label: 'Communities' },
   { id: 'clans', label: 'Clans' },
