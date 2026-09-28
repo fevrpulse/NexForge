@@ -249,9 +249,9 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
     main.on('blur', refresh);
   }
 
-  // The overlay is paint-only while you play. Clicks and keys stay with the
-  // game. Mouse capture happens only when the NexForge window is focused and
-  // the HUD is open, so those panels can be edited.
+  // The overlay is paint-only while you play: with the HUD closed, clicks and
+  // keys stay with the game. Opening the HUD (hotkey) is the request to use
+  // the panels, so the overlay takes the mouse until it is closed again.
   function releasePointer() {
     const win = overlayWindow;
     if (!win || win.isDestroyed()) return;
@@ -270,7 +270,7 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
   }
 
   function gameplayClickThrough() {
-    return !(hudOpen && isMainFocused());
+    return !hudOpen;
   }
 
   function applyPointer() {

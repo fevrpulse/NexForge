@@ -467,12 +467,26 @@ export default function Shop() {
           return (
             <div key={item.id} className={`shop-card rarity-${item.rarity} ${active ? 'equipped' : ''}`}>
               <div className={`shop-card-preview slot-${item.slot} style-${item.style_key}`}>
-                {item.slot === 'frame' && <PlayerAvatar profile={{ ...profile, equipped_frame: item.id }} size={48} />}
-                {item.slot === 'banner' && <div className={`banner-swatch banner-${item.style_key}`} />}
-                {item.slot === 'nameplate' && (
-                  <span className={`gamer-tag-text nameplate-${item.style_key}`}>Aa</span>
+                {item.slot === 'frame' && (
+                  <PlayerAvatar profile={{ ...profile, equipped_frame: item.id }} size={72} />
                 )}
+                {item.slot === 'banner' && (
+                  <>
+                    <div className={`banner-swatch banner-${item.style_key}`} />
+                    <div className="shop-banner-demo">
+                      <PlayerAvatar profile={profile} size={34} />
+                      <span className="shop-banner-demo-tag">{profile?.gamer_tag || 'Player'}</span>
+                    </div>
+                  </>
+                )}
+                {item.slot === 'nameplate' && (
+                  <span className={`gamer-tag-text shop-plate-demo nameplate-${item.style_key}`}>
+                    {profile?.gamer_tag || 'Player'}
+                  </span>
+                )}
+                {active && <span className="shop-card-equipped">Equipped</span>}
               </div>
+              <div className="shop-card-body">
               <div className="shop-card-name">{item.name}</div>
               <div className="shop-card-desc">{item.description}</div>
               <div className="shop-card-meta">
@@ -548,6 +562,7 @@ export default function Shop() {
                   </button>
                 </div>
               )}
+              </div>
             </div>
           );
         })}

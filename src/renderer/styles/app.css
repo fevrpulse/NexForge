@@ -22,7 +22,7 @@
 }
 ::selection{background:var(--neon);color:#000}
 
-html{scroll-behavior:smooth}
+html{scroll-behavior:smooth;color-scheme:dark}
 body{
   background:
     radial-gradient(ellipse 62% 38% at 10% -10%, rgba(210,255,42,.055), transparent 55%),
@@ -100,13 +100,19 @@ body::after{
 .auth-tab.active{background:var(--neon);color:#000;box-shadow:0 2px 12px rgba(201,255,0,.25)}
 .field{margin-bottom:16px}
 .field label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.5px;color:var(--muted2);margin-bottom:8px;text-transform:uppercase}
-.field input{
+.field input,
+.field textarea,
+.field select{
   width:100%;background:rgba(0,0,0,.28);border:1px solid var(--border2);
   border-radius:11px;padding:12px 14px;font-size:15px;font-family:var(--font);
   color:var(--text);outline:none;transition:border-color .2s,box-shadow .2s;
 }
-.field input::placeholder{color:var(--muted)}
-.field input:focus{border-color:var(--neon);box-shadow:0 0 0 3px rgba(201,255,0,.08)}
+.field textarea{min-height:96px;resize:vertical;line-height:1.55}
+.field input::placeholder,
+.field textarea::placeholder{color:var(--muted)}
+.field input:focus,
+.field textarea:focus,
+.field select:focus{border-color:var(--neon);box-shadow:0 0 0 3px rgba(201,255,0,.08)}
 .auth-btn{
   width:100%;padding:13px;background:var(--neon);color:#000;border:none;
   border-radius:11px;font-family:var(--font-display);font-size:15px;font-weight:700;

@@ -42,6 +42,9 @@ html[data-app-idle] .topbar-icon::before,
 html[data-app-idle] .sb-brand > div span,
 html[data-app-idle] .ui-atmosphere::before,
 html[data-app-idle] .np-orbit,
+html[data-app-idle] .frame-spin::before,
+html[data-app-idle] .frame-animated .player-av-img,
+html[data-app-idle] .frame-animated .player-av-fallback,
 html[data-app-idle] .np-fab{
   animation-play-state:paused;
 }
@@ -307,9 +310,12 @@ html[data-app-idle] .np-fab{
 }
 :root[data-fx="balanced"] .badge-neon,
 :root[data-fx="balanced"] .np-fab,
-:root[data-fx="balanced"] .frame-animated.frame-pulse,
-:root[data-fx="balanced"] .frame-animated.frame-gold,
-:root[data-fx="balanced"] .frame-animated.frame-void{
+:root[data-fx="balanced"] .frame-animated.frame-pulse .player-av-img,
+:root[data-fx="balanced"] .frame-animated.frame-pulse .player-av-fallback,
+:root[data-fx="balanced"] .frame-animated.frame-gold .player-av-img,
+:root[data-fx="balanced"] .frame-animated.frame-gold .player-av-fallback,
+:root[data-fx="balanced"] .frame-animated.frame-void .player-av-img,
+:root[data-fx="balanced"] .frame-animated.frame-void .player-av-fallback{
   animation:none;
 }
 
@@ -351,10 +357,13 @@ html[data-app-idle] .np-fab{
 :root[data-fx="low"] .np-fab,
 :root[data-fx="low"] .hud-scan,
 :root[data-fx="low"] .comm-float,
-:root[data-fx="low"] .frame-animated.frame-pulse,
-:root[data-fx="low"] .frame-animated.frame-spin,
-:root[data-fx="low"] .frame-animated.frame-gold,
-:root[data-fx="low"] .frame-animated.frame-void,
+:root[data-fx="low"] .frame-animated.frame-pulse .player-av-img,
+:root[data-fx="low"] .frame-animated.frame-pulse .player-av-fallback,
+:root[data-fx="low"] .frame-spin::before,
+:root[data-fx="low"] .frame-animated.frame-gold .player-av-img,
+:root[data-fx="low"] .frame-animated.frame-gold .player-av-fallback,
+:root[data-fx="low"] .frame-animated.frame-void .player-av-img,
+:root[data-fx="low"] .frame-animated.frame-void .player-av-fallback,
 :root[data-fx="low"] .voice-pulse,
 :root[data-fx="low"] .sb-brand > div span,
 :root[data-fx="low"] .topbar-icon::before{

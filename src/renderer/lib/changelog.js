@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.5.0',
+    highlights: [
+      'The Shop shows every frame, banner, and nameplate on a large preview with your own avatar and gamer tag. Frames glow, banners are full color, and rarity is marked on each card.',
+      'The overlay HUD takes clicks while it is open, and passes them to the game when it is closed.',
+      'Buttons and text boxes now match the dark theme.',
+    ],
+  },
+  {
     version: '5.2.3',
     highlights: [
       'Optimize opens the settings for the game you click, centered on the window.',
