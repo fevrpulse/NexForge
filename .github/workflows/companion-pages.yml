@@ -32,6 +32,7 @@ jobs:
         run: |
           mkdir -p _site/companion
           cp site/index.html _site/index.html
+          cp site/logo.png _site/logo.png
           cp site/NexForge.exe _site/NexForge.exe
           cp -a companion/. _site/companion/
       - name: Upload site

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="logo.png" type="image/png" />
   <title>NexForge — Download for Windows</title>
   <meta name="description" content="Download NexForge for Windows PC. Optimize the game you play, keep a click-through stats overlay on screen, and squad up with friends." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -59,11 +60,8 @@
     }
     .brand { display: flex; align-items: center; gap: 12px; }
     .mark {
-      width: 36px; height: 36px; border-radius: 11px;
-      display: grid; place-items: center;
-      background: var(--neon); color: #081008;
-      font-family: var(--display); font-weight: 800; font-size: 18px;
-      box-shadow: 0 0 28px rgba(210, 255, 42, .32);
+      width: 44px; height: 44px; display: block; object-fit: contain;
+      filter: drop-shadow(0 0 14px rgba(210, 255, 42, .28));
     }
     .brand strong { font-family: var(--display); font-size: 18px; letter-spacing: -.03em; }
     .brand em { font-style: normal; color: var(--muted); font-size: 13px; margin-left: 2px; }
@@ -291,7 +289,7 @@
   <div class="page">
     <header>
       <a class="brand" href="#top">
-        <span class="mark">N</span>
+        <img class="mark" src="logo.png" alt="" width="44" height="44" />
         <strong>NexForge</strong>
         <em>for Windows PC</em>
       </a>
