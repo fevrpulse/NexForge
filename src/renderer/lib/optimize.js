@@ -344,7 +344,7 @@ export function recommendSettings(scan, game, goal) {
   const load = gameLoad(game);
   const visual = visualForGame(hardware, load, want);
   const upscaler = detectUpscaler(scan?.gpu?.name);
-  const height = scan?.display?.height;
+  const height = Number(scan?.display?.height) || 1080;
   const { res, why } = pickResolution(scan?.display, visual, want, load);
   const fps = expectedFps(scan, game, visual, load);
   const settings = gameOverrides(game, visual, want, upscaler, load, height);

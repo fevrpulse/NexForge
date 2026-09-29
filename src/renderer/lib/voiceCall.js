@@ -3,6 +3,8 @@ import { getAppPref, setAppPref } from './app-prefs.js';
 
 const RING_TIMEOUT_MS = 30_000;
 const CONNECT_TIMEOUT_MS = 12_000;
+/** Rebuild TURN credentials 10 min before the 6 h static-auth expiry. */
+const ICE_SERVERS_TTL_MS = (6 * 3600 - 600) * 1000;
 /** Brief wait so SDP embeds host/srflx candidates — still trickle the rest. */
 const ICE_GATHER_ASSIST_MS = 350;
 const ICE_BATCH_MS = 70;
@@ -97,6 +99,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let muted = false;
   let deafened = false;
   let iceServers = null;
+  let iceServersExpireAt = 0;
   let detail = '';
   let inputDeviceId = getAppPref('voiceInputId') || '';
   let outputDeviceId = getAppPref('voiceOutputId') || '';
@@ -236,7 +239,11 @@ export function createVoiceCallController({ userId, onState, onError }) {
   }
 
   async function ensureIceServers() {
-    if (!iceServers) iceServers = await buildIceServers();
+    // TURN static-auth credentials expire (see buildIceServers); rebuild before that.
+    if (!iceServers || Date.now() >= iceServersExpireAt) {
+      iceServers = await buildIceServers();
+      iceServersExpireAt = Date.now() + ICE_SERVERS_TTL_MS;
+    }
     return iceServers;
   }
 
@@ -418,16 +425,19 @@ export function createVoiceCallController({ userId, onState, onError }) {
       emit();
     };
 
+    const failDmCall = () => {
+      if (session.dmFailed || mode === 'channel' || state === 'idle') return;
+      session.dmFailed = true;
+      hangup({ notify: true }).catch(() => {});
+      onError?.(new Error('Call connection failed'));
+    };
+
     conn.onconnectionstatechange = () => {
       const cs = conn.connectionState;
       if (cs === 'connected') markPeerConnected(session);
-      if (cs === 'failed' || cs === 'closed' || cs === 'disconnected') {
-        if (mode === 'channel') {
-          if (cs === 'failed') dropPeer(session.peerId, { notify: false }).catch(() => {});
-        } else if (cs === 'failed' && state !== 'idle') {
-          hangup({ notify: true }).catch(() => {});
-          onError?.(new Error('Call connection failed'));
-        }
+      if (cs === 'failed') {
+        if (mode === 'channel') dropPeer(session.peerId, { notify: false }).catch(() => {});
+        else failDmCall();
       }
       emit();
     };
@@ -435,10 +445,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     conn.oniceconnectionstatechange = () => {
       const ice = conn.iceConnectionState;
       if (ice === 'connected' || ice === 'completed') markPeerConnected(session);
-      if (ice === 'failed' && mode !== 'channel' && state !== 'idle') {
-        hangup({ notify: true }).catch(() => {});
-        onError?.(new Error('Call connection failed'));
-      }
+      if (ice === 'failed' && mode !== 'channel') failDmCall();
     };
 
     return conn;
@@ -619,6 +626,13 @@ export function createVoiceCallController({ userId, onState, onError }) {
       session.callId = cid;
       ensurePeerIce(session).catch(() => {});
       setState('ringing', 'Incoming call');
+      // Stop ringing if the caller's hangup never reaches us (closed app, realtime drop).
+      clearRingTimer();
+      ringTimer = setTimeout(() => {
+        if (state === 'ringing' && pendingDm?.callId === cid) {
+          hangup({ notify: false }).catch(() => {});
+        }
+      }, RING_TIMEOUT_MS);
       return;
     }
 
@@ -714,7 +728,14 @@ export function createVoiceCallController({ userId, onState, onError }) {
     mode = 'dm';
     channelId = null;
     pendingDm = null;
-    await initiatePeer(targetId, { channel: false });
+    try {
+      await initiatePeer(targetId, { channel: false });
+    } catch (err) {
+      // Mic denied / signal insert failed: put the controller back to idle so the
+      // next call attempt and incoming rings are not rejected as "Already in a call".
+      await hangup({ notify: false }).catch(() => {});
+      throw err;
+    }
   }
 
   async function accept() {
@@ -940,10 +961,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
         .from('voice_call_signals')
         .select('id,call_id,sender_id,recipient_id,kind,body,created_at')
         .eq('recipient_id', userId)
-        .eq('kind', 'ring')
         .gte('created_at', since)
         .order('created_at', { ascending: true });
+      const ended = new Set(
+        (data || [])
+          .filter((row) => row.kind === 'hangup' || row.kind === 'decline' || row.kind === 'busy')
+          .map((row) => row.call_id),
+      );
       for (const row of data || []) {
+        if (row.kind !== 'ring' || ended.has(row.call_id)) continue;
         await handleSignal(row);
       }
     } catch {

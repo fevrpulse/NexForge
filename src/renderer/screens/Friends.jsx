@@ -4,7 +4,6 @@ import { sb } from '../lib/supabase.js';
 import { bannerStyleKey } from '../lib/cosmetics.js';
 import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 import PartyPanel from '../components/PartyPanel.jsx';
-import { LinkedAccountChips } from '../components/VerifiedStatsPanel.jsx';
 import { useVoiceCall } from '../components/VoiceCallOverlay.jsx';
 import { friendQueueServer } from '../lib/duels.js';
 const AV_COLORS = ['#3B7EFF', '#9B5CFF', '#4ade80', '#FF8C42', '#C9FF00'];
@@ -159,8 +158,6 @@ function FriendProfileModal({ data, loading, onClose, onMessage, onCall, showToa
                 )}
               </div>
             </div>
-
-            <LinkedAccountChips links={data?.linked_accounts} />
 
             {(onBlock || onReport) && (
               <div className="friend-profile-actions" style={{ marginTop: 18, justifyContent: 'flex-end' }}>

@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.5.1',
+    highlights: [
+      'Linking Discord, Steam, Riot, Epic, and Tracker is turned off for now.',
+      'A failed call no longer leaves you stuck as already in a call.',
+      'Opening NexForge without internet no longer signs you out.',
+    ],
+  },
+  {
     version: '5.5.0',
     highlights: [
       'The Shop shows every frame, banner, and nameplate on a large preview with your own avatar and gamer tag. Frames glow, banners are full color, and rarity is marked on each card.',

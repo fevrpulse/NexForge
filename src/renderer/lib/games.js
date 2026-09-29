@@ -356,7 +356,6 @@ export const DEFAULT_MODES = [
   {icon:'⚔',name:'Ranked 1v1',desc:'Compete head-to-head for rank.',details:'Standard 1v1 ranked queue with full stat tracking.',server:'Player-hosted lobby'},
   {icon:'👥',name:'Ranked 5v5',desc:'Full team competitive queue.',details:'Team-based ranked with role assignment and rank tracking.',server:'Player-hosted lobby'},
   {icon:'🛡',name:'Unranked',desc:'Casual practice with no rank pressure.',details:'Same rules as ranked without rank impact. Good for learning.',server:'Player-hosted lobby'},
-  ,
 ];
 
 /** How many players must share a custom "Other" main game before it goes live. */
@@ -422,7 +421,7 @@ export function mergeGameCatalog(communityGames = []) {
 }
 
 function withoutTournaments(modes) {
-  return (modes || []).filter((mode) => !/tournament/i.test(`${mode?.name || ''} ${mode?.desc || ''} ${mode?.details || ''}`));
+  return (modes || []).filter((mode) => mode && !/tournament/i.test(`${mode.name || ''} ${mode.desc || ''} ${mode.details || ''}`));
 }
 
 export function modesForGame(game) {

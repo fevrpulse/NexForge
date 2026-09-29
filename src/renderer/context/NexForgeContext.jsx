@@ -5,6 +5,7 @@ import {
   isCloudUnreachableError,
   probeSupabaseCloud,
   recoverAuthSession,
+  tryRefreshAuthSession,
   clearLocalAuthSession,
 } from '../lib/cloud.js';
 import { GAME_CATALOG, KNOWN_MAIN_GAMES, mergeGameCatalog } from '../lib/games.js';
@@ -216,6 +217,14 @@ export function NexForgeProvider({ children }) {
   const reportCloudError = useCallback(async (err) => {
     if (!err) return false;
     if (isAuthSessionError(err)) {
+      // A JWT-expired 401 after sleep is normal; let the refresh token fix it
+      // before deleting the saved session.
+      const refresh = await tryRefreshAuthSession();
+      if (refresh === 'ok') return false;
+      if (refresh === 'unavailable') {
+        setCloudOffline(true, err?.message || 'Cloud sync unavailable');
+        return true;
+      }
       await clearLocalAuthSession();
       setUser(null);
       setProfile(null);
@@ -498,6 +507,11 @@ export function NexForgeProvider({ children }) {
         offAuth = window.nexforge.onAuthCallback((tokens) => {
           handleAuthTokens(tokens);
         });
+        if (!mounted) {
+          offAuth();
+          offAuth = null;
+          return;
+        }
         try {
           const pending = await window.nexforge.getPendingAuth?.();
           if (pending) {
@@ -546,6 +560,9 @@ export function NexForgeProvider({ children }) {
         return;
       }
       if (!session?.user) return;
+      // TOKEN_REFRESHED fires about hourly with a new user object for the same
+      // account. Replacing state restarts every poller keyed on `user`.
+      if (event === 'TOKEN_REFRESHED' && session.user.id === userRef.current?.id) return;
       setUser(session.user);
       if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         setGuestMode(false);
@@ -614,6 +631,7 @@ export function NexForgeProvider({ children }) {
   // Sidebar unread badge stays fresh even when the Friends screen is closed.
   useEffect(() => {
     if (!user) {
+      unreadSoundBaselineRef.current = null;
       setUnreadBySender({});
       return undefined;
     }
@@ -949,7 +967,10 @@ export function NexForgeProvider({ children }) {
           delete row.max_wifi_pct;
           ({ data, error } = await sb.from('game_sessions').insert(row).select('id').single());
         }
-        if (error && /PGRST116|0 rows|Cannot coerce/i.test(String(error.message || ''))) {
+        if (error && (
+          error.code === 'PGRST116'
+          || /PGRST116|0 rows|Cannot coerce|multiple \(or no\) rows/i.test(`${error.message || ''} ${error.details || ''}`)
+        )) {
           const { data: latest } = await sb
             .from('game_sessions')
             .select('id')
@@ -1391,7 +1412,7 @@ export function NexForgeProvider({ children }) {
       cancelled = true;
       clearInterval(id);
     };
-  }, [user, guestMode, party]);
+  }, [user, guestMode, party?.id, party?.my_status]);
 
   useEffect(() => {
     if (!user || guestMode || !overlayEnabled) {

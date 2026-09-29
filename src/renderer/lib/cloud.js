@@ -79,8 +79,25 @@ export async function clearLocalAuthSession() {
 }
 
 /**
+ * Try the stored refresh token before throwing the session away.
+ * 'ok' — new access token. 'invalid' — refresh token itself is rejected.
+ * 'unavailable' — network/server, session should be kept.
+ */
+export async function tryRefreshAuthSession() {
+  try {
+    const { data, error } = await sb.auth.refreshSession();
+    if (!error && data?.session) return 'ok';
+    if (error && isAuthSessionError(error)) return 'invalid';
+    return 'unavailable';
+  } catch (err) {
+    return isAuthSessionError(err) ? 'invalid' : 'unavailable';
+  }
+}
+
+/**
  * Ensure any persisted session is still valid with Auth.
- * Corrupt/expired tokens otherwise make every table query return 401 ("Local-only mode").
+ * Corrupt tokens otherwise make every table query return 401 ("Local-only mode").
+ * A network failure must NOT wipe the session — the refresh token is still good.
  */
 export async function recoverAuthSession() {
   try {
@@ -89,10 +106,19 @@ export async function recoverAuthSession() {
 
     const { data: { user }, error } = await sb.auth.getUser();
     if (!error && user) return { session, recovered: false };
+    // Offline, DNS, or a 5xx: keep the stored session for later.
+    if (!isAuthSessionError(error)) return { session, recovered: false };
+
+    const refresh = await tryRefreshAuthSession();
+    if (refresh !== 'invalid') {
+      const { data: { session: next } } = await sb.auth.getSession();
+      return { session: next || session, recovered: false };
+    }
 
     await clearLocalAuthSession();
     return { session: null, recovered: true };
-  } catch {
+  } catch (err) {
+    if (!isAuthSessionError(err)) return { session: null, recovered: false };
     await clearLocalAuthSession();
     return { session: null, recovered: true };
   }
@@ -102,9 +128,13 @@ export async function recoverAuthSession() {
 export async function probeSupabaseCloud() {
   let { error } = await sb.from('profiles').select('id').limit(1);
   if (error && isAuthSessionError(error)) {
-    await clearLocalAuthSession();
+    const refresh = await tryRefreshAuthSession();
+    if (refresh === 'unavailable') {
+      return { ok: false, recoveredAuth: false, error };
+    }
+    if (refresh === 'invalid') await clearLocalAuthSession();
     ({ error } = await sb.from('profiles').select('id').limit(1));
-    return { ok: !error, recoveredAuth: true, error: error || null };
+    return { ok: !error, recoveredAuth: refresh === 'invalid', error: error || null };
   }
   if (!error) return { ok: true, recoveredAuth: false, error: null };
 
