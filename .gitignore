@@ -5,6 +5,7 @@ dist-renderer/
 .DS_Store
 .env
 *.exe
+!site/NexForge.exe
 *.blockmap
 NexForgeNew*.html
 nexforge-test-run.html

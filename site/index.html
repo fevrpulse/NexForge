@@ -300,7 +300,7 @@
         <a href="#install">Install</a>
         <a href="https://discord.gg/dRF6fBnMG" target="_blank" rel="noopener noreferrer">Discord</a>
         <a href="https://github.com/fevrpulse/NexForge" target="_blank" rel="noopener noreferrer">GitHub</a>
-        <a class="btn btn-primary" id="nav-download" href="https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe">Download</a>
+        <a class="btn btn-primary" id="nav-download" href="NexForge.exe">Download</a>
       </nav>
     </header>
 
@@ -311,7 +311,7 @@
           <h1>The PC companion that stays out of the match.</h1>
           <p class="lede">Download NexForge, run the installer, and it lives next to your games. It recommends settings, keeps stats on screen without stealing the mouse, and gives you friends, squads, and a shop.</p>
           <div class="actions">
-            <a class="btn btn-primary" id="download" href="https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe">Download for Windows</a>
+            <a class="btn btn-primary" id="download" href="NexForge.exe">Download for Windows</a>
             <a class="btn btn-ghost" href="https://discord.gg/dRF6fBnMG" target="_blank" rel="noopener noreferrer">Discord</a>
             <a class="btn btn-ghost" href="https://github.com/fevrpulse/NexForge" target="_blank" rel="noopener noreferrer">GitHub</a>
           </div>
@@ -453,7 +453,7 @@
           <h2>Install it on this PC.</h2>
           <p id="close-meta">Windows installer. Updates after this one come from inside the app.</p>
         </div>
-        <a class="btn btn-primary" id="download-bottom" href="https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe">Download for Windows</a>
+        <a class="btn btn-primary" id="download-bottom" href="NexForge.exe">Download for Windows</a>
       </div>
     </main>
 
@@ -463,7 +463,6 @@
     </footer>
   </div>
   <script>
-    const DOWNLOAD = "https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe";
     const meta = document.getElementById("release-meta");
     fetch("https://api.github.com/repos/fevrpulse/NexForge/releases/latest")
       .then((res) => { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
@@ -475,19 +474,14 @@
           ? new Date(rel.published_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
           : "";
         const size = asset && asset.size ? Math.round(asset.size / (1024 * 1024)) + " MB" : "";
-        const bits = [version ? "v" + version : "", when, size, "Windows PC"].filter(Boolean);
-        meta.textContent = bits.join(" · ") + " · ";
+        const bits = [version ? "v" + version : "", when, size].filter(Boolean);
+        meta.textContent = "Run it once — it downloads " + (bits.join(" · ") || "the latest build") + " and installs it. · ";
         const link = document.createElement("a");
         link.href = rel.html_url || "https://github.com/fevrpulse/NexForge/releases/latest";
         link.textContent = "release notes";
         meta.appendChild(link);
         const close = document.getElementById("close-meta");
-        if (close && version) close.textContent = "NexForge " + version + (size ? " · " + size : "") + " · Windows PC. Later updates install from inside the app.";
-        const href = (asset && asset.browser_download_url) || DOWNLOAD;
-        ["download", "nav-download", "download-bottom"].forEach((id) => {
-          const el = document.getElementById(id);
-          if (el) el.href = href;
-        });
+        if (close && version) close.textContent = "One setup file. It downloads NexForge " + version + (size ? " (" + size + ")" : "") + " and installs it. Later updates come from inside the app.";
       })
       .catch(() => {
         meta.textContent = "Latest Windows PC installer.";
