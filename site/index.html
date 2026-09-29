@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NexForge — Download for Windows</title>
+  <meta name="description" content="Download NexForge for Windows PC. Optimize the game you play, keep a click-through stats overlay on screen, and squad up with friends." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Outfit:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #050706;
+      --panel: #10160f;
+      --card: #141b13;
+      --text: #F4F8ED;
+      --muted: #8B937F;
+      --muted2: #C5CDB8;
+      --neon: #D2FF2A;
+      --hud: #6CFFF0;
+      --line: rgba(210, 255, 42, .16);
+      --font: "Outfit", sans-serif;
+      --display: "Syne", sans-serif;
+      --mono: "JetBrains Mono", monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 50% 42% at 78% 8%, rgba(210, 255, 42, .09), transparent 58%),
+        radial-gradient(ellipse 36% 28% at 8% 0%, rgba(108, 255, 240, .05), transparent 50%),
+        var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.5;
+      letter-spacing: -.011em;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(210, 255, 42, .04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(210, 255, 42, .04) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse 70% 55% at 70% 18%, #000 0%, transparent 70%);
+    }
+    a { color: inherit; text-decoration: none; }
+    .page { width: min(1240px, calc(100% - 80px)); margin: 0 auto; position: relative; z-index: 1; }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 0 6px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .mark {
+      width: 36px; height: 36px; border-radius: 11px;
+      display: grid; place-items: center;
+      background: var(--neon); color: #081008;
+      font-family: var(--display); font-weight: 800; font-size: 18px;
+      box-shadow: 0 0 28px rgba(210, 255, 42, .32);
+    }
+    .brand strong { font-family: var(--display); font-size: 18px; letter-spacing: -.03em; }
+    .brand em { font-style: normal; color: var(--muted); font-size: 13px; margin-left: 2px; }
+    nav { display: flex; align-items: center; gap: 22px; }
+    nav a { color: var(--muted2); font-size: 14px; font-weight: 600; }
+    nav a:hover { color: var(--text); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      border: 0; cursor: pointer; font-family: var(--font); font-weight: 700;
+      border-radius: 999px;
+    }
+    .btn-primary {
+      background: var(--neon); color: #081008;
+      padding: 14px 22px; font-size: 15.5px;
+      box-shadow: 0 0 0 1px rgba(210, 255, 42, .45), 0 12px 32px rgba(210, 255, 42, .16);
+    }
+    .btn-primary:hover { filter: brightness(1.05); }
+    .btn-ghost {
+      background: rgba(0, 0, 0, .25); color: var(--muted2);
+      border: 1px solid rgba(255, 255, 255, .12);
+      padding: 13px 18px; font-size: 15px;
+    }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(210, 255, 42, .35); }
+    header .btn { padding: 9px 16px; font-size: 13px; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(420px, 1fr) minmax(480px, 1.08fr);
+      gap: 56px;
+      align-items: center;
+      padding: 54px 0 28px;
+    }
+    .eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+      color: var(--neon); margin-bottom: 18px;
+    }
+    .eyebrow i { width: 7px; height: 7px; border-radius: 50%; background: var(--neon); display: block; box-shadow: 0 0 10px var(--neon); }
+    h1 {
+      font-family: var(--display); font-weight: 800; letter-spacing: -.045em;
+      font-size: 64px; line-height: .96;
+    }
+    .lede { margin-top: 18px; color: var(--muted2); font-size: 18px; max-width: 46ch; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 28px; align-items: center; }
+    .meta { margin-top: 14px; font-family: var(--mono); font-size: 12px; color: var(--muted); min-height: 1.4em; }
+    .meta a { color: var(--hud); }
+
+    .stage { position: relative; }
+    .window {
+      background: #0c120b;
+      border: 1px solid rgba(210, 255, 42, .22);
+      border-radius: 18px;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .45), 0 0 80px rgba(210, 255, 42, .06);
+      overflow: hidden;
+    }
+    .titlebar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px;
+      background: #0a0e09;
+      border-bottom: 1px solid rgba(255, 255, 255, .06);
+      font-family: var(--mono); font-size: 11px; color: var(--muted);
+    }
+    .dots { display: flex; gap: 6px; }
+    .dots i { width: 8px; height: 8px; border-radius: 50%; background: #2a3328; display: block; }
+    .dots i:first-child { background: #D2FF2A; }
+    .titlebar b { color: var(--text); font-weight: 700; margin-left: 4px; }
+    .titlebar .spacer { margin-left: auto; }
+    .app { display: grid; grid-template-columns: 168px 1fr; min-height: 360px; }
+    .side { padding: 14px 10px; border-right: 1px solid rgba(255, 255, 255, .06); background: #0b100a; }
+    .side .item {
+      padding: 8px 10px; border-radius: 8px; color: var(--muted2);
+      font-size: 13px; font-weight: 600; margin-bottom: 2px;
+    }
+    .side .item.on { background: rgba(210, 255, 42, .1); color: var(--neon); }
+    .main { padding: 16px; }
+    .kicker { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+    .main h2 { font-family: var(--display); font-size: 26px; letter-spacing: -.03em; margin: 4px 0 12px; }
+    .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .tile {
+      background: #101710; border: 1px solid rgba(255, 255, 255, .06);
+      border-radius: 10px; padding: 10px 12px;
+    }
+    .tile span { display: block; font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: .08em; }
+    .tile strong { font-family: var(--display); font-size: 20px; }
+    .tile strong em { font-style: normal; color: var(--neon); }
+    .session {
+      margin-top: 10px; padding: 12px;
+      border-radius: 12px; border: 1px solid var(--line);
+      background: linear-gradient(120deg, rgba(210, 255, 42, .08), transparent 55%), #101710;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    }
+    .session p { color: var(--muted2); font-size: 13px; margin-top: 2px; }
+    .pill {
+      font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase;
+      color: #081008; background: var(--neon); border-radius: 999px; padding: 4px 8px; font-weight: 700;
+    }
+    .hud {
+      position: absolute; left: -18px; bottom: 28px;
+      background: rgba(8, 12, 8, .92);
+      border: 1px solid rgba(108, 255, 240, .35);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, .4);
+      font-family: var(--mono); font-size: 11px; color: var(--hud);
+      display: grid; gap: 3px;
+    }
+    .hud b { color: var(--text); font-weight: 700; }
+
+    .steps {
+      display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 12px;
+      margin: 18px 0 8px; align-items: stretch;
+    }
+    .step, .card {
+      background: linear-gradient(165deg, rgba(255, 255, 255, .03), transparent 40%), var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .step::before, .card::before {
+      content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: var(--neon);
+    }
+    .step { padding: 16px 16px 18px; }
+    .step.lead {
+      background:
+        linear-gradient(160deg, rgba(210, 255, 42, .12), transparent 50%),
+        var(--card);
+      display: flex; flex-direction: column; justify-content: center;
+    }
+    .step span { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; color: var(--neon); }
+    .step h2, .card h3 { font-family: var(--display); letter-spacing: -.03em; font-size: 18px; margin: 6px 0 4px; }
+    .step p, .card p { color: var(--muted2); font-size: 14px; }
+    .note {
+      margin-top: 12px; padding: 12px 14px;
+      border: 1px solid rgba(255, 255, 255, .08);
+      border-radius: 12px; color: var(--muted2); font-size: 14px;
+      background: rgba(0, 0, 0, .25);
+    }
+    .note strong { color: var(--text); }
+
+    section { padding: 64px 0 20px; }
+    .section-kicker {
+      font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+    }
+    section h2.display {
+      font-family: var(--display); font-size: 42px; letter-spacing: -.04em; margin: 8px 0 22px; max-width: 16ch;
+    }
+    .bento {
+      display: grid;
+      grid-template-columns: 1.35fr 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 12px;
+    }
+    .card { padding: 18px 18px 16px; min-height: 210px; display: flex; flex-direction: column; }
+    .card.wide { grid-row: span 2; min-height: 432px; }
+    .card.span { grid-column: 1 / -1; min-height: 0; flex-direction: row; align-items: center; gap: 28px; }
+    .card.span .grow { margin-top: 0; margin-left: auto; padding-top: 0; }
+    .card.span .rooms { width: 280px; }
+    .card .tag { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--hud); }
+    .card .grow { margin-top: auto; padding-top: 16px; }
+
+    .modes { display: flex; gap: 8px; }
+    .mode {
+      flex: 1; text-align: center; padding: 10px 8px; border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, .1); color: var(--muted2); font-weight: 700; font-size: 13px;
+    }
+    .mode.on { border-color: var(--neon); background: rgba(210, 255, 42, .12); color: var(--neon); }
+    .bars { display: grid; gap: 8px; }
+    .bar { display: grid; grid-template-columns: 52px 1fr 36px; gap: 8px; align-items: center; font-family: var(--mono); font-size: 11px; color: var(--muted2); }
+    .bar i { height: 6px; border-radius: 99px; background: rgba(255, 255, 255, .08); display: block; overflow: hidden; }
+    .bar i span { display: block; height: 100%; background: var(--neon); }
+    .bar i.ice span { background: var(--hud); }
+    .spark { display: flex; align-items: flex-end; gap: 4px; height: 54px; }
+    .spark i { flex: 1; background: rgba(210, 255, 42, .85); border-radius: 3px 3px 0 0; display: block; }
+    .plate {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: 999px;
+      background: linear-gradient(120deg, rgba(232, 197, 71, .55), rgba(255, 240, 170, .2)), #181406;
+      width: fit-content;
+    }
+    .av {
+      width: 36px; height: 36px; border-radius: 50%;
+      display: grid; place-items: center;
+      background: #081008; color: var(--neon); font-weight: 800;
+      box-shadow: 0 0 0 2px #E8C547, 0 0 14px rgba(232, 197, 71, .45);
+    }
+    .rooms { display: grid; gap: 6px; }
+    .room {
+      display: flex; justify-content: space-between;
+      padding: 8px 10px; border-radius: 8px; background: rgba(0, 0, 0, .28);
+      font-size: 13px; color: var(--muted2);
+    }
+    .room.on { color: var(--text); outline: 1px solid rgba(108, 255, 240, .35); }
+
+    .close {
+      margin: 28px 0 10px;
+      display: flex; align-items: center; justify-content: space-between; gap: 24px;
+      padding: 22px 24px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background:
+        linear-gradient(100deg, rgba(210, 255, 42, .14), transparent 42%),
+        #10160f;
+    }
+    .close h2 { font-family: var(--display); font-size: 28px; letter-spacing: -.03em; }
+    .close p { color: var(--muted2); margin-top: 4px; }
+
+    footer {
+      display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      padding: 22px 0 36px; color: var(--muted); font-size: 13px;
+    }
+    footer a { color: var(--muted2); }
+
+    @media (max-width: 1100px) {
+      .page { width: min(1240px, calc(100% - 40px)); }
+      .hero, .steps, .bento { grid-template-columns: 1fr; }
+      .card.wide { grid-row: auto; min-height: 0; }
+      h1 { font-size: 48px; }
+      .hud { left: 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <a class="brand" href="#top">
+        <span class="mark">N</span>
+        <strong>NexForge</strong>
+        <em>for Windows PC</em>
+      </a>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a class="btn btn-primary" id="nav-download" href="https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe">Download</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div>
+          <div class="eyebrow"><i></i> Windows 10 and 11</div>
+          <h1>The PC companion that stays out of the match.</h1>
+          <p class="lede">Download NexForge, run the installer, and it lives next to your games. It recommends settings, keeps stats on screen without stealing the mouse, and gives you friends, squads, and a shop.</p>
+          <div class="actions">
+            <a class="btn btn-primary" id="download" href="https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe">Download for Windows</a>
+            <a class="btn btn-ghost" href="https://github.com/fevrpulse/NexForge/releases/latest">Release notes</a>
+          </div>
+          <p class="meta" id="release-meta">Checking the latest PC build…</p>
+        </div>
+
+        <div class="stage" aria-hidden="true">
+          <div class="window">
+            <div class="titlebar">
+              <span class="dots"><i></i><i></i><i></i></span>
+              <b>NexForge</b>
+              <span class="spacer">Desktop</span>
+            </div>
+            <div class="app">
+              <aside class="side">
+                <div class="item on">Dashboard</div>
+                <div class="item">Matchmaking</div>
+                <div class="item">Optimize</div>
+                <div class="item">Friends</div>
+                <div class="item">Shop</div>
+                <div class="item">Squad Finder</div>
+              </aside>
+              <div class="main">
+                <p class="kicker">Command deck</p>
+                <h2>Welcome back.</h2>
+                <div class="tiles">
+                  <div class="tile"><span>GPU</span><strong><em>62</em>%</strong></div>
+                  <div class="tile"><span>CPU</span><strong>28%</strong></div>
+                  <div class="tile"><span>RAM</span><strong>11.2</strong></div>
+                </div>
+                <div class="session">
+                  <div>
+                    <strong>Last session · Valorant</strong>
+                    <p>48 min · GPU 71% · ping 24 ms</p>
+                  </div>
+                  <span class="pill">Saved</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="hud">
+            <div>GPU <b>62%</b> · 61°</div>
+            <div>CPU <b>28%</b> · RAM <b>11.2</b></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="steps" id="install">
+        <article class="step lead">
+          <span>PC INSTALL</span>
+          <h2>One file. No admin.</h2>
+          <p>NexForge.exe installs for your Windows user and opens when it finishes. Later updates install themselves.</p>
+        </article>
+        <article class="step">
+          <span>01</span>
+          <h2>Download</h2>
+          <p>Grab the Windows installer. Nothing else to pick.</p>
+        </article>
+        <article class="step">
+          <span>02</span>
+          <h2>Run it</h2>
+          <p>Per-user setup. It does not ask for administrator.</p>
+        </article>
+        <article class="step">
+          <span>03</span>
+          <h2>Play</h2>
+          <p>Sign in if you want friends and the shop. Guest can still look around.</p>
+        </article>
+      </div>
+      <p class="note"><strong>Windows may warn you.</strong> The installer is not code-signed yet, so SmartScreen can say it is not commonly downloaded. Choose More info, then Run anyway.</p>
+
+      <section id="features">
+        <p class="section-kicker">On the PC</p>
+        <h2 class="display">What you get after it installs.</h2>
+        <div class="bento">
+          <article class="card wide">
+            <p class="tag">Optimize</p>
+            <h3>Settings for the game you click</h3>
+            <p>NexForge scans the PC, then recommends a setup. Competitive when you want frames. Looks when you want the picture.</p>
+            <div class="grow">
+              <div class="modes">
+                <div class="mode on">Competitive</div>
+                <div class="mode">Looks</div>
+              </div>
+              <div class="bars" style="margin-top: 16px;">
+                <div class="bar"><span>Shadows</span><i><span style="width:32%"></span></i><span>Low</span></div>
+                <div class="bar"><span>Upscale</span><i class="ice"><span style="width:70%"></span></i><span>On</span></div>
+                <div class="bar"><span>Cap</span><i><span style="width:100%"></span></i><span>Hz</span></div>
+              </div>
+            </div>
+          </article>
+          <article class="card">
+            <p class="tag">Overlay</p>
+            <h3>Stats that don't take the click</h3>
+            <p>GPU, CPU, RAM, and temps sit on screen. The game keeps the mouse until you open the HUD.</p>
+            <div class="grow bars">
+              <div class="bar"><span>GPU</span><i><span style="width:62%"></span></i><span>62</span></div>
+              <div class="bar"><span>CPU</span><i class="ice"><span style="width:28%"></span></i><span>28</span></div>
+              <div class="bar"><span>RAM</span><i><span style="width:54%"></span></i><span>11</span></div>
+            </div>
+          </article>
+          <article class="card">
+            <p class="tag">Sessions</p>
+            <h3>A recap when you leave</h3>
+            <p>It notices the game, follows the session, and saves it so you can look back.</p>
+            <div class="grow spark" aria-hidden="true">
+              <i style="height:30%"></i><i style="height:48%"></i><i style="height:40%"></i><i style="height:72%"></i><i style="height:64%"></i><i style="height:88%"></i><i style="height:56%"></i><i style="height:76%"></i>
+            </div>
+          </article>
+          <article class="card">
+            <p class="tag">Squad Finder</p>
+            <h3>Post, and someone accepts</h3>
+            <p>A title and details, public for the same game. Friends, parties, and messages are in the app too.</p>
+          </article>
+          <article class="card">
+            <p class="tag">Shop</p>
+            <h3>Frames, banners, tags</h3>
+            <p>Each cosmetic previews with your avatar and gamer tag.</p>
+            <div class="grow">
+              <div class="plate"><span class="av">N</span><strong>Player</strong></div>
+            </div>
+          </article>
+          <article class="card span">
+            <div>
+              <p class="tag">Voice</p>
+              <h3>Clans and communities</h3>
+              <p>Text rooms, voice channels, and a profile friends can open.</p>
+            </div>
+            <div class="grow rooms">
+              <div class="room"># lobby <span>text</span></div>
+              <div class="room on">voice · 3 in <span>live</span></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <div class="close">
+        <div>
+          <h2>Install it on this PC.</h2>
+          <p id="close-meta">Windows installer. Updates after this one come from inside the app.</p>
+        </div>
+        <a class="btn btn-primary" id="download-bottom" href="https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe">Download for Windows</a>
+      </div>
+    </main>
+
+    <footer>
+      <span>NexForge for Windows PC. Free.</span>
+      <span><a href="companion/">Phone companion</a> · <a href="https://github.com/fevrpulse/NexForge">GitHub</a> · <a href="https://github.com/fevrpulse/NexForge/releases/latest">Releases</a></span>
+    </footer>
+  </div>
+  <script>
+    const DOWNLOAD = "https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe";
+    const meta = document.getElementById("release-meta");
+    fetch("https://api.github.com/repos/fevrpulse/NexForge/releases/latest")
+      .then((res) => { if (!res.ok) throw new Error(String(res.status)); return res.json(); })
+      .then((rel) => {
+        const asset = (rel.assets || []).find((a) => a.name === "NexForge.exe")
+          || (rel.assets || []).find((a) => /\.exe$/i.test(a.name));
+        const version = String(rel.tag_name || "").replace(/^v/, "");
+        const when = rel.published_at
+          ? new Date(rel.published_at).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+          : "";
+        const size = asset && asset.size ? Math.round(asset.size / (1024 * 1024)) + " MB" : "";
+        const bits = [version ? "v" + version : "", when, size, "Windows PC"].filter(Boolean);
+        meta.textContent = bits.join(" · ") + " · ";
+        const link = document.createElement("a");
+        link.href = rel.html_url || "https://github.com/fevrpulse/NexForge/releases/latest";
+        link.textContent = "release notes";
+        meta.appendChild(link);
+        const close = document.getElementById("close-meta");
+        if (close && version) close.textContent = "NexForge " + version + (size ? " · " + size : "") + " · Windows PC. Later updates install from inside the app.";
+        const href = (asset && asset.browser_download_url) || DOWNLOAD;
+        ["download", "nav-download", "download-bottom"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) el.href = href;
+        });
+      })
+      .catch(() => {
+        meta.textContent = "Latest Windows PC installer.";
+      });
+  </script>
+</body>
+</html>
