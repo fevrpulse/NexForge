@@ -1,14 +1,14 @@
-# NexForge Desktop
+# NexForge
 
-Electron + **React** desktop client for NexForge — public duel queues, session performance tracking, and career stats backed by Supabase. Duels close with no winner.
+Windows app for game settings, a click-through stats overlay, friends, squads, and a cosmetics shop.
 
-**First stable release: 1.2.0.** Install from [GitHub Releases](https://github.com/fevrpulse/NexForge/releases) only (not from cloning/source unless you are developing). Earlier **Beta** builds are unsupported for new installs.
+**Public release: 5.5.1.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
 
-## Install
+The download is a small setup file. Run it and it fetches the latest installer. It installs for your Windows user (no administrator) and later updates install from inside the app.
 
-1. Download **[NexForge.exe](https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe)** (always the latest release).
-2. Run it once — it installs per-user (no admin) and launches NexForge.
-3. After that, the installed app **checks hourly and auto-installs updates** (restarts when a new version is ready). No need to re-download.
+Windows may say the file is not commonly downloaded, because it is not code-signed yet. Choose **More info**, then **Run anyway**.
+
+Direct installer: [NexForge.exe](https://github.com/fevrpulse/NexForge/releases/latest/download/NexForge.exe).
 
 ## Develop locally
 
@@ -103,5 +103,5 @@ function serves only a static confirmation page.
 - Session RAM / CPU / GPU / probe ping summaries (Windows process tracking)
 - Friends with online / now-playing presence, custom status, pins, typing, chat search, direct messages with replies + photos + emoji reactions + deletion, duel challenges from chat, Do Not Disturb, overlay hotkey (Ctrl+Shift+O), NexAI dock (Ctrl+Shift+A), and an in-game message overlay
 - Per-session RAM / CPU / GPU / ping graphs and side-by-side session compare in Analytics
-- Linked accounts on your profile, NexAI starter prompts, and a phone companion for chat and lobby codes
+- NexAI starter prompts, and a phone companion for chat and lobby codes. Account linking is off in 5.5.1
 - Community-promoted custom games, guest browse mode, and first-run main-game onboarding
