@@ -4,6 +4,12 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.6.0',
+    highlights: [
+      'Benchmark scores the processor, memory, drive, and graphics, and tells you which part is the limit.',
+    ],
+  },
+  {
     version: '5.5.1',
     highlights: [
       'Linking Discord, Steam, Riot, Epic, and Tracker is turned off for now.',

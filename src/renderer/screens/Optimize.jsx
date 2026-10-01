@@ -84,7 +84,7 @@ function formatRigText(scan) {
 }
 
 export default function Optimize() {
-  const { profile, gameCatalog, liveSession, lastSessionRecap, showToast, appPlatform } = useNexForge();
+  const { profile, gameCatalog, liveSession, lastSessionRecap, showToast, appPlatform, setScreen } = useNexForge();
   const [scan, setScan] = useState(() => loadHwScan());
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState(null);
@@ -200,6 +200,14 @@ export default function Optimize() {
                 {copiedRig ? 'Copied' : 'Copy specs'}
               </button>
             )}
+            <button
+              type="button"
+              className="action-btn ghost"
+              style={{ padding: '6px 12px', fontSize: 12 }}
+              onClick={() => setScreen('benchmark')}
+            >
+              Benchmark
+            </button>
             <button
               type="button"
               className="action-btn ghost"

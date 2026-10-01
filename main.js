@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { GameTracker, MIN_SESSION_SEC } = require('./game-tracker');
 const { createOverlaySystem } = require('./overlay-system');
 const { scanDeviceSpecs } = require('./hw-scan');
+const bench = require('./bench');
 const { WinGameBoost } = require('./win-game-boost');
 const desktopPrefs = require('./desktop-prefs');
 
@@ -770,6 +771,15 @@ ipcMain.handle('get-app-info', () => ({
 }));
 
 ipcMain.handle('scan-device-specs', (_event, opts) => scanDeviceSpecs({ force: !!opts?.force }));
+
+ipcMain.handle('run-system-benchmark', (event) => bench.run({
+  onProgress: (payload) => {
+    if (event.sender.isDestroyed()) return;
+    event.sender.send('benchmark-progress', payload);
+  },
+}));
+
+ipcMain.handle('cancel-system-benchmark', () => bench.cancel());
 
 ipcMain.handle('show-main-window', () => {
   if (!mainWindow || mainWindow.isDestroyed()) return { ok: false };

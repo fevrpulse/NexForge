@@ -51,6 +51,13 @@ const NAV_ICONS = {
       <path d="M14.5 8.2l2.2-2.2 2.4 2.4-2.2 2.2" />
     </>
   ),
+  benchmark: (
+    <>
+      <circle cx="12" cy="13" r="7.2" />
+      <path d="M12 13l3.4-2.6" />
+      <path d="M12 5.8v1.6" />
+    </>
+  ),
   leaderboard: (
     <>
       <rect x="9" y="4" width="6" height="16.5" rx="1" />

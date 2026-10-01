@@ -7,6 +7,7 @@ const PRIMARY_NAV = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'matchmaking', label: 'Matchmaking' },
   { id: 'optimize', label: 'Optimize' },
+  { id: 'benchmark', label: 'Benchmark' },
 ];
 
 const SECONDARY_NAV = [

@@ -19,6 +19,7 @@ import Clans from './screens/Clans.jsx';
 import Communities from './screens/Communities.jsx';
 import Settings from './screens/Settings.jsx';
 import Optimize from './screens/Optimize.jsx';
+import Benchmark from './screens/Benchmark.jsx';
 import { VoiceCallProvider } from './components/VoiceCallOverlay.jsx';
 import NexPanionDock from './components/NexPanionDock.jsx';
 import ClickBurst from './components/ClickBurst.jsx';
@@ -35,6 +36,7 @@ const SCREEN_META = {
   analytics: { title: 'Analytics', badge: 'STATS' },
   squad: { title: 'Squad Finder', badge: 'FIND TEAM' },
   optimize: { title: 'Optimize', badge: 'RIG SCAN' },
+  benchmark: { title: 'Benchmark', badge: 'THIS PC' },
   settings: { title: 'Settings', badge: 'SYSTEM' },
 };
 
@@ -49,6 +51,7 @@ const SCREEN_COMPONENTS = {
   analytics: Analytics,
   squad: Squad,
   optimize: Optimize,
+  benchmark: Benchmark,
   settings: Settings,
 };
 
