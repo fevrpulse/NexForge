@@ -1,26 +1,29 @@
 const { Worker } = require('worker_threads');
-const { execFile } = require('child_process');
+const { spawn } = require('child_process');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
-const CPU_MS = 2000;
-const MULTI_MS = 2500;
-const MEMORY_MS = 2000;
-const DISK_MS = 2500;
+const WRITE_CAP = 512 * 1024 * 1024;
+const MEMORY_CAP = 256 * 1024 * 1024;
 
 const WORKER_SRC = `
 const { parentPort, workerData } = require('worker_threads');
+const flag = new Int32Array(workerData.control);
+
+function stopped() {
+  return Atomics.load(flag, 0) === 1;
+}
 
 function cpu() {
-  const ms = workerData.ms;
   const start = Date.now();
   let x = (0x12345678 + workerData.seed) | 0;
   let a = 1.1;
   let b = 1.2;
   let c = 1.3;
   let ops = 0;
-  while (Date.now() - start < ms) {
+  while (Date.now() - start < workerData.ms) {
+    if (stopped()) break;
     for (let i = 0; i < 256; i++) {
       x ^= x << 13;
       x ^= x >>> 17;
@@ -40,19 +43,19 @@ function cpu() {
     type: 'done',
     ops,
     elapsedMs: Date.now() - start,
-    sink: (x + a + b + c),
+    sink: x + a + b + c,
   });
 }
 
 function memory() {
   const bytes = workerData.bytes;
-  const ms = workerData.ms;
   const a = Buffer.allocUnsafe(bytes);
   const b = Buffer.allocUnsafe(bytes);
   a.fill(1);
   let copies = 0;
   const t0 = process.hrtime.bigint();
-  while (Number(process.hrtime.bigint() - t0) / 1e6 < ms) {
+  while (Number(process.hrtime.bigint() - t0) / 1e6 < workerData.ms) {
+    if (stopped()) break;
     a.copy(b);
     copies += 1;
   }
@@ -70,84 +73,13 @@ else if (workerData.kind === 'memory') memory();
 else parentPort.postMessage({ type: 'done', error: 'unknown test' });
 `;
 
-let current = null;
-
-function freeBytes(dir) {
-  try {
-    const stat = fs.statfsSync(dir);
-    return Number(stat.bavail) * Number(stat.bsize);
-  } catch {
-    return null;
-  }
-}
-
-function startWorker(job, workerData) {
-  return new Promise((resolve, reject) => {
-    if (job.cancelled) {
-      resolve({ cancelled: true });
-      return;
-    }
-    let settled = false;
-    const worker = new Worker(WORKER_SRC, { eval: true, workerData });
-    job.workers.push(worker);
-    function finish(fn, value) {
-      if (settled) return;
-      settled = true;
-      fn(value);
-    }
-    worker.on('message', (msg) => {
-      if (msg && msg.type === 'done') finish(resolve, msg);
-    });
-    worker.on('error', (err) => {
-      if (job.cancelled) finish(resolve, { cancelled: true });
-      else finish(reject, err);
-    });
-    worker.on('exit', () => {
-      if (job.cancelled) finish(resolve, { cancelled: true });
-      else if (!settled) finish(reject, new Error('Benchmark worker stopped early.'));
-    });
-  });
-}
-
-function stopWorkers(job) {
-  for (const worker of job.workers) {
-    try { worker.terminate(); } catch { /* already gone */ }
-  }
-  if (job.diskProc) {
-    try { job.diskProc.kill(); } catch { /* already gone */ }
-  }
-}
-
-function report(onProgress, phase, label, pct) {
-  try { onProgress?.({ phase, label, pct }); } catch { /* renderer went away */ }
-}
-
-async function runCpu(job, threads, ms, seedBase) {
-  const tasks = [];
-  for (let i = 0; i < threads; i++) {
-    tasks.push(startWorker(job, { kind: 'cpu', ms, seed: seedBase + i * 997 }));
-  }
-  const parts = await Promise.all(tasks);
-  if (parts.some((part) => part.cancelled) || job.cancelled) return { cancelled: true };
-  const ops = parts.reduce((sum, part) => sum + (Number(part.ops) || 0), 0);
-  const elapsedMs = parts.reduce((max, part) => Math.max(max, Number(part.elapsedMs) || 0), 0) || ms;
-  return { opsPerSec: ops / (elapsedMs / 1000), threads };
-}
-
-function diskCap(free) {
-  if (free == null) return 256 * 1024 * 1024;
-  if (free > 6 * 1024 ** 3) return 1536 * 1024 * 1024;
-  if (free > 3 * 1024 ** 3) return 768 * 1024 * 1024;
-  if (free > 1200 * 1024 ** 2) return 256 * 1024 * 1024;
-  return 0;
-}
-
-const DISK_SCRIPT = `
+const DISK_HOST = `
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
+function Emit([string]$s) { [Console]::Out.WriteLine($s); [Console]::Out.Flush() }
 Add-Type -TypeDefinition @'
 using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.Runtime.InteropServices;
 public static class NfDiskBench {
   [DllImport("kernel32", SetLastError=true, CharSet=CharSet.Unicode)]
@@ -160,188 +92,351 @@ public static class NfDiskBench {
   static extern bool WriteFile(IntPtr h, IntPtr buf, uint n, out uint written, IntPtr ov);
   [DllImport("kernel32", SetLastError=true)]
   static extern int SetFilePointer(IntPtr h, int lo, IntPtr hi, uint method);
-  public static string Run(string path, int cap, int ms) {
-    const uint GR = 0x80000000, GW = 0x40000000, NB = 0x20000000, SEQ = 0x08000000, CA = 2, OE = 3;
-    int chunk = 8 * 1024 * 1024;
-    if (cap < chunk) return "ERR small";
-    cap -= cap % chunk;
-    IntPtr raw = Marshal.AllocHGlobal(chunk + 4096);
-    IntPtr buf = new IntPtr((raw.ToInt64() + 4095) & ~4095L);
-    IntPtr invalid = new IntPtr(-1);
+  static readonly IntPtr Invalid = new IntPtr(-1);
+  const uint GR = 0x80000000, GW = 0x40000000, NB = 0x20000000, SEQ = 0x08000000, CA = 2, OE = 3;
+  const int Chunk = 8 * 1024 * 1024;
+  static IntPtr Alloc() {
+    IntPtr raw = Marshal.AllocHGlobal(Chunk + 4096);
+    return raw;
+  }
+  static IntPtr Align(IntPtr raw) {
+    return new IntPtr((raw.ToInt64() + 4095) & ~4095L);
+  }
+  public static string WriteOnce(string path, int cap) {
+    if (cap < Chunk) return "ERR small";
+    cap -= cap % Chunk;
+    IntPtr raw = Alloc();
     try {
+      IntPtr buf = Align(raw);
       IntPtr h = CreateFile(path, GW, 0, IntPtr.Zero, CA, NB | SEQ, IntPtr.Zero);
-      if (h == invalid) return "ERR write-open " + Marshal.GetLastWin32Error();
+      if (h == Invalid) return "ERR write-open " + Marshal.GetLastWin32Error();
       long written = 0;
       var sw = Stopwatch.StartNew();
       uint got;
-      while (written < cap && sw.ElapsedMilliseconds < ms) {
-        if (!WriteFile(h, buf, (uint)chunk, out got, IntPtr.Zero) || got != (uint)chunk) {
-          int code = Marshal.GetLastWin32Error();
-          CloseHandle(h);
-          return "ERR write " + code;
+      try {
+        while (written < cap && sw.ElapsedMilliseconds < 30000) {
+          if (!WriteFile(h, buf, (uint)Chunk, out got, IntPtr.Zero) || got != (uint)Chunk) {
+            return "ERR write " + Marshal.GetLastWin32Error();
+          }
+          written += got;
         }
-        written += got;
-      }
-      CloseHandle(h);
-      double writeMs = Math.Max(1, sw.Elapsed.TotalMilliseconds);
-      h = CreateFile(path, GR, 1, IntPtr.Zero, OE, NB | SEQ, IntPtr.Zero);
-      if (h == invalid) return "ERR read-open " + Marshal.GetLastWin32Error();
+      } finally { CloseHandle(h); }
+      return "OK write " + written + " " + Math.Max(1, (long)sw.Elapsed.TotalMilliseconds);
+    } finally { Marshal.FreeHGlobal(raw); }
+  }
+  public static string ReadFor(string path, int ms) {
+    if (ms < 200) ms = 200;
+    IntPtr raw = Alloc();
+    try {
+      IntPtr buf = Align(raw);
+      IntPtr h = CreateFile(path, GR, 1, IntPtr.Zero, OE, NB | SEQ, IntPtr.Zero);
+      if (h == Invalid) return "ERR read-open " + Marshal.GetLastWin32Error();
       long read = 0;
-      sw.Restart();
-      while (sw.ElapsedMilliseconds < ms) {
-        if (!ReadFile(h, buf, (uint)chunk, out got, IntPtr.Zero) || got == 0) {
-          if (SetFilePointer(h, 0, IntPtr.Zero, 0) != 0) break;
-          continue;
+      var sw = Stopwatch.StartNew();
+      uint got;
+      try {
+        while (sw.ElapsedMilliseconds < ms) {
+          if (!ReadFile(h, buf, (uint)Chunk, out got, IntPtr.Zero) || got == 0) {
+            if (SetFilePointer(h, 0, IntPtr.Zero, 0) != 0) break;
+            continue;
+          }
+          read += got;
         }
-        read += got;
-      }
-      CloseHandle(h);
-      double readMs = Math.Max(1, sw.Elapsed.TotalMilliseconds);
-      double w = written / (writeMs / 1000.0) / 1e6;
-      double r = read / (readMs / 1000.0) / 1e6;
-      return "OK " + w.ToString("F1", CultureInfo.InvariantCulture) + " " + r.ToString("F1", CultureInfo.InvariantCulture);
-    } finally {
-      Marshal.FreeHGlobal(raw);
-    }
+      } finally { CloseHandle(h); }
+      return "OK read " + read + " " + Math.Max(1, (long)sw.Elapsed.TotalMilliseconds);
+    } finally { Marshal.FreeHGlobal(raw); }
   }
 }
 '@
-Write-Output ([NfDiskBench]::Run($env:NF_DISK_FILE, [int]$env:NF_DISK_CAP, [int]$env:NF_DISK_MS))
+Emit 'READY'
+while ($true) {
+  $line = [Console]::In.ReadLine()
+  if ([string]::IsNullOrEmpty($line) -or $line -eq 'quit') { break }
+  $parts = $line.Split(' ')
+  if ($parts[0] -eq 'write') { Emit ([NfDiskBench]::WriteOnce($env:NF_DISK_FILE, [int]$parts[1])) }
+  elseif ($parts[0] -eq 'read') { Emit ([NfDiskBench]::ReadFor($env:NF_DISK_FILE, [int]$parts[1])) }
+  else { Emit 'ERR command' }
+}
 `;
 
-function runDisk(job, file, cap, ms) {
+let current = null;
+
+function freeBytes(dir) {
+  try {
+    const stat = fs.statfsSync(dir);
+    return Number(stat.bavail) * Number(stat.bsize);
+  } catch {
+    return null;
+  }
+}
+
+function diskCap(free) {
+  if (free == null) return 256 * 1024 * 1024;
+  if (free > 2 * 1024 ** 3) return WRITE_CAP;
+  if (free > 900 * 1024 ** 2) return 256 * 1024 * 1024;
+  return 0;
+}
+
+function startWorker(job, workerData) {
+  return new Promise((resolve, reject) => {
+    if (job.stop) {
+      resolve({ stopped: true });
+      return;
+    }
+    let settled = false;
+    const worker = new Worker(WORKER_SRC, {
+      eval: true,
+      workerData: { ...workerData, control: job.control },
+    });
+    job.workers.push(worker);
+    function finish(fn, value) {
+      if (settled) return;
+      settled = true;
+      fn(value);
+    }
+    worker.on('message', (msg) => {
+      if (msg && msg.type === 'done') finish(resolve, msg);
+    });
+    worker.on('error', (err) => {
+      if (job.stop) finish(resolve, { stopped: true });
+      else finish(reject, err);
+    });
+    worker.on('exit', () => {
+      if (settled) return;
+      if (job.stop) finish(resolve, { stopped: true });
+      else finish(reject, new Error('Benchmark worker stopped early.'));
+    });
+  });
+}
+
+function startDiskHost(job) {
   if (process.platform !== 'win32') {
     return Promise.resolve({ skipped: 'The drive test runs on Windows.' });
   }
+  const cap = diskCap(freeBytes(os.tmpdir()));
+  if (!cap) return Promise.resolve({ skipped: 'Not enough free space for a safe drive test.' });
+  job.diskFile = path.join(os.tmpdir(), `nexforge-bench-${process.pid}.bin`);
   return new Promise((resolve, reject) => {
-    const child = execFile('powershell.exe', [
+    const child = spawn('powershell.exe', [
       '-NoProfile',
       '-NonInteractive',
       '-ExecutionPolicy',
       'Bypass',
       '-Command',
-      DISK_SCRIPT,
+      DISK_HOST,
     ], {
-      env: {
-        ...process.env,
-        NF_DISK_FILE: file,
-        NF_DISK_CAP: String(cap),
-        NF_DISK_MS: String(ms),
-      },
+      env: { ...process.env, NF_DISK_FILE: job.diskFile },
       windowsHide: true,
-      timeout: ms * 3 + 20000,
-    }, (err, stdout) => {
-      if (job.cancelled) {
-        resolve({ cancelled: true });
-        return;
-      }
-      if (err) {
-        reject(err);
-        return;
-      }
-      const line = String(stdout || '').trim().split(/\r?\n/).filter(Boolean).pop() || '';
-      const parts = line.split(/\s+/);
-      if (parts[0] !== 'OK') {
-        reject(new Error(line || 'Drive test failed.'));
-        return;
-      }
-      resolve({
-        writeMBps: Number(parts[1]),
-        readMBps: Number(parts[2]),
-      });
+      stdio: ['pipe', 'pipe', 'pipe'],
     });
     job.diskProc = child;
+    let errText = '';
+    child.stderr.on('data', (chunk) => {
+      errText = (errText + chunk.toString('utf8')).slice(-500);
+    });
+    let buf = '';
+    const waiters = [];
+    let ready = false;
+    function fail(err) {
+      if (!ready) reject(err);
+      waiters.splice(0).forEach((waiter) => waiter.reject(err));
+    }
+    child.stdout.on('data', (chunk) => {
+      buf += chunk.toString('utf8');
+      let idx = buf.indexOf('\n');
+      while (idx >= 0) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        idx = buf.indexOf('\n');
+        if (!line) continue;
+        if (!ready && line === 'READY') {
+          ready = true;
+          resolve({ cap });
+          continue;
+        }
+        const waiter = waiters.shift();
+        if (waiter) waiter.resolve(line);
+      }
+    });
+    child.on('error', fail);
+    child.on('exit', () => fail(new Error(errText.trim() || 'Drive test stopped.')));
+    job.diskSend = (line) => new Promise((res, rej) => {
+      if (job.stop || !child.stdin.writable) {
+        rej(new Error('stopped'));
+        return;
+      }
+      waiters.push({ resolve: res, reject: rej });
+      child.stdin.write(`${line}\n`);
+    });
+    setTimeout(() => {
+      if (!ready) fail(new Error('Drive test did not start.'));
+    }, 20000);
   });
 }
 
-async function run({ onProgress } = {}) {
+function parseOk(line, word) {
+  const parts = String(line || '').trim().split(/\s+/);
+  if (parts[0] !== 'OK' || parts[1] !== word) return null;
+  return { bytes: Number(parts[2]), ms: Number(parts[3]) };
+}
+
+async function prepare() {
   if (current) {
     const err = new Error('A benchmark is already running.');
     err.code = 'BUSY';
     throw err;
   }
-  const job = { cancelled: false, workers: [] };
+  const control = new SharedArrayBuffer(4);
+  const job = {
+    stop: false,
+    control,
+    flag: new Int32Array(control),
+    workers: [],
+    diskProc: null,
+    diskSend: null,
+    diskFile: null,
+    diskBytes: 0,
+    threads: Math.max(1, Math.min(os.cpus().length || 1, 32)),
+    cpuName: (os.cpus()?.[0]?.model || '').replace(/\s+/g, ' ').trim() || null,
+    seed: 1,
+  };
   current = job;
-  const threads = Math.max(1, Math.min(os.cpus().length || 1, 32));
-  const cpuName = (os.cpus()?.[0]?.model || '').replace(/\s+/g, ' ').trim() || null;
-  const file = path.join(os.tmpdir(), `nexforge-bench-${process.pid}.bin`);
+  const freeRam = os.freemem();
+  const memoryBytes = Math.floor(Math.min(MEMORY_CAP, freeRam * 0.12));
+  const memorySkip = memoryBytes < 64 * 1024 * 1024
+    ? 'Not enough free memory to test without using the page file.'
+    : null;
+  let diskSkip = null;
+  let diskWriteMBps = null;
   try {
-    report(onProgress, 'cpu-single', 'Testing one processor core…', 6);
-    const single = await runCpu(job, 1, CPU_MS, 1);
-    if (single.cancelled || job.cancelled) return { cancelled: true };
-
-    report(onProgress, 'cpu-multi', `Testing all ${threads} threads…`, 28);
-    const multi = await runCpu(job, threads, MULTI_MS, 100);
-    if (multi.cancelled || job.cancelled) return { cancelled: true };
-
-    report(onProgress, 'memory', 'Testing memory…', 52);
-    const freeRam = os.freemem();
-    const ramBytes = Math.floor(Math.min(384 * 1024 * 1024, freeRam * 0.2));
-    let memory = null;
-    if (ramBytes < 48 * 1024 * 1024) {
-      memory = { skipped: 'Not enough free memory to test.' };
-    } else {
-      const mem = await startWorker(job, { kind: 'memory', bytes: ramBytes, ms: MEMORY_MS });
-      if (mem.cancelled || job.cancelled) return { cancelled: true };
-      const gbps = (mem.copies * ramBytes) / (mem.elapsedMs / 1000) / 1e9;
-      memory = { copyGbps: gbps, bytes: ramBytes };
-    }
-
-    report(onProgress, 'disk', 'Testing the drive…', 70);
-    const dir = os.tmpdir();
-    const free = freeBytes(dir);
-    const cap = diskCap(free);
-    let disk = null;
-    if (!cap) {
-      disk = { skipped: 'Not enough free space on the temp drive.' };
-    } else {
-      try {
-        const raw = await runDisk(job, file, cap, DISK_MS);
-        if (raw.cancelled || job.cancelled) return { cancelled: true };
-        if (raw.skipped) disk = { skipped: raw.skipped };
-        else if (!(raw.readMBps > 0)) disk = { skipped: 'The drive test did not get a long enough sample.' };
-        else disk = { readMBps: raw.readMBps, writeMBps: raw.writeMBps };
-      } catch {
-        disk = { skipped: 'Could not test the drive.' };
+    const host = await startDiskHost(job);
+    if (host.skipped) diskSkip = host.skipped;
+    else if (job.stop) diskSkip = 'Ended.';
+    else {
+      const line = await job.diskSend(`write ${host.cap}`);
+      const parsed = parseOk(line, 'write');
+      if (!parsed || parsed.bytes < 32 * 1024 * 1024) diskSkip = 'The drive test did not get a long enough sample.';
+      else {
+        job.diskBytes = parsed.bytes;
+        diskWriteMBps = (parsed.bytes / (parsed.ms / 1000)) / 1e6;
       }
     }
-
-    report(onProgress, 'done', 'Processor, memory, and drive are done.', 82);
-    return {
-      version: 1,
-      at: Date.now(),
-      cpuName,
-      threads,
-      cpu: {
-        singleOpsPerSec: single.opsPerSec,
-        multiOpsPerSec: multi.opsPerSec,
-      },
-      memory,
-      disk,
-    };
-  } finally {
-    stopWorkers(job);
-    fs.promises.unlink(file).catch(() => {});
-    if (current === job) current = null;
+  } catch (err) {
+    diskSkip = 'Could not test the drive.';
+    if (require.main === module) console.error(err);
   }
+  return {
+    cpuName: job.cpuName,
+    threads: job.threads,
+    memoryBytes: memorySkip ? 0 : memoryBytes,
+    memorySkip,
+    diskSkip,
+    diskWriteMBps,
+  };
+}
+
+async function runCpu(job, threads, ms) {
+  const tasks = [];
+  for (let i = 0; i < threads; i++) {
+    job.seed += 1;
+    tasks.push(startWorker(job, { kind: 'cpu', ms, seed: job.seed }));
+  }
+  const parts = await Promise.all(tasks);
+  if (job.stop || parts.some((part) => part.stopped && !part.ops)) {
+    const ops = parts.reduce((sum, part) => sum + (Number(part.ops) || 0), 0);
+    const elapsedMs = parts.reduce((max, part) => Math.max(max, Number(part.elapsedMs) || 0), 0);
+    return { ops, elapsedMs, stopped: job.stop, threads };
+  }
+  const ops = parts.reduce((sum, part) => sum + (Number(part.ops) || 0), 0);
+  const elapsedMs = parts.reduce((max, part) => Math.max(max, Number(part.elapsedMs) || 0), 0) || ms;
+  return { ops, elapsedMs, stopped: !!job.stop, threads };
+}
+
+async function phase(opts = {}) {
+  const job = current;
+  if (!job) {
+    const err = new Error('Benchmark is not running.');
+    err.code = 'IDLE';
+    throw err;
+  }
+  const ms = Math.max(500, Math.min(60000, Number(opts.ms) || 1000));
+  if (job.stop) return { stopped: true };
+  if (opts.kind === 'cpu-single') return runCpu(job, 1, ms);
+  if (opts.kind === 'cpu-multi') return runCpu(job, job.threads, ms);
+  if (opts.kind === 'memory') {
+    const bytes = Math.floor(Number(opts.bytes) || 0);
+    if (bytes < 64 * 1024 * 1024) return { skipped: 'Not enough free memory.' };
+    const mem = await startWorker(job, { kind: 'memory', bytes, ms });
+    if (mem.stopped && !mem.copies) return { stopped: true, copies: 0, elapsedMs: 0 };
+    return { copies: Number(mem.copies) || 0, elapsedMs: Number(mem.elapsedMs) || 0, stopped: !!job.stop };
+  }
+  if (opts.kind === 'disk') {
+    if (!job.diskSend || job.diskBytes < 32 * 1024 * 1024) return { skipped: 'Drive test is not running.' };
+    let bytes = 0;
+    let elapsed = 0;
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (job.stop) break;
+      const slice = Math.min(2500, end - Date.now());
+      if (slice < 400) break;
+      try {
+        const line = await job.diskSend(`read ${slice}`);
+        const parsed = parseOk(line, 'read');
+        if (!parsed) break;
+        bytes += parsed.bytes;
+        elapsed += parsed.ms;
+      } catch {
+        if (job.stop) break;
+        return { skipped: 'Could not read the drive.' };
+      }
+    }
+    return { bytes, elapsedMs: elapsed, stopped: !!job.stop };
+  }
+  return { skipped: 'Unknown test.' };
+}
+
+async function finish() {
+  const job = current;
+  current = null;
+  if (!job) return { ok: true };
+  job.stop = true;
+  Atomics.store(job.flag, 0, 1);
+  if (job.diskProc) {
+    try { job.diskProc.stdin.write('quit\n'); } catch { /* closed */ }
+    try { job.diskProc.kill(); } catch { /* already gone */ }
+  }
+  for (const worker of job.workers) {
+    try { worker.terminate(); } catch { /* already gone */ }
+  }
+  if (job.diskFile) await fs.promises.unlink(job.diskFile).catch(() => {});
+  return { ok: true };
 }
 
 function cancel() {
   if (!current) return { ok: true };
-  current.cancelled = true;
-  stopWorkers(current);
+  current.stop = true;
+  Atomics.store(current.flag, 0, 1);
+  if (current.diskProc) {
+    try { current.diskProc.kill(); } catch { /* already gone */ }
+  }
   return { ok: true };
 }
 
-module.exports = { run, cancel };
+module.exports = { prepare, phase, finish, cancel };
 
 if (require.main === module) {
-  run({ onProgress: (p) => console.log(`${p.pct} ${p.label}`) })
-    .then((result) => {
-      console.log(JSON.stringify(result, null, 2));
-    })
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
+  (async () => {
+    const prep = await prepare();
+    console.log('prep', prep);
+    const cpu = await phase({ kind: 'cpu-single', ms: 1200 });
+    console.log('cpu', { ops: cpu.ops, elapsedMs: cpu.elapsedMs });
+    if (!prep.diskSkip) {
+      const disk = await phase({ kind: 'disk', ms: 1200 });
+      console.log('disk', disk);
+    }
+    await finish();
+  })().catch((err) => {
+    console.error(err);
+    finish().finally(() => process.exit(1));
+  });
 }

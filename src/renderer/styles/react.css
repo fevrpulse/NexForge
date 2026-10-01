@@ -1898,6 +1898,20 @@ textarea:focus-visible,
 .bench-limit{color:var(--text);font-size:14px;line-height:1.5;margin-top:6px;max-width:520px}
 .bench-actions{display:flex;flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}
 .bench-delta{font-family:var(--mono);font-size:11px;color:var(--muted2)}
+.bench-clock{font-family:var(--mono);font-size:13px;color:var(--neon);letter-spacing:.04em}
+.bench-board{margin-top:16px}
+.bench-table{margin-top:12px}
+.bench-row{
+  display:grid;grid-template-columns:36px minmax(0,1.2fr) 72px 52px minmax(0,1.6fr);
+  gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px;
+}
+.bench-row.head{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted2);
+}
+.bench-row.me{color:var(--neon)}
+.bench-row span{min-width:0;overflow-wrap:anywhere}
+.bench-row span:last-child{color:var(--muted2)}
+.bench-row.me span:last-child{color:inherit}
 .bench-progress{margin-bottom:16px}
 .bench-progress-label{font-size:14px;margin-bottom:10px}
 .bench-track{height:8px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
@@ -1907,7 +1921,7 @@ textarea:focus-visible,
 .bench-part .opt-spec-meta{overflow-wrap:anywhere}
 .bench-part-score{font-size:28px;font-weight:800;letter-spacing:-.03em;margin:4px 0}
 .bench-skip{color:var(--muted2);font-size:13px;line-height:1.5;margin-top:8px}
-.bench-foot{font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.5;margin-top:14px}
+.bench-foot{font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.5;margin-top:14px;max-width:720px}
 @media (max-width:900px){
   .bench-grid{grid-template-columns:1fr}
   .bench-score{font-size:48px}

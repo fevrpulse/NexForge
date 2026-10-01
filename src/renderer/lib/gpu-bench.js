@@ -154,10 +154,21 @@ export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {})
       }
     }
 
+    function timedResult(seconds) {
+      return {
+        method: 'timer',
+        gigaSteps: (passes * workPerPass()) / seconds / 1e9 + pixel[0] * 0,
+        seconds,
+        renderer,
+      };
+    }
+
     function frame() {
       if (isCancelled?.()) {
+        drain();
         pending.forEach((query) => gl.deleteQuery(query));
-        finish({ skipped: 'Cancelled.' });
+        if (samples >= 1 && gpuNs > 0) finish(timedResult(gpuNs / 1e9));
+        else finish({ skipped: 'Cancelled.' });
         return;
       }
       drain();
@@ -185,12 +196,7 @@ export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {})
           finishFallback();
           return;
         }
-        const seconds = gpuNs / 1e9;
-        finish({
-          method: 'timer',
-          gigaSteps: (passes * workPerPass()) / seconds / 1e9 + pixel[0] * 0,
-          renderer,
-        });
+        finish(timedResult(gpuNs / 1e9));
       }
       wait();
     }
@@ -201,7 +207,15 @@ export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {})
       let frames = 0;
       function loop() {
         if (isCancelled?.()) {
-          finish({ skipped: 'Cancelled.' });
+          const seconds = Math.max(0.05, (performance.now() - t0) / 1000);
+          if (frames >= 2) {
+            finish({
+              method: 'frames',
+              gigaSteps: (frames * 4 * workPerPass()) / seconds / 1e9,
+              seconds,
+              renderer,
+            });
+          } else finish({ skipped: 'Cancelled.' });
           return;
         }
         draw(4);
@@ -221,6 +235,7 @@ export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {})
         finish({
           method: 'frames',
           gigaSteps: (frames * 4 * workPerPass()) / seconds / 1e9,
+          seconds,
           renderer,
         });
       }

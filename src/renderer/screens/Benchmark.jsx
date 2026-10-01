@@ -3,14 +3,26 @@ import { useNexForge } from '../context/NexForgeContext.jsx';
 import { loadHwScan } from '../lib/optimize.js';
 import { runGpuBench } from '../lib/gpu-bench.js';
 import {
+  BENCH_LIMIT_MS,
+  CPU_EASE_C,
+  GPU_EASE_C,
   formatBenchText,
+  formatClock,
   formatGbps,
   formatMBps,
   formatOps,
   scoreBenchmark,
 } from '../lib/bench-score.js';
+import { listBenchLeaderboard, missingBenchRpc, submitBenchScore } from '../lib/bench-board.js';
 
-const HISTORY_KEY = 'nexforge.bench.v1';
+const HISTORY_KEY = 'nexforge.bench.v2';
+const PHASES = [
+  { kind: 'cpu-single', ms: 20000, label: 'Pushing one processor core' },
+  { kind: 'cpu-multi', ms: 40000, label: 'Pushing every processor thread' },
+  { kind: 'memory', ms: 20000, label: 'Pushing memory' },
+  { kind: 'disk', ms: 20000, label: 'Reading the drive' },
+  { kind: 'graphics', ms: 35000, label: 'Pushing graphics' },
+];
 
 function loadHistory() {
   try {
@@ -29,103 +41,267 @@ function saveHistory(result) {
 }
 
 function specLine(scan) {
-  if (!scan) return 'Scores this PC. Close games first so the numbers are the machine, not the game.';
+  if (!scan) return 'Close games first so the score is this PC, not the game.';
   const bits = [];
   if (scan.cpu?.name) bits.push(scan.cpu.name);
   if (scan.gpu?.name) bits.push(scan.gpu.name);
   if (scan.ramGb) bits.push(`${scan.ramGb} GB RAM`);
-  return bits.join(' · ') || 'Scores this PC. Close games first so the numbers are the machine, not the game.';
+  return bits.join(' · ') || 'Close games first so the score is this PC, not the game.';
 }
 
-function ago(at) {
-  const min = Math.round((Date.now() - at) / 60000);
-  if (min < 1) return 'just now';
-  if (min < 60) return `${min}m ago`;
-  const hr = Math.round(min / 60);
-  if (hr < 48) return `${hr}h ago`;
-  return `${Math.round(hr / 24)}d ago`;
+function emptyAcc() {
+  return {
+    singleOps: 0,
+    singleMs: 0,
+    multiOps: 0,
+    multiMs: 0,
+    memCopies: 0,
+    memMs: 0,
+    diskBytes: 0,
+    diskMs: 0,
+    gpuGigaSeconds: 0,
+    gpuSeconds: 0,
+    gpuMethod: null,
+    gpuName: null,
+    gpuSkipped: null,
+  };
+}
+
+function buildScore(prep, acc, durationSec, eased) {
+  const raw = {
+    at: Date.now(),
+    cpuName: prep?.cpuName || null,
+    threads: prep?.threads || null,
+    cpu: {
+      singleOpsPerSec: acc.singleMs > 0 ? acc.singleOps / (acc.singleMs / 1000) : 0,
+      multiOpsPerSec: acc.multiMs > 0 ? acc.multiOps / (acc.multiMs / 1000) : 0,
+    },
+    memory: prep?.memorySkip
+      ? { skipped: prep.memorySkip }
+      : (acc.memMs > 0
+        ? { copyGbps: (acc.memCopies * prep.memoryBytes) / (acc.memMs / 1000) / 1e9 }
+        : { skipped: 'Ended before memory was tested.' }),
+    disk: prep?.diskSkip
+      ? { skipped: prep.diskSkip }
+      : (acc.diskMs > 0
+        ? {
+          readMBps: (acc.diskBytes / (acc.diskMs / 1000)) / 1e6,
+          writeMBps: prep.diskWriteMBps || 0,
+        }
+        : { skipped: 'Ended before the drive was tested.' }),
+  };
+  const gpu = acc.gpuSkipped
+    ? { skipped: acc.gpuSkipped }
+    : (acc.gpuSeconds > 0
+      ? {
+        gigaSteps: acc.gpuGigaSeconds / acc.gpuSeconds,
+        method: acc.gpuMethod,
+        renderer: acc.gpuName,
+      }
+      : { skipped: 'Ended before graphics were tested.' });
+  return scoreBenchmark(raw, gpu, { durationSec, eased });
+}
+
+function canPostScore(prep, acc, durationSec) {
+  if (durationSec < 45) return false;
+  if (!(acc.singleMs > 0 && acc.multiMs > 0)) return false;
+  if (!prep?.memorySkip && !(acc.memMs > 0)) return false;
+  if (!prep?.diskSkip && !(acc.diskMs > 0)) return false;
+  if (!acc.gpuSkipped && !(acc.gpuSeconds > 0)) return false;
+  return true;
+}
+
+function sleep(ms, shouldStop) {
+  return new Promise((resolve) => {
+    const started = Date.now();
+    const timer = setInterval(() => {
+      if (shouldStop() || Date.now() - started >= ms) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, 200);
+  });
 }
 
 export default function Benchmark() {
-  const { showToast, liveSession } = useNexForge();
+  const { showToast, liveSession, user, guestMode, profile } = useNexForge();
   const [scan] = useState(() => loadHwScan());
-  const [history, setHistory] = useState(loadHistory);
   const [result, setResult] = useState(() => loadHistory()[0] || null);
+  const [live, setLive] = useState(null);
   const [running, setRunning] = useState(false);
   const [label, setLabel] = useState('');
-  const [pct, setPct] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [temps, setTemps] = useState(null);
   const [copied, setCopied] = useState(false);
-  const cancelGpu = useRef(false);
-  const unsub = useRef(null);
+  const [board, setBoard] = useState([]);
+  const [boardMissing, setBoardMissing] = useState(false);
+  const [boardNote, setBoardNote] = useState('');
+  const stopRef = useRef(false);
+  const gpuStop = useRef(false);
   const alive = useRef(true);
+  const startedRef = useRef(0);
 
   useEffect(() => () => {
     alive.current = false;
-    cancelGpu.current = true;
-    unsub.current?.();
+    stopRef.current = true;
+    gpuStop.current = true;
     window.nexforge?.cancelSystemBenchmark?.();
+    window.nexforge?.finishSystemBenchmark?.();
   }, []);
 
-  async function runBench() {
-    if (running) return;
-    if (!window.nexforge?.runSystemBenchmark) {
-      showToast('Benchmark only runs in the desktop app.', 'error');
-      return;
-    }
-    cancelGpu.current = false;
-    setRunning(true);
-    setCopied(false);
-    setPct(4);
-    setLabel('Starting…');
-    unsub.current?.();
-    unsub.current = window.nexforge.onBenchmarkProgress?.((p) => {
-      if (!alive.current) return;
-      if (p?.label) setLabel(p.label);
-      if (Number.isFinite(p?.pct)) setPct(p.pct);
-    }) || null;
-    try {
-      const raw = await window.nexforge.runSystemBenchmark();
-      if (!alive.current) return;
-      if (!raw || raw.cancelled) {
-        setLabel('');
-        setPct(0);
-        return;
-      }
-      setLabel('Testing graphics…');
-      setPct(86);
-      const gpu = await runGpuBench({
-        isCancelled: () => cancelGpu.current,
-        onProgress: (t) => {
-          if (alive.current) setPct(86 + Math.round(t * 14));
-        },
+  useEffect(() => {
+    let stop = false;
+    listBenchLeaderboard()
+      .then((rows) => { if (!stop) setBoard(rows); })
+      .catch((err) => {
+        if (stop) return;
+        if (missingBenchRpc(err)) setBoardMissing(true);
       });
-      if (!alive.current) return;
-      if (cancelGpu.current || gpu?.skipped === 'Cancelled.') {
-        setLabel('');
-        setPct(0);
-        return;
-      }
-      const scored = scoreBenchmark(raw, gpu);
-      setResult(scored);
-      setHistory(saveHistory(scored));
-      setPct(100);
-      setLabel('Done');
-    } catch (err) {
-      if (err?.code === 'BUSY' || /already running/i.test(err?.message || '')) {
-        showToast('A benchmark is already running.', 'error');
-      } else {
-        showToast(err?.message || 'Benchmark failed.', 'error');
-      }
-    } finally {
-      unsub.current?.();
-      unsub.current = null;
-      setRunning(false);
+    return () => { stop = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!running) return undefined;
+    const id = setInterval(() => {
+      setElapsed(Date.now() - startedRef.current);
+    }, 250);
+    return () => clearInterval(id);
+  }, [running]);
+
+  async function readTemps() {
+    try {
+      const sample = await window.nexforge?.getPerfSample?.();
+      if (sample && alive.current) setTemps(sample);
+      return sample || {};
+    } catch {
+      return {};
     }
   }
 
-  function stop() {
-    cancelGpu.current = true;
+  async function runBench() {
+    if (running) return;
+    if (!window.nexforge?.prepareSystemBenchmark || !window.nexforge?.runBenchPhase) {
+      showToast('Benchmark only runs in the desktop app.', 'error');
+      return;
+    }
+    stopRef.current = false;
+    gpuStop.current = false;
+    setRunning(true);
+    setCopied(false);
+    setLive(null);
+    setLabel('Getting the drive ready. This writes one small file, then only reads it.');
+    setElapsed(0);
+    startedRef.current = Date.now();
+    const acc = emptyAcc();
+    const eased = { cpu: false, gpu: false };
+    let prep = null;
+    try {
+      prep = await window.nexforge.prepareSystemBenchmark();
+      if (stopRef.current) return;
+      while (Date.now() - startedRef.current < BENCH_LIMIT_MS && !stopRef.current) {
+        for (const step of PHASES) {
+          const left = BENCH_LIMIT_MS - (Date.now() - startedRef.current);
+          if (stopRef.current || left < 2000) break;
+          const slice = Math.min(step.ms, left);
+          setLabel(step.label);
+          const sample = await readTemps();
+          if ((step.kind === 'cpu-single' || step.kind === 'cpu-multi') && sample.cpuTempC >= CPU_EASE_C) {
+            eased.cpu = true;
+            setLabel('Letting the processor cool. The test stays inside a safe temperature.');
+            await sleep(8000, () => stopRef.current);
+            continue;
+          }
+          if (step.kind === 'graphics' && sample.gpuTempC >= GPU_EASE_C) {
+            eased.gpu = true;
+            setLabel('Letting the graphics card cool. The test stays inside a safe temperature.');
+            await sleep(8000, () => stopRef.current);
+            continue;
+          }
+          if (step.kind === 'memory' && prep.memorySkip) continue;
+          if (step.kind === 'disk' && prep.diskSkip) continue;
+          if (step.kind === 'graphics') {
+            gpuStop.current = false;
+            const gpu = await runGpuBench({
+              durationMs: slice,
+              isCancelled: () => gpuStop.current || stopRef.current,
+            });
+            if (gpu?.skipped && gpu.skipped !== 'Cancelled.') acc.gpuSkipped = gpu.skipped;
+            else if (gpu?.gigaSteps > 0 && gpu.seconds > 0) {
+              acc.gpuGigaSeconds += gpu.gigaSteps * gpu.seconds;
+              acc.gpuSeconds += gpu.seconds;
+              acc.gpuMethod = gpu.method;
+              acc.gpuName = gpu.renderer || acc.gpuName;
+              acc.gpuSkipped = null;
+            }
+          } else {
+            const part = await window.nexforge.runBenchPhase({
+              kind: step.kind,
+              ms: slice,
+              bytes: prep.memoryBytes,
+            });
+            if (part?.stopped && stopRef.current) {
+              absorb(acc, step.kind, part);
+              break;
+            }
+            absorb(acc, step.kind, part);
+          }
+          if (alive.current) {
+            setLive(buildScore(prep, acc, (Date.now() - startedRef.current) / 1000, eased));
+          }
+          if (stopRef.current) break;
+        }
+      }
+      const durationSec = Math.round((Date.now() - startedRef.current) / 1000);
+      const scored = buildScore(prep, acc, durationSec, eased);
+      const postable = scored.overall > 0 && canPostScore(prep, acc, durationSec);
+      if (alive.current) {
+        setLive(null);
+        setLabel('');
+        if (scored.overall > 0) {
+          setResult(scored);
+          saveHistory(scored);
+        }
+      }
+      if (postable && user?.id && !guestMode) {
+        try {
+          const posted = await submitBenchScore(scored);
+          const rows = await listBenchLeaderboard();
+          if (alive.current) {
+            setBoard(rows);
+            setBoardMissing(false);
+            setBoardNote(posted?.posted
+              ? `Posted. You are #${posted.rank || '—'}.`
+              : `Your best on the board is still ${Number(posted?.best || 0).toLocaleString()}.`);
+          }
+        } catch (err) {
+          if (alive.current) {
+            setBoardNote(missingBenchRpc(err)
+              ? 'Score saved on this PC. The leaderboard still needs v164-bench-leaderboard.sql in Supabase.'
+              : 'Score saved on this PC. It could not be posted.');
+          }
+        }
+      } else if (alive.current && scored.overall > 0 && !postable) {
+        setBoardNote('Saved on this PC. Let it test the processor, memory, drive, and graphics to post a score.');
+      } else if (alive.current && scored.overall > 0 && guestMode) {
+        setBoardNote('Saved on this PC. Sign in to post it to the leaderboard.');
+      } else if (alive.current) {
+        showToast('Ended before there was a score.', 'error');
+      }
+    } catch (err) {
+      if (alive.current && !stopRef.current) {
+        showToast(err?.code === 'BUSY' ? 'A benchmark is already running.' : (err?.message || 'Benchmark failed.'), 'error');
+      }
+    } finally {
+      await window.nexforge?.finishSystemBenchmark?.();
+      if (alive.current) setRunning(false);
+    }
+  }
+
+  function endRun() {
+    stopRef.current = true;
+    gpuStop.current = true;
     window.nexforge?.cancelSystemBenchmark?.();
+    setLabel('Ending the run and scoring what finished…');
   }
 
   async function copyResult() {
@@ -140,7 +316,8 @@ export default function Benchmark() {
     }
   }
 
-  const previous = history.find((row) => row.at !== result?.at);
+  const shown = running ? live : result;
+  const myTag = (profile?.gamer_tag || '').toLowerCase();
 
   return (
     <div>
@@ -151,28 +328,32 @@ export default function Benchmark() {
           {liveSession && (
             <div className="opt-warn">A game is open. Quit it first if you want a clean score.</div>
           )}
-          {result && !running && (
+          {shown && !running && (
             <div className="bench-score-wrap">
-              <div className="bench-score">{result.overall.toLocaleString()}</div>
+              <div className="bench-score">{shown.overall.toLocaleString()}</div>
               <div>
-                <div className={`bench-tier tier-${result.tier?.id || 'entry'}`}>{result.tier?.label}</div>
-                <div className="bench-line">{result.tier?.line}</div>
-                <div className="bench-limit">{result.limit}</div>
+                <div className={`bench-tier tier-${shown.tier?.id || 'entry'}`}>{shown.tier?.label}</div>
+                <div className="bench-line">{shown.tier?.line}</div>
+                <div className="bench-limit">{shown.limit}</div>
+                {!!shown.durationSec && <div className="bench-line">Ran {formatClock(shown.durationSec)} of 10:00.</div>}
+                {(shown.eased?.cpu || shown.eased?.gpu) && (
+                  <div className="bench-line">Eased off when a part got hot, so the PC stayed safe.</div>
+                )}
               </div>
             </div>
           )}
-          {!result && !running && (
+          {!shown && !running && (
             <p className="bench-line" style={{ marginTop: 14 }}>
-              About 15 seconds. Fans may get loud. The score is NexForge Bench 1 — 1000 on a part matches a solid 1080p PC.
+              Runs for 10 minutes and you can end it whenever you want. It loads the processor, memory, a single drive file, and the graphics card. If a sensor says a part is too hot, that part rests. The drive is written once, then only read, so it is not worn down.
             </p>
           )}
         </div>
         <div className="bench-actions">
           {running ? (
-            <button type="button" className="action-btn ghost" onClick={stop}>Stop</button>
+            <button type="button" className="action-btn ghost" onClick={endRun}>End and score</button>
           ) : (
             <button type="button" className="action-btn primary" onClick={runBench}>
-              {result ? 'Run again' : 'Run benchmark'}
+              {result ? 'Run again' : 'Run 10 minute benchmark'}
             </button>
           )}
           {result && !running && (
@@ -180,15 +361,7 @@ export default function Benchmark() {
               {copied ? 'Copied' : 'Copy result'}
             </button>
           )}
-          {previous && result && !running && (
-            <div className="bench-delta">
-              Last score {previous.overall.toLocaleString()} · {ago(previous.at)}
-              {' · '}
-              {result.overall === previous.overall
-                ? 'same'
-                : `${result.overall > previous.overall ? '+' : ''}${(result.overall - previous.overall).toLocaleString()}`}
-            </div>
-          )}
+          {running && <div className="bench-clock">{formatClock(elapsed / 1000)} / 10:00</div>}
         </div>
       </div>
 
@@ -196,71 +369,120 @@ export default function Benchmark() {
         <div className="card bench-progress">
           <div className="bench-progress-label">{label || 'Running…'}</div>
           <div className="bench-track" aria-hidden="true">
-            <div className="bench-fill" style={{ width: `${Math.max(4, Math.min(100, pct))}%` }} />
+            <div className="bench-fill" style={{ width: `${Math.max(2, Math.min(100, (elapsed / BENCH_LIMIT_MS) * 100))}%` }} />
+          </div>
+          <div className="opt-spec-meta" style={{ marginTop: 8 }}>
+            {temps?.cpuTempC != null ? `CPU ${Math.round(temps.cpuTempC)}° ` : ''}
+            {temps?.gpuTempC != null ? `GPU ${Math.round(temps.gpuTempC)}°` : ''}
+            {temps?.cpuTempC == null && temps?.gpuTempC == null ? 'Temperature sensors are not reporting. The PC’s own limits still apply.' : ''}
           </div>
         </div>
       )}
 
-      {result && (
+      {shown && (
         <div className="bench-grid">
           <article className="card bench-part">
             <div className="opt-spec-label">Processor</div>
-            <div className="bench-part-score">{result.cpu.score.toLocaleString()}</div>
+            <div className="bench-part-score">{shown.cpu.score.toLocaleString()}</div>
             <div className="opt-spec-meta">
-              {result.threads ? `${result.threads} threads · ` : ''}
-              {formatOps(result.cpu.singleOpsPerSec)} one core
+              {shown.threads ? `${shown.threads} threads · ` : ''}
+              {formatOps(shown.cpu.singleOpsPerSec)} one core
             </div>
-            <div className="opt-spec-meta">{formatOps(result.cpu.multiOpsPerSec)} all cores</div>
-            {result.cpuName && <div className="opt-spec-meta">{result.cpuName}</div>}
+            <div className="opt-spec-meta">{formatOps(shown.cpu.multiOpsPerSec)} all threads</div>
+            {shown.cpuName && <div className="opt-spec-meta">{shown.cpuName}</div>}
           </article>
           <article className="card bench-part">
             <div className="opt-spec-label">Memory</div>
-            {result.memory.skipped ? (
-              <div className="bench-skip">{result.memory.skipped}</div>
+            {shown.memory.skipped ? (
+              <div className="bench-skip">{shown.memory.skipped}</div>
             ) : (
               <>
-                <div className="bench-part-score">{result.memory.score.toLocaleString()}</div>
-                <div className="opt-spec-meta">{formatGbps(result.memory.copyGbps)} copy</div>
+                <div className="bench-part-score">{shown.memory.score.toLocaleString()}</div>
+                <div className="opt-spec-meta">{formatGbps(shown.memory.copyGbps)} copy</div>
               </>
             )}
           </article>
           <article className="card bench-part">
             <div className="opt-spec-label">Drive</div>
-            {result.disk.skipped ? (
-              <div className="bench-skip">{result.disk.skipped}</div>
+            {shown.disk.skipped ? (
+              <div className="bench-skip">{shown.disk.skipped}</div>
             ) : (
               <>
-                <div className="bench-part-score">{result.disk.score.toLocaleString()}</div>
-                <div className="opt-spec-meta">{formatMBps(result.disk.readMBps)} read</div>
-                <div className="opt-spec-meta">{formatMBps(result.disk.writeMBps)} write</div>
+                <div className="bench-part-score">{shown.disk.score.toLocaleString()}</div>
+                <div className="opt-spec-meta">{formatMBps(shown.disk.readMBps)} read</div>
+                <div className="opt-spec-meta">{formatMBps(shown.disk.writeMBps)} write, once</div>
               </>
             )}
           </article>
           <article className="card bench-part">
             <div className="opt-spec-label">Graphics</div>
-            {result.graphics.skipped ? (
-              <div className="bench-skip">{result.graphics.skipped}</div>
+            {shown.graphics.skipped ? (
+              <div className="bench-skip">{shown.graphics.skipped}</div>
             ) : (
               <>
-                <div className="bench-part-score">{result.graphics.score.toLocaleString()}</div>
-                <div className="opt-spec-meta">
-                  {result.graphics.method === 'frames'
-                    ? 'Timed in the window, so this score sits a bit lower.'
-                    : 'Timed on the graphics card.'}
-                </div>
-                {result.graphics.renderer && <div className="opt-spec-meta">{result.graphics.renderer}</div>}
+                <div className="bench-part-score">{shown.graphics.score.toLocaleString()}</div>
+                <div className="opt-spec-meta">Timed on the graphics card.</div>
+                {shown.graphics.renderer && <div className="opt-spec-meta">{shown.graphics.renderer}</div>}
               </>
             )}
           </article>
         </div>
       )}
 
-      {result && (
-        <p className="bench-foot">
-          1000 on a part is a solid 1080p PC. Scores compare NexForge Bench 1 runs. They are not 3DMark or another lab test.
-          {result.graphics?.method === 'frames' ? ' This graphics score used the window timer.' : ''}
-        </p>
-      )}
+      <div className="card bench-board">
+        <div className="card-title" style={{ marginBottom: 4 }}>Leaderboard</div>
+        <div className="coach-sub">Each player’s best score. A run is posted after it has tested every part.</div>
+        {boardNote && <div className="bench-line" style={{ marginTop: 8 }}>{boardNote}</div>}
+        {boardMissing && (
+          <div className="bench-skip">The leaderboard needs v164-bench-leaderboard.sql applied in Supabase.</div>
+        )}
+        {!boardMissing && board.length === 0 && (
+          <div className="bench-skip">No scores yet.</div>
+        )}
+        {board.length > 0 && (
+          <div className="bench-table">
+            <div className="bench-row head">
+              <span>#</span><span>Player</span><span>Score</span><span>Time</span><span>PC</span>
+            </div>
+            {board.map((row, i) => (
+              <div
+                className={`bench-row ${myTag && String(row.gamer_tag || '').toLowerCase() === myTag ? 'me' : ''}`}
+                key={`${row.gamer_tag}-${row.updated_at || i}`}
+              >
+                <span>{i + 1}</span>
+                <span>{row.gamer_tag || 'Player'}</span>
+                <span>{Number(row.overall || 0).toLocaleString()}</span>
+                <span>{formatClock(row.duration_sec)}</span>
+                <span>{[row.cpu_name, row.gpu_name].filter(Boolean).join(' · ') || '—'}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <p className="bench-foot">
+        1000 on a part is a solid 1080p PC. The score is the average speed across the run, so a full 10 minutes includes heat. It does not change voltages or fans.
+      </p>
     </div>
   );
+}
+
+function absorb(acc, kind, part) {
+  if (!part || part.skipped) return;
+  if (kind === 'cpu-single' && part.ops > 0 && part.elapsedMs > 0) {
+    acc.singleOps += part.ops;
+    acc.singleMs += part.elapsedMs;
+  }
+  if (kind === 'cpu-multi' && part.ops > 0 && part.elapsedMs > 0) {
+    acc.multiOps += part.ops;
+    acc.multiMs += part.elapsedMs;
+  }
+  if (kind === 'memory' && part.copies > 0 && part.elapsedMs > 0) {
+    acc.memCopies += part.copies;
+    acc.memMs += part.elapsedMs;
+  }
+  if (kind === 'disk' && part.bytes > 0 && part.elapsedMs > 0) {
+    acc.diskBytes += part.bytes;
+    acc.diskMs += part.elapsedMs;
+  }
 }

@@ -2,7 +2,7 @@
 
 Windows app for game settings, a click-through stats overlay, friends, squads, and a cosmetics shop.
 
-**Public release: 5.6.0.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
+**Public release: 5.6.1.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
 
 The download is a small setup file. Run it and it fetches the latest installer. It installs for your Windows user (no administrator) and later updates install from inside the app.
 

@@ -772,13 +772,9 @@ ipcMain.handle('get-app-info', () => ({
 
 ipcMain.handle('scan-device-specs', (_event, opts) => scanDeviceSpecs({ force: !!opts?.force }));
 
-ipcMain.handle('run-system-benchmark', (event) => bench.run({
-  onProgress: (payload) => {
-    if (event.sender.isDestroyed()) return;
-    event.sender.send('benchmark-progress', payload);
-  },
-}));
-
+ipcMain.handle('prepare-system-benchmark', () => bench.prepare());
+ipcMain.handle('run-bench-phase', (_event, opts) => bench.phase(opts || {}));
+ipcMain.handle('finish-system-benchmark', () => bench.finish());
 ipcMain.handle('cancel-system-benchmark', () => bench.cancel());
 
 ipcMain.handle('show-main-window', () => {

@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.6.1',
+    highlights: [
+      'Benchmark runs for 10 minutes, you can end it early, and it eases off if a part gets too hot.',
+      'A leaderboard shows each player’s best benchmark score.',
+    ],
+  },
+  {
     version: '5.6.0',
     highlights: [
       'Benchmark scores the processor, memory, drive, and graphics, and tells you which part is the limit.',

@@ -1,5 +1,9 @@
-/** NexForge Bench 1. A score of 1000 matches the baseline throughput for that part. */
-export const BENCH_VERSION = 1;
+/** NexForge Bench 2. A score of 1000 matches the baseline throughput for that part. */
+export const BENCH_VERSION = 2;
+
+export const BENCH_LIMIT_MS = 10 * 60 * 1000;
+export const CPU_EASE_C = 90;
+export const GPU_EASE_C = 87;
 
 export const BENCH_BASELINE = {
   cpuSingleOps: 120e6,
@@ -21,6 +25,12 @@ export function formatGbps(n) {
   return `${n.toFixed(1)} GB/s`;
 }
 
+export function formatClock(sec) {
+  const s = Math.max(0, Math.round(Number(sec) || 0));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, '0')}`;
+}
+
 export function formatMBps(n) {
   if (!Number.isFinite(n) || n <= 0) return '—';
   return `${Math.round(n).toLocaleString()} MB/s`;
@@ -38,7 +48,7 @@ function geo(nums) {
   return Math.round(Math.exp(log));
 }
 
-export function scoreBenchmark(raw, gpu) {
+export function scoreBenchmark(raw, gpu, meta = {}) {
   const single = indexOf(raw?.cpu?.singleOpsPerSec, BENCH_BASELINE.cpuSingleOps);
   const multi = indexOf(raw?.cpu?.multiOpsPerSec, BENCH_BASELINE.cpuMultiOps);
   const cpu = Math.round(single * 0.4 + multi * 0.6);
@@ -77,6 +87,9 @@ export function scoreBenchmark(raw, gpu) {
     overall,
     tier: tierFor(overall),
     limit: limitNote({ cpu, memory, disk, graphics }),
+    durationSec: Math.max(0, Math.round(Number(meta.durationSec) || 0)),
+    eased: meta.eased || null,
+    postedLocal: true,
   };
 }
 
@@ -139,6 +152,7 @@ export function formatBenchText(result) {
   const lines = [
     'NexForge Benchmark',
     result.cpuName,
+    result.durationSec ? `Ran ${formatClock(result.durationSec)} of 10:00` : null,
     `Overall ${result.overall.toLocaleString()} · ${result.tier?.label || ''}`,
     result.tier?.line,
     result.limit,
