@@ -1,5 +1,5 @@
-/** NexForge Bench 2. A score of 1000 matches the baseline throughput for that part. */
-export const BENCH_VERSION = 2;
+/** NexForge Bench 3. A score of 1000 matches the baseline throughput for that part. */
+export const BENCH_VERSION = 3;
 
 export const BENCH_LIMIT_MS = 10 * 60 * 1000;
 export const CPU_EASE_C = 90;
@@ -10,7 +10,8 @@ export const BENCH_BASELINE = {
   cpuMultiOps: 600e6,
   memoryGbps: 14,
   diskReadMBps: 2200,
-  gpuGigaSteps: 420,
+  // Heavier Bench 3 shader. 210 keeps a fast card near its previous graphics index.
+  gpuGigaSteps: 210,
 };
 
 export function formatOps(n) {

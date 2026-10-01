@@ -4,6 +4,13 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.6.2',
+    highlights: [
+      'Benchmark keeps every processor thread and the graphics card busy for most of the 10 minutes.',
+      'It still rests a part that gets too hot, and you can still end it early.',
+    ],
+  },
+  {
     version: '5.6.1',
     highlights: [
       'Benchmark runs for 10 minutes, you can end it early, and it eases off if a part gets too hot.',

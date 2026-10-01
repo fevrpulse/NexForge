@@ -1,7 +1,6 @@
-const WIDTH = 1280;
-const HEIGHT = 720;
-const ALU = 64;
-const PASSES = 8;
+const WIDTH = 1920;
+const HEIGHT = 1080;
+const ALU = 160;
 
 const VERT = `#version 300 es
 void main() {
@@ -14,13 +13,16 @@ precision highp float;
 uniform float uSeed;
 out vec4 frag;
 void main() {
-  float x = gl_FragCoord.x * 0.001 + uSeed;
-  float y = gl_FragCoord.y * 0.001 + 0.25;
+  vec2 uv = gl_FragCoord.xy;
+  float x = uv.x * 0.001 + uSeed;
+  float y = uv.y * 0.001 + 0.37;
+  float v = 0.15 + uSeed;
   for (int i = 0; i < ${ALU}; i++) {
-    x = fract(x * 1.37 + y * 0.91 + float(i) * 0.017);
-    y = fract(y * 1.61 + x * 0.73 + 0.013);
+    v = sin(v * 1.17 + x * 0.73) * cos(y * 0.91 + v);
+    x = fract(x * 1.31 + v + float(i) * 0.017);
+    y = fract(y * 1.27 + v * 1.13);
   }
-  frag = vec4(x, y, fract(x + y), 1.0);
+  frag = vec4(v, x, y, 1.0);
 }`;
 
 function compile(gl, type, source) {
@@ -35,10 +37,6 @@ function compile(gl, type, source) {
   return shader;
 }
 
-function workPerPass() {
-  return WIDTH * HEIGHT * ALU;
-}
-
 function gpuLabel(gl) {
   const info = gl.getExtension('WEBGL_debug_renderer_info');
   const raw = info
@@ -49,7 +47,7 @@ function gpuLabel(gl) {
   return (match ? match[0] : text).trim();
 }
 
-export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {}) {
+export function runGpuBench({ durationMs = 2600, onProgress, onSample, onTick, isCancelled } = {}) {
   const canvas = document.createElement('canvas');
   canvas.width = WIDTH;
   canvas.height = HEIGHT;
@@ -96,7 +94,6 @@ export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {})
   }
 
   const seed = gl.getUniformLocation(program, 'uSeed');
-  const timer = gl.getExtension('EXT_disjoint_timer_query_webgl2');
   const renderer = gpuLabel(gl);
   const pixel = new Uint8Array(4);
   const vao = gl.createVertexArray();
@@ -108,7 +105,7 @@ export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {})
 
   function draw(n) {
     for (let i = 0; i < n; i++) {
-      gl.uniform1f(seed, (i + 1) * 0.017);
+      gl.uniform1f(seed, (i + 1) * 0.013);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     }
   }
@@ -116,132 +113,71 @@ export function runGpuBench({ durationMs = 2600, onProgress, isCancelled } = {})
   return new Promise((resolve) => {
     const started = performance.now();
     let settled = false;
-    function finish(result) {
+    let passes = 4;
+    let passTotal = 0;
+    let busyMs = 0;
+    let ticking = false;
+    let lastTick = 0;
+    let pauseUntil = 0;
+
+    function result() {
+      const seconds = busyMs / 1000;
+      const gigaSteps = seconds > 0
+        ? (passTotal * WIDTH * HEIGHT * ALU) / seconds / 1e9
+        : 0;
+      return { method: 'load', gigaSteps, seconds, renderer };
+    }
+
+    function finish(payload) {
       if (settled) return;
       settled = true;
       cleanup();
-      resolve(result);
+      resolve(payload);
     }
 
-    if (!timer) {
-      finishFallback();
-      return;
-    }
-
-    const pending = [];
-    let gpuNs = 0;
-    let passes = 0;
-    let samples = 0;
-
-    function drain() {
-      if (gl.getParameter(timer.GPU_DISJOINT_EXT)) {
-        gpuNs = 0;
-        passes = 0;
-        samples = 0;
+    function burst() {
+      if (settled) return;
+      if (performance.now() < pauseUntil) {
+        setTimeout(burst, 200);
         return;
       }
-      for (let i = pending.length - 1; i >= 0; i--) {
-        const query = pending[i];
-        if (!gl.getQueryParameter(query, gl.QUERY_RESULT_AVAILABLE)) continue;
-        const ns = gl.getQueryParameter(query, gl.QUERY_RESULT);
-        gl.deleteQuery(query);
-        pending.splice(i, 1);
-        if (ns > 0) {
-          gpuNs += ns;
-          passes += PASSES;
-          samples += 1;
-        }
-      }
-    }
-
-    function timedResult(seconds) {
-      return {
-        method: 'timer',
-        gigaSteps: (passes * workPerPass()) / seconds / 1e9 + pixel[0] * 0,
-        seconds,
-        renderer,
-      };
-    }
-
-    function frame() {
-      if (isCancelled?.()) {
-        drain();
-        pending.forEach((query) => gl.deleteQuery(query));
-        if (samples >= 1 && gpuNs > 0) finish(timedResult(gpuNs / 1e9));
+      if (isCancelled?.() || performance.now() - started >= durationMs) {
+        const sample = result();
+        onSample?.(sample);
+        if (sample.seconds > 0 && sample.gigaSteps > 0) finish(sample);
         else finish({ skipped: 'Cancelled.' });
         return;
       }
-      drain();
-      const elapsed = performance.now() - started;
-      onProgress?.(Math.max(0, Math.min(1, elapsed / durationMs)));
-      if (elapsed < durationMs) {
-        const query = gl.createQuery();
-        gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
-        draw(PASSES);
-        gl.endQuery(timer.TIME_ELAPSED_EXT);
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        pending.push(query);
-        requestAnimationFrame(frame);
-        return;
-      }
-      const waitStarted = performance.now();
-      function wait() {
-        drain();
-        if (pending.length && performance.now() - waitStarted < 2000) {
-          requestAnimationFrame(wait);
-          return;
-        }
-        pending.forEach((query) => gl.deleteQuery(query));
-        if (samples < 2 || gpuNs <= 0) {
-          finishFallback();
-          return;
-        }
-        finish(timedResult(gpuNs / 1e9));
-      }
-      wait();
-    }
 
-    function finishFallback() {
-      if (settled) return;
-      const t0 = performance.now();
-      let frames = 0;
-      function loop() {
-        if (isCancelled?.()) {
-          const seconds = Math.max(0.05, (performance.now() - t0) / 1000);
-          if (frames >= 2) {
-            finish({
-              method: 'frames',
-              gigaSteps: (frames * 4 * workPerPass()) / seconds / 1e9,
-              seconds,
-              renderer,
-            });
-          } else finish({ skipped: 'Cancelled.' });
-          return;
-        }
-        draw(4);
+      const budgetStart = performance.now();
+      while (performance.now() - budgetStart < 45) {
+        if (isCancelled?.()) break;
+        const one = performance.now();
+        draw(passes);
         gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        frames += 1;
-        const elapsed = performance.now() - t0;
-        onProgress?.(Math.max(0, Math.min(1, elapsed / durationMs)));
-        if (elapsed < durationMs) {
-          requestAnimationFrame(loop);
-          return;
-        }
-        const seconds = elapsed / 1000;
-        if (pixel[0] + pixel[1] + pixel[2] < 0) {
-          finish({ skipped: 'Graphics test returned nothing.' });
-          return;
-        }
-        finish({
-          method: 'frames',
-          gigaSteps: (frames * 4 * workPerPass()) / seconds / 1e9,
-          seconds,
-          renderer,
+        const dt = performance.now() - one;
+        passTotal += passes;
+        busyMs += dt;
+        if (dt > 70) passes = Math.max(1, passes - 2);
+        else if (dt < 18) passes = Math.min(48, passes + 2);
+      }
+
+      const sample = result();
+      onSample?.(sample);
+      onProgress?.(Math.max(0, Math.min(1, (performance.now() - started) / durationMs)));
+      const now = performance.now();
+      if (!ticking && now - lastTick > 2000) {
+        ticking = true;
+        lastTick = now;
+        Promise.resolve(onTick?.()).then((pace) => {
+          ticking = false;
+          if (pace === 'pause') pauseUntil = performance.now() + 1500;
         });
       }
-      requestAnimationFrame(loop);
+      const wait = performance.now() < pauseUntil ? 200 : 0;
+      setTimeout(burst, wait);
     }
 
-    requestAnimationFrame(frame);
+    setTimeout(burst, 0);
   });
 }

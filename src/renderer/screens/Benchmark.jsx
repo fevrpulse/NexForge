@@ -15,14 +15,7 @@ import {
 } from '../lib/bench-score.js';
 import { listBenchLeaderboard, missingBenchRpc, submitBenchScore } from '../lib/bench-board.js';
 
-const HISTORY_KEY = 'nexforge.bench.v2';
-const PHASES = [
-  { kind: 'cpu-single', ms: 20000, label: 'Pushing one processor core' },
-  { kind: 'cpu-multi', ms: 40000, label: 'Pushing every processor thread' },
-  { kind: 'memory', ms: 20000, label: 'Pushing memory' },
-  { kind: 'disk', ms: 20000, label: 'Reading the drive' },
-  { kind: 'graphics', ms: 35000, label: 'Pushing graphics' },
-];
+const HISTORY_KEY = 'nexforge.bench.v3';
 
 function loadHistory() {
   try {
@@ -111,18 +104,6 @@ function canPostScore(prep, acc, durationSec) {
   return true;
 }
 
-function sleep(ms, shouldStop) {
-  return new Promise((resolve) => {
-    const started = Date.now();
-    const timer = setInterval(() => {
-      if (shouldStop() || Date.now() - started >= ms) {
-        clearInterval(timer);
-        resolve();
-      }
-    }, 200);
-  });
-}
-
 export default function Benchmark() {
   const { showToast, liveSession, user, guestMode, profile } = useNexForge();
   const [scan] = useState(() => loadHwScan());
@@ -168,6 +149,25 @@ export default function Benchmark() {
     return () => clearInterval(id);
   }, [running]);
 
+  useEffect(() => {
+    if (!running) return undefined;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const sample = await window.nexforge?.getPerfSample?.();
+        if (!stop && sample) setTemps(sample);
+      } catch {
+        /* sensors are optional */
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, [running]);
+
   async function readTemps() {
     try {
       const sample = await window.nexforge?.getPerfSample?.();
@@ -198,57 +198,67 @@ export default function Benchmark() {
     try {
       prep = await window.nexforge.prepareSystemBenchmark();
       if (stopRef.current) return;
-      while (Date.now() - startedRef.current < BENCH_LIMIT_MS && !stopRef.current) {
-        for (const step of PHASES) {
-          const left = BENCH_LIMIT_MS - (Date.now() - startedRef.current);
-          if (stopRef.current || left < 2000) break;
-          const slice = Math.min(step.ms, left);
-          setLabel(step.label);
-          const sample = await readTemps();
-          if ((step.kind === 'cpu-single' || step.kind === 'cpu-multi') && sample.cpuTempC >= CPU_EASE_C) {
-            eased.cpu = true;
-            setLabel('Letting the processor cool. The test stays inside a safe temperature.');
-            await sleep(8000, () => stopRef.current);
-            continue;
-          }
-          if (step.kind === 'graphics' && sample.gpuTempC >= GPU_EASE_C) {
-            eased.gpu = true;
-            setLabel('Letting the graphics card cool. The test stays inside a safe temperature.');
-            await sleep(8000, () => stopRef.current);
-            continue;
-          }
-          if (step.kind === 'memory' && prep.memorySkip) continue;
-          if (step.kind === 'disk' && prep.diskSkip) continue;
-          if (step.kind === 'graphics') {
-            gpuStop.current = false;
-            const gpu = await runGpuBench({
-              durationMs: slice,
-              isCancelled: () => gpuStop.current || stopRef.current,
-            });
-            if (gpu?.skipped && gpu.skipped !== 'Cancelled.') acc.gpuSkipped = gpu.skipped;
-            else if (gpu?.gigaSteps > 0 && gpu.seconds > 0) {
-              acc.gpuGigaSeconds += gpu.gigaSteps * gpu.seconds;
-              acc.gpuSeconds += gpu.seconds;
-              acc.gpuMethod = gpu.method;
-              acc.gpuName = gpu.renderer || acc.gpuName;
+      const steps = [
+        { kind: 'cpu-single', ms: 8000, label: 'One processor core. Total usage stays low for a few seconds.' },
+        { kind: 'memory', ms: 8000, label: 'Pushing memory' },
+        { kind: 'disk', ms: 8000, label: 'Reading the drive' },
+      ];
+      for (const step of steps) {
+        const left = BENCH_LIMIT_MS - (Date.now() - startedRef.current);
+        if (stopRef.current || left < 2000) break;
+        if (step.kind === 'memory' && prep.memorySkip) continue;
+        if (step.kind === 'disk' && prep.diskSkip) continue;
+        setLabel(step.label);
+        const part = await window.nexforge.runBenchPhase({
+          kind: step.kind,
+          ms: Math.min(step.ms, left),
+          bytes: prep.memoryBytes,
+        });
+        absorb(acc, step.kind, part);
+        if (alive.current) setLive(buildScore(prep, acc, (Date.now() - startedRef.current) / 1000, eased));
+      }
+      const gpuLeft = BENCH_LIMIT_MS - (Date.now() - startedRef.current);
+      if (!stopRef.current && gpuLeft > 3000) {
+        setLabel('Pushing every processor thread and the graphics card');
+        await window.nexforge.runBenchPhase({ kind: 'cpu-start' });
+        let cpuOn = true;
+        const stopCpu = async () => {
+          if (!cpuOn) return;
+          cpuOn = false;
+          const cpu = await window.nexforge.runBenchPhase({ kind: 'cpu-stop' });
+          absorb(acc, 'cpu-multi', cpu);
+        };
+        try {
+          const gpu = await runGpuBench({
+            durationMs: gpuLeft,
+            isCancelled: () => gpuStop.current || stopRef.current,
+            onSample: (sample) => {
+              if (!sample?.seconds || !(sample.gigaSteps > 0)) return;
+              acc.gpuGigaSeconds = sample.gigaSteps * sample.seconds;
+              acc.gpuSeconds = sample.seconds;
+              acc.gpuMethod = sample.method;
+              acc.gpuName = sample.renderer || acc.gpuName;
               acc.gpuSkipped = null;
-            }
-          } else {
-            const part = await window.nexforge.runBenchPhase({
-              kind: step.kind,
-              ms: slice,
-              bytes: prep.memoryBytes,
-            });
-            if (part?.stopped && stopRef.current) {
-              absorb(acc, step.kind, part);
-              break;
-            }
-            absorb(acc, step.kind, part);
-          }
-          if (alive.current) {
-            setLive(buildScore(prep, acc, (Date.now() - startedRef.current) / 1000, eased));
-          }
-          if (stopRef.current) break;
+              if (alive.current) setLive(buildScore(prep, acc, (Date.now() - startedRef.current) / 1000, eased));
+            },
+            onTick: async () => {
+              const sample = await readTemps();
+              const cpuHot = sample.cpuTempC >= CPU_EASE_C;
+              const gpuHot = sample.gpuTempC >= GPU_EASE_C;
+              if (cpuHot) eased.cpu = true;
+              if (gpuHot) eased.gpu = true;
+              await window.nexforge.runBenchPhase({ kind: 'cpu-ease', on: cpuHot });
+              if (cpuHot || gpuHot) {
+                setLabel('Resting a hot part. The processor and graphics card pick back up when it is safe.');
+              } else if (alive.current) {
+                setLabel('Pushing every processor thread and the graphics card');
+              }
+              return gpuHot ? 'pause' : 'run';
+            },
+          });
+          if (gpu?.skipped && gpu.skipped !== 'Cancelled.') acc.gpuSkipped = gpu.skipped;
+        } finally {
+          await stopCpu();
         }
       }
       const durationSec = Math.round((Date.now() - startedRef.current) / 1000);
@@ -344,7 +354,7 @@ export default function Benchmark() {
           )}
           {!shown && !running && (
             <p className="bench-line" style={{ marginTop: 14 }}>
-              Runs for 10 minutes and you can end it whenever you want. It loads the processor, memory, a single drive file, and the graphics card. If a sensor says a part is too hot, that part rests. The drive is written once, then only read, so it is not worn down.
+              Runs for 10 minutes and you can end it whenever you want. After a short memory and drive check, every processor thread and the graphics card stay busy together. If a sensor says a part is too hot, that part rests. The drive is written once, then only read.
             </p>
           )}
         </div>
@@ -372,9 +382,11 @@ export default function Benchmark() {
             <div className="bench-fill" style={{ width: `${Math.max(2, Math.min(100, (elapsed / BENCH_LIMIT_MS) * 100))}%` }} />
           </div>
           <div className="opt-spec-meta" style={{ marginTop: 8 }}>
-            {temps?.cpuTempC != null ? `CPU ${Math.round(temps.cpuTempC)}° ` : ''}
-            {temps?.gpuTempC != null ? `GPU ${Math.round(temps.gpuTempC)}°` : ''}
-            {temps?.cpuTempC == null && temps?.gpuTempC == null ? 'Temperature sensors are not reporting. The PC’s own limits still apply.' : ''}
+            {temps?.cpuPct != null ? `CPU ${Math.round(temps.cpuPct)}% ` : ''}
+            {temps?.cpuTempC != null ? `${Math.round(temps.cpuTempC)}°  ` : ''}
+            {temps?.gpuPct != null ? `GPU ${Math.round(temps.gpuPct)}% ` : ''}
+            {temps?.gpuTempC != null ? `${Math.round(temps.gpuTempC)}°` : ''}
+            {temps?.cpuTempC == null && temps?.gpuTempC == null && temps?.cpuPct == null && temps?.gpuPct == null ? 'Temperature sensors are not reporting. The PC’s own limits still apply.' : ''}
           </div>
         </div>
       )}

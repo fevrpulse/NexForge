@@ -12,7 +12,7 @@ const { parentPort, workerData } = require('worker_threads');
 const flag = new Int32Array(workerData.control);
 
 function stopped() {
-  return Atomics.load(flag, 0) === 1;
+  return Atomics.load(flag, 0) === 2;
 }
 
 function cpu() {
@@ -68,8 +68,53 @@ function memory() {
   });
 }
 
+function cpuSpin() {
+  let x = (0x9E3779B9 + workerData.seed) | 0;
+  let a = 1.1;
+  let b = 1.2;
+  let c = 1.3;
+  let ops = 0;
+  let lastPost = Date.now();
+  while (true) {
+    const mode = Atomics.load(flag, 0);
+    if (mode === 2) break;
+    if (mode === 1) {
+      if (ops) {
+        parentPort.postMessage({ type: 'tick', ops });
+        ops = 0;
+      }
+      Atomics.wait(flag, 0, 1, 250);
+      continue;
+    }
+    const burst = Date.now();
+    while (Date.now() - burst < 30) {
+      for (let i = 0; i < 4096; i++) {
+        x ^= x << 13;
+        x ^= x >>> 17;
+        x ^= x << 5;
+        a = b * c + 0.000001;
+        b = c * a + 0.000001;
+        c = a * b + 0.000001;
+        if (a > 1e4) {
+          a *= 1e-4;
+          b *= 1e-4;
+          c *= 1e-4;
+        }
+        ops++;
+      }
+    }
+    if (Date.now() - lastPost > 300) {
+      parentPort.postMessage({ type: 'tick', ops });
+      ops = 0;
+      lastPost = Date.now();
+    }
+  }
+  parentPort.postMessage({ type: 'done', ops, sink: x + a + b + c });
+}
+
 if (workerData.kind === 'cpu') cpu();
 else if (workerData.kind === 'memory') memory();
+else if (workerData.kind === 'cpu-spin') cpuSpin();
 else parentPort.postMessage({ type: 'done', error: 'unknown test' });
 `;
 
@@ -352,6 +397,67 @@ async function runCpu(job, threads, ms) {
   return { ops, elapsedMs, stopped: !!job.stop, threads };
 }
 
+function noteCpuOps(job, worker) {
+  worker.on('message', (msg) => {
+    if (!msg || (msg.type !== 'tick' && msg.type !== 'done')) return;
+    job.cpuOps += Number(msg.ops) || 0;
+  });
+}
+
+function startCpuLoad(job) {
+  if (job.cpuLoad) return { threads: job.threads };
+  job.cpuOps = 0;
+  job.cpuBusyMs = 0;
+  job.cpuMark = Date.now();
+  job.cpuEased = false;
+  job.cpuLoad = true;
+  if (Atomics.load(job.flag, 0) !== 2) {
+    Atomics.store(job.flag, 0, 0);
+    Atomics.notify(job.flag, 0);
+  }
+  for (let i = 0; i < job.threads; i++) {
+    job.seed += 1;
+    const worker = new Worker(WORKER_SRC, {
+      eval: true,
+      workerData: { kind: 'cpu-spin', seed: job.seed, control: job.control },
+    });
+    noteCpuOps(job, worker);
+    job.workers.push(worker);
+  }
+  return { threads: job.threads };
+}
+
+function setCpuEase(job, on) {
+  if (!job.cpuLoad) return { eased: false };
+  if (Atomics.load(job.flag, 0) === 2) return { eased: true };
+  if (on && !job.cpuEased) {
+    job.cpuBusyMs += Date.now() - job.cpuMark;
+    job.cpuEased = true;
+    Atomics.store(job.flag, 0, 1);
+    Atomics.notify(job.flag, 0);
+  } else if (!on && job.cpuEased) {
+    job.cpuEased = false;
+    job.cpuMark = Date.now();
+    Atomics.store(job.flag, 0, 0);
+    Atomics.notify(job.flag, 0);
+  }
+  return { eased: job.cpuEased };
+}
+
+function stopCpuLoad(job) {
+  if (!job.cpuLoad) return Promise.resolve({ ops: 0, elapsedMs: 0, threads: job.threads });
+  if (!job.cpuEased) job.cpuBusyMs += Date.now() - job.cpuMark;
+  const elapsedMs = job.cpuBusyMs;
+  Atomics.store(job.flag, 0, 2);
+  Atomics.notify(job.flag, 0);
+  job.cpuLoad = false;
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      resolve({ ops: job.cpuOps || 0, elapsedMs, threads: job.threads, stopped: !!job.stop });
+    }, 180);
+  });
+}
+
 async function phase(opts = {}) {
   const job = current;
   if (!job) {
@@ -360,8 +466,14 @@ async function phase(opts = {}) {
     throw err;
   }
   const ms = Math.max(500, Math.min(60000, Number(opts.ms) || 1000));
-  if (job.stop) return { stopped: true };
-  if (opts.kind === 'cpu-single') return runCpu(job, 1, ms);
+  if (job.stop && opts.kind !== 'cpu-stop') return { stopped: true };
+  if (opts.kind === 'cpu-start') return startCpuLoad(job);
+  if (opts.kind === 'cpu-ease') return setCpuEase(job, !!opts.on);
+  if (opts.kind === 'cpu-stop') return stopCpuLoad(job);
+  if (opts.kind === 'cpu-single') {
+    if (Atomics.load(job.flag, 0) !== 2) Atomics.store(job.flag, 0, 0);
+    return runCpu(job, 1, ms);
+  }
   if (opts.kind === 'cpu-multi') return runCpu(job, job.threads, ms);
   if (opts.kind === 'memory') {
     const bytes = Math.floor(Number(opts.bytes) || 0);
@@ -400,7 +512,8 @@ async function finish() {
   current = null;
   if (!job) return { ok: true };
   job.stop = true;
-  Atomics.store(job.flag, 0, 1);
+  Atomics.store(job.flag, 0, 2);
+  Atomics.notify(job.flag, 0);
   if (job.diskProc) {
     try { job.diskProc.stdin.write('quit\n'); } catch { /* closed */ }
     try { job.diskProc.kill(); } catch { /* already gone */ }
@@ -415,7 +528,8 @@ async function finish() {
 function cancel() {
   if (!current) return { ok: true };
   current.stop = true;
-  Atomics.store(current.flag, 0, 1);
+  Atomics.store(current.flag, 0, 2);
+  Atomics.notify(current.flag, 0);
   if (current.diskProc) {
     try { current.diskProc.kill(); } catch { /* already gone */ }
   }
