@@ -55,8 +55,19 @@ function loadGpuResult() {
 }
 
 function savePart(key, result) {
-  localStorage.setItem(key, JSON.stringify(result));
-  try { localStorage.removeItem(HISTORY_KEY); } catch { /* ignore */ }
+  try {
+    localStorage.setItem(key, JSON.stringify(result));
+    localStorage.removeItem(HISTORY_KEY);
+    window.dispatchEvent(new CustomEvent('nexforge-bench-saved'));
+  } catch { /* ignore quota */ }
+}
+
+let benchBusy = false;
+
+function claimRun() {
+  if (benchBusy) return false;
+  benchBusy = true;
+  return true;
 }
 
 function clearPart(key) {
@@ -138,8 +149,17 @@ export default function Benchmark() {
       stopRef.current = true;
       gpuStop.current = true;
       window.nexforge?.cancelSystemBenchmark?.();
-      window.nexforge?.finishSystemBenchmark?.();
     };
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      if (!alive.current) return;
+      setCpuResult(loadCpuResult());
+      setGpuResult(loadGpuResult());
+    };
+    window.addEventListener('nexforge-bench-saved', sync);
+    return () => window.removeEventListener('nexforge-bench-saved', sync);
   }, []);
 
   useEffect(() => {
@@ -238,8 +258,12 @@ export default function Benchmark() {
   }
 
   async function runCpuBench() {
-    if (running) return;
+    if (running || !claimRun()) {
+      showToast('A benchmark is already running.', 'error');
+      return;
+    }
     if (!window.nexforge?.prepareSystemBenchmark || !window.nexforge?.runBenchPhase) {
+      benchBusy = false;
       showToast('Benchmark only runs in the desktop app.', 'error');
       return;
     }
@@ -251,6 +275,14 @@ export default function Benchmark() {
     let prep = null;
     try {
       prep = await window.nexforge.prepareSystemBenchmark();
+      if (stopRef.current) {
+        if (alive.current) {
+          setCpuResult(previous);
+          setLive(null);
+          setLabel('');
+        }
+        return;
+      }
       clearPart(CPU_KEY);
       const publish = () => {
         if (!alive.current || !prep) return;
@@ -306,8 +338,10 @@ export default function Benchmark() {
         while (!stopRef.current && Date.now() < end) {
           const sample = await readTemps();
           const pace = paceFrom(sample);
-          await window.nexforge.runBenchPhase({ kind: 'render-ease', on: pace.easeOn });
+          const ease = await window.nexforge.runBenchPhase({ kind: 'render-ease', on: pace.easeOn });
+          if (ease?.stopped || stopRef.current) break;
           const snap = await window.nexforge.runBenchPhase({ kind: 'render-snap' });
+          if (snap?.stopped) break;
           if (kind === 'single') {
             acc.singleSamples = snap?.samples || 0;
             acc.singleMs = snap?.elapsedMs || 0;
@@ -347,16 +381,18 @@ export default function Benchmark() {
         threads: prep.threads,
       });
       const postable = scored.overall > 0 && canPostScore(acc, durationSec);
+      if (scored.overall > 0) {
+        savePart(CPU_KEY, scored);
+        if (alive.current) setCpuResult(scored);
+      } else if (previous) {
+        savePart(CPU_KEY, previous);
+        if (alive.current) setCpuResult(previous);
+      } else if (alive.current) {
+        setCpuResult(null);
+      }
       if (alive.current) {
         setLive(null);
         setLabel('');
-        if (scored.overall > 0) {
-          setCpuResult(scored);
-          savePart(CPU_KEY, scored);
-        } else {
-          setCpuResult(previous);
-          if (previous) savePart(CPU_KEY, previous);
-        }
       }
       if (postable && user?.id && !guestMode) {
         try {
@@ -378,7 +414,7 @@ export default function Benchmark() {
         }
       } else if (alive.current && scored.cpu?.multiPts > 0 && !postable) {
         setBoardNote('Saved on this PC. Let the all-core render run a bit longer to post it.');
-      } else if (alive.current && scored.overall > 0 && guestMode) {
+      } else if (alive.current && postable && guestMode) {
         setBoardNote('Saved on this PC. Sign in to post the CPU score.');
       } else if (alive.current && !(scored.cpu?.multiPts > 0)) {
         showToast(eased.cpu
@@ -386,23 +422,28 @@ export default function Benchmark() {
           : 'Ended before the all-core render had a score.', 'error');
       }
     } catch (err) {
+      if (previous) {
+        savePart(CPU_KEY, previous);
+        if (alive.current) setCpuResult(previous);
+      } else if (alive.current) {
+        setCpuResult(null);
+      }
       if (alive.current && !stopRef.current) {
-        if (!prep) setCpuResult(previous);
-        else if (previous) {
-          setCpuResult(previous);
-          savePart(CPU_KEY, previous);
-        }
         showToast(err?.code === 'BUSY' ? 'A benchmark is already running.' : (err?.message || 'Benchmark failed.'), 'error');
       }
     } finally {
       tilesOn.current = false;
       await window.nexforge?.finishSystemBenchmark?.();
+      benchBusy = false;
       if (alive.current) setRunning(false);
     }
   }
 
   async function runGpuBenchOnly() {
-    if (running) return;
+    if (running || !claimRun()) {
+      showToast('A benchmark is already running.', 'error');
+      return;
+    }
     const previous = gpuResult;
     beginRun('gpu');
     setGpuResult(null);
@@ -471,27 +512,38 @@ export default function Benchmark() {
         eased,
         finished: true,
       });
+      if (scored.graphics?.score > 0) {
+        savePart(GPU_KEY, scored);
+        if (alive.current) setGpuResult(scored);
+      } else if (previous) {
+        savePart(GPU_KEY, previous);
+        if (alive.current) setGpuResult(previous);
+      } else if (alive.current) {
+        setGpuResult(null);
+      }
       if (alive.current) {
         setLive(null);
         setLabel('');
         if (scored.graphics?.score > 0) {
-          setGpuResult(scored);
-          savePart(GPU_KEY, scored);
           setBoardNote('GPU score saved on this PC. The leaderboard is the CPU all-core score.');
+        } else if (acc.gpuSkipped) {
+          showToast(acc.gpuSkipped, 'error');
         } else {
-          setGpuResult(previous);
-          if (previous) savePart(GPU_KEY, previous);
-          if (acc.gpuSkipped) showToast(acc.gpuSkipped, 'error');
-          else showToast('Ended before the graphics card rendered a frame.', 'error');
+          showToast('Ended before the graphics card rendered a frame.', 'error');
         }
       }
     } catch (err) {
+      if (previous) {
+        savePart(GPU_KEY, previous);
+        if (alive.current) setGpuResult(previous);
+      } else if (alive.current) {
+        setGpuResult(null);
+      }
       if (alive.current && !stopRef.current) {
-        setGpuResult(previous);
-        if (previous) savePart(GPU_KEY, previous);
         showToast(err?.message || 'Benchmark failed.', 'error');
       }
     } finally {
+      benchBusy = false;
       if (alive.current) setRunning(false);
     }
   }
@@ -601,7 +653,7 @@ export default function Benchmark() {
             {temps?.cpuTempC != null ? `${Math.round(temps.cpuTempC)}°  ` : ''}
             {temps?.gpuPct != null ? `GPU ${Math.round(temps.gpuPct)}% ` : ''}
             {temps?.gpuTempC != null ? `${Math.round(temps.gpuTempC)}°` : ''}
-            {(active === 'gpu' ? temps?.gpuTempC == null : temps?.cpuTempC == null) ? 'Temperature is not reporting, so this benchmark rests on a timer. Fan speed and voltage stay untouched.' : ''}
+            {temps && (active === 'gpu' ? temps.gpuTempC == null : temps.cpuTempC == null) ? 'Temperature is not reporting, so this benchmark rests on a timer. Fan speed and voltage stay untouched.' : ''}
           </div>
         </div>
       )}

@@ -77,7 +77,7 @@ Hit trace(vec3 ro, vec3 rd, float seed) {
   } else if (id == 4) {
     n = p - vec3(0.95, 0.3, 0.55); albedo = vec3(0.9, 0.88, 0.82);
   } else {
-    n = p - vec3(0.25, 0.26, 1.15); albedo = vec3(0.95); hit.mirror = 1.0;
+    n = p - vec3(0.25, 0.26, 1.15); albedo = vec3(0.95, 0.95, 0.98); hit.mirror = 1.0;
   }
   n = normalize(n);
   float light = 0.0;
@@ -241,11 +241,20 @@ export function runGpuBench({ canvas, durationMs = 60000, onSample, onTick, isCa
       if (!ticking && (hold || now - lastTick > 800)) {
         ticking = true;
         lastTick = now;
-        Promise.resolve(onTick?.() ?? 'run').then((pace) => {
-          ticking = false;
-          hold = pace === 'pause';
-          setTimeout(burst, hold ? 250 : 0);
-        });
+        Promise.resolve()
+          .then(() => onTick?.() ?? 'run')
+          .then((pace) => {
+            if (settled) return;
+            ticking = false;
+            hold = pace === 'pause';
+            setTimeout(burst, hold ? 250 : 0);
+          })
+          .catch(() => {
+            if (settled) return;
+            ticking = false;
+            hold = false;
+            setTimeout(burst, 250);
+          });
         return;
       }
       if (hold) {

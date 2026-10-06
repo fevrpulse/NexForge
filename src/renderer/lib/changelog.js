@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.7.2',
+    highlights: [
+      'MMR rewards in the shop show the rank they need. You can still buy them with a card before that rank.',
+      'CPU and GPU benchmarks cannot run at the same time, and leaving the screen keeps your last score.',
+      'A Forge strike counts once. A mint that arrives a moment early is sent again.',
+    ],
+  },
+  {
     version: '5.7.1',
     highlights: [
       'CPU and GPU each have their own benchmark. Both keep redrawing the same scene for up to 10 minutes, and you can end early.',

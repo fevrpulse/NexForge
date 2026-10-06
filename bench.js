@@ -270,13 +270,33 @@ function buildTiles(job) {
   return tiles;
 }
 
+function dropWorker(job, worker) {
+  if (worker.busy) {
+    worker.busy = false;
+    job.inflight = Math.max(0, job.inflight - 1);
+  }
+  job.workers = job.workers.filter((item) => item !== worker);
+  job.idle = job.idle.filter((item) => item !== worker);
+  try { worker.terminate(); } catch { /* already gone */ }
+}
+
 function pump(job) {
   if (!job.renderOn || job.stop || job.eased) return;
   while (job.idle.length && job.queue.length) {
     const worker = job.idle.pop();
     const tile = job.queue.shift();
     job.inflight += 1;
-    worker.postMessage(tile);
+    worker.busy = true;
+    try {
+      worker.postMessage(tile);
+    } catch {
+      dropWorker(job, worker);
+    }
+  }
+  if (job.renderOn && job.workers.length === 0) {
+    job.renderOn = false;
+    job.queue = [];
+    job.stop = true;
   }
 }
 
@@ -314,7 +334,9 @@ function startRender(job, threads) {
   Atomics.store(job.flag, 0, 0);
   for (let i = 0; i < count; i++) {
     const worker = new Worker(WORKER_SRC, { eval: true, workerData: { control: job.control } });
+    worker.busy = false;
     worker.on('message', (msg) => {
+      if (!job.workers.includes(worker)) return;
       if (!msg || msg.type !== 'tile') {
         if (msg?.type === 'ready') {
           job.idle.push(worker);
@@ -322,7 +344,10 @@ function startRender(job, threads) {
         }
         return;
       }
-      job.inflight = Math.max(0, job.inflight - 1);
+      if (worker.busy) {
+        worker.busy = false;
+        job.inflight = Math.max(0, job.inflight - 1);
+      }
       if (!msg.aborted) {
         job.samples += Number(msg.samples) || 0;
         try { emitTile(msg); } catch { /* window gone */ }
@@ -332,8 +357,14 @@ function startRender(job, threads) {
       if (job.inflight === 0 && job.queue.length === 0) noteIdle(job);
     });
     worker.on('error', () => {
-      job.inflight = Math.max(0, job.inflight - 1);
-      noteIdle(job);
+      dropWorker(job, worker);
+      if (!job.workers.length) {
+        job.renderOn = false;
+        job.queue = [];
+        job.stop = true;
+      }
+      pump(job);
+      if (job.inflight === 0 && job.queue.length === 0) noteIdle(job);
     });
     job.workers.push(worker);
   }

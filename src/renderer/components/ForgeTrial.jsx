@@ -35,6 +35,8 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
   const hitsRef = useRef([]);
   const startRef = useRef(0);
   const submittedRef = useRef(false);
+  const startingRef = useRef(false);
+  const finishingRef = useRef(false);
   const scheduleRef = useRef(forgeTrialSchedule());
   const finishRef = useRef(null);
 
@@ -56,14 +58,25 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
   }, [loadStatus, reportCloudError, showToast]);
 
   const finish = useCallback(async (strikeHits) => {
-    if (!trial?.trial_id) return;
+    if (!trial?.trial_id || finishingRef.current) return;
+    finishingRef.current = true;
     setPhase('submitting');
     setBusy(true);
     try {
-      const { data, error } = await sb.rpc('finish_forge_trial', {
-        p_trial_id: trial.trial_id,
-        p_hits: strikeHits,
-      });
+      let data;
+      let error;
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        ({ data, error } = await sb.rpc('finish_forge_trial', {
+          p_trial_id: trial.trial_id,
+          p_hits: strikeHits,
+        }));
+        if (!error) break;
+        if (attempt === 0 && /too early/i.test(String(error.message || ''))) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+        throw error;
+      }
       if (error) throw error;
       setResult(data);
       setPhase('done');
@@ -83,6 +96,7 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
       showToast(message || 'Could not finish the mint.', 'error');
       await reportCloudError(err);
     } finally {
+      finishingRef.current = false;
       setBusy(false);
     }
   }, [loadStatus, refreshProfile, reportCloudError, showToast, trial]);
@@ -97,7 +111,7 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
       setElapsed(now);
       const sched = scheduleRef.current;
       const last = sched[sched.length - 1];
-      if (!submittedRef.current && now > last.at + last.window / 2 + 280) {
+      if (!submittedRef.current && now > last.at + last.window / 2 + 1500) {
         submittedRef.current = true;
         finishRef.current(hitsRef.current);
       }
@@ -122,8 +136,8 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
     const onKey = (event) => {
       if (event.repeat) return;
       if (event.code !== 'Space' && event.code !== 'Enter') return;
-      const tag = event.target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      const target = event.target;
+      if (target?.closest?.('button, a, input, textarea, select, [contenteditable="true"]')) return;
       event.preventDefault();
       strike();
     };
@@ -132,7 +146,8 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
   }, [phase, strike]);
 
   async function startMint() {
-    if (busy || phase === 'running' || phase === 'submitting') return;
+    if (startingRef.current || busy || phase === 'running' || phase === 'submitting') return;
+    startingRef.current = true;
     setBusy(true);
     setResult(null);
     try {
@@ -156,6 +171,7 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
       showToast(message || 'Could not start the Forge.', 'error');
       await reportCloudError(err);
     } finally {
+      startingRef.current = false;
       setBusy(false);
     }
   }

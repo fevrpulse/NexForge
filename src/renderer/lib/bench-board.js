@@ -14,7 +14,7 @@ export async function listBenchLeaderboard() {
 export async function submitBenchScore(result) {
   const { data, error } = await sb.rpc('submit_bench_score', {
     p_overall: result.overall,
-    p_cpu: result.cpu?.score || 0,
+    p_cpu: result.cpu?.multiPts || result.cpu?.score || 0,
     p_memory: result.memory?.score || 0,
     p_disk: result.disk?.score || 0,
     p_graphics: result.graphics?.score || 0,
