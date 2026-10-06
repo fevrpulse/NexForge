@@ -4,6 +4,15 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.7.0',
+    highlights: [
+      'Benchmark renders one original scene: one core, then every core, then the graphics card. It runs for 10 minutes, you can end it early, and each new run starts over.',
+      'The leaderboard ranks the best all-core score.',
+      'Open the in-game HUD and you can click its panels while the rest of the screen still goes to the game.',
+      'The shop has more frames, banners, and nameplates, with coin and cash price tags. Common cash prices are $0.99.',
+    ],
+  },
+  {
     version: '5.6.2',
     highlights: [
       'Benchmark keeps every processor thread and the graphics card busy for most of the 10 minutes.',

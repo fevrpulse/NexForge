@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('nexforge', {
   runBenchPhase: (opts) => ipcRenderer.invoke('run-bench-phase', opts),
   finishSystemBenchmark: () => ipcRenderer.invoke('finish-system-benchmark'),
   cancelSystemBenchmark: () => ipcRenderer.invoke('cancel-system-benchmark'),
+  onBenchTile: (callback) => subscribe('bench-tile', callback),
   notifyGameSessionSaved: () => ipcRenderer.send('game-session-saved'),
   setPingProbeHost: (host) => ipcRenderer.invoke('set-ping-probe-host', host),
   onGameSessionStarted: (callback) => subscribe('game-session-started', callback),

@@ -620,7 +620,7 @@ export default function Settings() {
                 on={overlayEnabled}
                 onChange={setOverlayEnabled}
                 label="Show overlay while you play"
-                hint="Click-through over borderless and windowed games — mouse and keys stay in the game. Stats sit on this same overlay. Exclusive fullscreen cannot be drawn over."
+                hint="Over borderless and windowed games. Open the HUD and you can click panels and keep playing — empty space still goes to the game, and keys stay there unless you type in a field. Exclusive fullscreen cannot be drawn over."
               />
               <KeybindRow
                 label="Open & edit overlay"

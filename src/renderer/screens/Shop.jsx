@@ -468,7 +468,7 @@ export default function Shop() {
             <div key={item.id} className={`shop-card rarity-${item.rarity} ${active ? 'equipped' : ''}`}>
               <div className={`shop-card-preview slot-${item.slot} style-${item.style_key}`}>
                 {item.slot === 'frame' && (
-                  <PlayerAvatar profile={{ ...profile, equipped_frame: item.id }} size={72} />
+                  <PlayerAvatar profile={{ ...profile, equipped_frame: item.id }} size={84} />
                 )}
                 {item.slot === 'banner' && (
                   <>
@@ -491,8 +491,12 @@ export default function Shop() {
               <div className="shop-card-desc">{item.description}</div>
               <div className="shop-card-meta">
                 <span className={`rarity-pill rarity-${item.rarity}`}>{item.rarity}</span>
-                <span>{item.price > 0 ? `${item.price} coins` : 'Free'}</span>
-                {cashPrice > 0 && <span className="cash-price">${cashPrice.toFixed(2)}</span>}
+                <span className={`shop-price-tag ${item.price > 0 ? 'coins' : 'free'}`}>
+                  {item.price > 0 ? `${item.price} coins` : 'Free'}
+                </span>
+                {cashPrice > 0 && (
+                  <span className="shop-price-tag cash">${cashPrice.toFixed(2)}</span>
+                )}
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button

@@ -1,17 +1,14 @@
-/** NexForge Bench 3. A score of 1000 matches the baseline throughput for that part. */
-export const BENCH_VERSION = 3;
+/** NexForge Bench 4. A score of 1000 matches a solid 1080p PC on this render. */
+export const BENCH_VERSION = 4;
 
 export const BENCH_LIMIT_MS = 10 * 60 * 1000;
 export const CPU_EASE_C = 90;
 export const GPU_EASE_C = 87;
 
 export const BENCH_BASELINE = {
-  cpuSingleOps: 120e6,
-  cpuMultiOps: 600e6,
-  memoryGbps: 14,
-  diskReadMBps: 2200,
-  // Heavier Bench 3 shader. 210 keeps a fast card near its previous graphics index.
-  gpuGigaSteps: 210,
+  singleSamples: 560000,
+  multiSamples: 1900000,
+  gpuSamples: 70000000,
 };
 
 export function formatOps(n) {
@@ -39,55 +36,41 @@ export function formatMBps(n) {
 
 function indexOf(value, baseline) {
   if (!Number.isFinite(value) || value <= 0 || !baseline) return 0;
-  return (value / baseline) * 1000;
+  return Math.max(0, Math.min(50000, Math.round((value / baseline) * 1000)));
 }
 
-function geo(nums) {
-  const usable = nums.filter((n) => n > 0);
-  if (!usable.length) return 0;
-  const log = usable.reduce((sum, n) => sum + Math.log(n), 0) / usable.length;
-  return Math.round(Math.exp(log));
-}
-
-export function scoreBenchmark(raw, gpu, meta = {}) {
-  const single = indexOf(raw?.cpu?.singleOpsPerSec, BENCH_BASELINE.cpuSingleOps);
-  const multi = indexOf(raw?.cpu?.multiOpsPerSec, BENCH_BASELINE.cpuMultiOps);
-  const cpu = Math.round(single * 0.4 + multi * 0.6);
-  const memory = raw?.memory?.skipped ? 0 : Math.round(indexOf(raw?.memory?.copyGbps, BENCH_BASELINE.memoryGbps));
-  const disk = raw?.disk?.skipped ? 0 : Math.round(indexOf(raw?.disk?.readMBps, BENCH_BASELINE.diskReadMBps));
-  const graphics = gpu?.skipped ? 0 : Math.round(indexOf(gpu?.gigaSteps, BENCH_BASELINE.gpuGigaSteps));
-  const overall = geo([cpu, memory, disk, graphics]);
+export function scoreBenchmark(acc = {}, meta = {}) {
+  const singleRate = acc.singleMs > 0 ? acc.singleSamples / (acc.singleMs / 1000) : 0;
+  const multiRate = acc.multiMs > 0 ? acc.multiSamples / (acc.multiMs / 1000) : 0;
+  const gpuRate = !acc.gpuSkipped && acc.gpuMs > 0 ? acc.gpuSamples / (acc.gpuMs / 1000) : 0;
+  const single = indexOf(singleRate, BENCH_BASELINE.singleSamples);
+  const multi = indexOf(multiRate, BENCH_BASELINE.multiSamples);
+  const graphics = acc.gpuSkipped ? 0 : indexOf(gpuRate, BENCH_BASELINE.gpuSamples);
+  const overall = multi || single || graphics;
+  const ratio = singleRate > 0 && multiRate > 0 ? multiRate / singleRate : 0;
   return {
     version: BENCH_VERSION,
-    at: raw?.at || Date.now(),
-    cpuName: raw?.cpuName || null,
-    threads: raw?.threads || null,
+    at: acc.at || Date.now(),
+    cpuName: meta.cpuName || acc.cpuName || null,
+    threads: meta.threads || acc.threads || null,
     cpu: {
-      score: cpu,
-      singleOpsPerSec: raw?.cpu?.singleOpsPerSec || 0,
-      multiOpsPerSec: raw?.cpu?.multiOpsPerSec || 0,
+      score: single,
+      singlePts: single,
+      multiPts: multi,
+      ratio,
     },
-    memory: raw?.memory?.skipped
-      ? { skipped: raw.memory.skipped, score: 0 }
-      : { score: memory, copyGbps: raw?.memory?.copyGbps || 0 },
-    disk: raw?.disk?.skipped
-      ? { skipped: raw.disk.skipped, score: 0 }
-      : {
-        score: disk,
-        readMBps: raw?.disk?.readMBps || 0,
-        writeMBps: raw?.disk?.writeMBps || 0,
-      },
-    graphics: gpu?.skipped
-      ? { skipped: gpu.skipped, score: 0 }
-      : {
-        score: graphics,
-        gigaSteps: gpu?.gigaSteps || 0,
-        method: gpu?.method || null,
-        renderer: gpu?.renderer || null,
-      },
+    memory: { skipped: 'This render does not score memory.', score: 0 },
+    disk: { skipped: 'This render does not score the drive.', score: 0 },
+    graphics: acc.gpuSkipped
+      ? { skipped: acc.gpuSkipped, score: 0 }
+      : (gpuRate > 0
+        ? { score: graphics, renderer: acc.gpuName || null }
+        : (meta.finished
+          ? { skipped: 'Ended before graphics were tested.', score: 0 }
+          : { score: 0 })),
     overall,
     tier: tierFor(overall),
-    limit: limitNote({ cpu, memory, disk, graphics }),
+    limit: limitNote({ single, multi, graphics }),
     durationSec: Math.max(0, Math.round(Number(meta.durationSec) || 0)),
     eased: meta.eased || null,
     postedLocal: true,
@@ -131,9 +114,8 @@ export function tierFor(overall) {
 }
 
 const LIMITS = {
-  cpu: 'The processor is the limit for games that simulate a lot or use one core hard.',
-  memory: 'Memory speed is the limit. The processor and graphics are ahead of it.',
-  disk: 'The drive is the limit. Games will spend more time loading.',
+  single: 'One core is the limit for games that lean on a single thread.',
+  multi: 'All-core rendering is the limit for games that spread work across cores.',
   graphics: 'Graphics is the limit for higher settings and resolutions.',
 };
 
@@ -157,16 +139,11 @@ export function formatBenchText(result) {
     `Overall ${result.overall.toLocaleString()} · ${result.tier?.label || ''}`,
     result.tier?.line,
     result.limit,
-    `Processor ${result.cpu.score.toLocaleString()} · ${formatOps(result.cpu.singleOpsPerSec)} one core · ${formatOps(result.cpu.multiOpsPerSec)} all cores`,
-    result.memory.skipped
-      ? `Memory — ${result.memory.skipped}`
-      : `Memory ${result.memory.score.toLocaleString()} · ${formatGbps(result.memory.copyGbps)} copy`,
-    result.disk.skipped
-      ? `Drive — ${result.disk.skipped}`
-      : `Drive ${result.disk.score.toLocaleString()} · ${formatMBps(result.disk.readMBps)} read · ${formatMBps(result.disk.writeMBps)} write`,
-    result.graphics.skipped
+    `Multi Core ${Number(result.cpu?.multiPts || 0).toLocaleString()} pts${result.cpu?.ratio ? ` · ${result.cpu.ratio.toFixed(1)}× one core` : ''}`,
+    `Single Core ${Number(result.cpu?.singlePts || 0).toLocaleString()} pts`,
+    result.graphics?.skipped
       ? `Graphics — ${result.graphics.skipped}`
-      : `Graphics ${result.graphics.score.toLocaleString()}${result.graphics.renderer ? ` · ${result.graphics.renderer}` : ''}`,
+      : `Graphics ${Number(result.graphics?.score || 0).toLocaleString()} pts${result.graphics?.renderer ? ` · ${result.graphics.renderer}` : ''}`,
   ];
   return lines.filter(Boolean).join('\n');
 }

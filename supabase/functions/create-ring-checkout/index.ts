@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
   if (amount <= 0) {
     return json({ error: "This item is not available for cash purchase" }, 400);
   }
-  if (amount > 699) {
+  if (amount < 50 || amount > 699) {
     return json({ error: "Invalid catalog price" }, 500);
   }
 

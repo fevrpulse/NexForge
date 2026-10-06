@@ -1,6 +1,5 @@
-const WIDTH = 1920;
-const HEIGHT = 1080;
-const ALU = 160;
+const WIDTH = 1280;
+const HEIGHT = 720;
 
 const VERT = `#version 300 es
 void main() {
@@ -12,17 +11,124 @@ const FRAG = `#version 300 es
 precision highp float;
 uniform float uSeed;
 out vec4 frag;
-void main() {
-  vec2 uv = gl_FragCoord.xy;
-  float x = uv.x * 0.001 + uSeed;
-  float y = uv.y * 0.001 + 0.37;
-  float v = 0.15 + uSeed;
-  for (int i = 0; i < ${ALU}; i++) {
-    v = sin(v * 1.17 + x * 0.73) * cos(y * 0.91 + v);
-    x = fract(x * 1.31 + v + float(i) * 0.017);
-    y = fract(y * 1.27 + v * 1.13);
+
+float hitSphere(vec3 ro, vec3 rd, vec3 c, float r, float best) {
+  vec3 oc = ro - c;
+  float b = dot(oc, rd);
+  float h = b * b - dot(oc, oc) + r * r;
+  if (h < 0.0) return best;
+  h = sqrt(h);
+  float t = -b - h;
+  if (t <= 0.001) t = -b + h;
+  if (t > 0.001 && t < best) return t;
+  return best;
+}
+
+float rnd(inout float s) {
+  s = fract(sin(s) * 43758.5453);
+  s += 1.0;
+  return fract(s * 12.9898);
+}
+
+vec3 sky(vec3 rd) {
+  float up = rd.y * 0.5 + 0.5;
+  return vec3(0.52 + up * 0.28, 0.56 + up * 0.24, 0.64 + up * 0.2);
+}
+
+struct Hit {
+  vec3 color;
+  vec3 pos;
+  vec3 n;
+  float mirror;
+};
+
+Hit trace(vec3 ro, vec3 rd, float seed) {
+  Hit hit;
+  hit.color = sky(rd);
+  hit.pos = ro;
+  hit.n = rd;
+  hit.mirror = 0.0;
+  float best = 1e9;
+  int id = 0;
+  if (rd.y < -0.0001) {
+    float plane = -ro.y / rd.y;
+    if (plane > 0.001 && plane < best) { best = plane; id = 1; }
   }
-  frag = vec4(v, x, y, 1.0);
+  float t = hitSphere(ro, rd, vec3(-0.15, 0.62, 0.1), 0.62, best);
+  if (t < best) { best = t; id = 2; }
+  t = hitSphere(ro, rd, vec3(-1.25, 0.38, 0.35), 0.38, best);
+  if (t < best) { best = t; id = 3; }
+  t = hitSphere(ro, rd, vec3(0.95, 0.3, 0.55), 0.3, best);
+  if (t < best) { best = t; id = 4; }
+  t = hitSphere(ro, rd, vec3(0.25, 0.26, 1.15), 0.26, best);
+  if (t < best) { best = t; id = 5; }
+  if (id == 0) return hit;
+
+  vec3 p = ro + rd * best;
+  vec3 n = vec3(0.0, 1.0, 0.0);
+  vec3 albedo = vec3(0.7);
+  if (id == 1) {
+    float fade = 1.0 / (1.0 + dot(p.xz, p.xz) * 0.02);
+    albedo = vec3(0.55 + 0.28 * fade, 0.57 + 0.26 * fade, 0.62 + 0.22 * fade);
+  } else if (id == 2) {
+    n = p - vec3(-0.15, 0.62, 0.1); albedo = vec3(0.95, 0.34, 0.12);
+  } else if (id == 3) {
+    n = p - vec3(-1.25, 0.38, 0.35); albedo = vec3(0.12, 0.72, 0.78);
+  } else if (id == 4) {
+    n = p - vec3(0.95, 0.3, 0.55); albedo = vec3(0.9, 0.88, 0.82);
+  } else {
+    n = p - vec3(0.25, 0.26, 1.15); albedo = vec3(0.95); hit.mirror = 1.0;
+  }
+  n = normalize(n);
+  float light = 0.0;
+  float rng = seed;
+  for (int s = 0; s < 36; s++) {
+    float ang = rnd(rng) * 6.2831853;
+    float rad = sqrt(rnd(rng)) * 0.55;
+    vec3 lp = vec3(0.2 + cos(ang) * rad, 2.45, 0.35 + sin(ang) * rad);
+    vec3 ld = lp - p;
+    float dist = length(ld);
+    ld /= dist;
+    float ndotl = dot(n, ld);
+    if (ndotl <= 0.0) continue;
+    vec3 so = p + n * 0.02;
+    float block = hitSphere(so, ld, vec3(-0.15, 0.62, 0.1), 0.62, dist);
+    if (block < dist - 0.02) continue;
+    block = hitSphere(so, ld, vec3(-1.25, 0.38, 0.35), 0.38, dist);
+    if (block < dist - 0.02) continue;
+    block = hitSphere(so, ld, vec3(0.95, 0.3, 0.55), 0.3, dist);
+    if (block < dist - 0.02) continue;
+    block = hitSphere(so, ld, vec3(0.25, 0.26, 1.15), 0.26, dist);
+    if (block < dist - 0.02) continue;
+    light += ndotl;
+  }
+  light = light / 36.0 * 7.5 + (n.y * 0.5 + 0.5) * 0.22;
+  hit.color = albedo * light;
+  hit.pos = p;
+  hit.n = n;
+  return hit;
+}
+
+void main() {
+  vec2 uv = gl_FragCoord.xy / vec2(${WIDTH}.0, ${HEIGHT}.0);
+  float aspect = ${WIDTH}.0 / ${HEIGHT}.0;
+  float sx = (uv.x * 2.0 - 1.0) * aspect * 0.78;
+  float sy = (1.0 - uv.y * 2.0) * 0.78;
+  vec3 rd = normalize(vec3(sx, -0.1763 + sy * 0.9844, -0.9844 - sy * 0.1763));
+  vec3 color = vec3(0.0);
+  for (int i = 0; i < 24; i++) {
+    float seed = uSeed + uv.x * 13.0 + uv.y * 7.0 + float(i) * 17.0;
+    Hit first = trace(vec3(0.0, 1.05, 3.35), rd, seed);
+    vec3 sampleColor = first.color;
+    if (first.mirror > 0.5) {
+      vec3 rr = reflect(rd, first.n);
+      Hit bounce = trace(first.pos + first.n * 0.02, rr, seed + 19.0);
+      sampleColor = sampleColor * 0.08 + bounce.color * 0.92;
+    }
+    color += sampleColor;
+  }
+  color = (color / 24.0) / (1.0 + color / 24.0);
+  frag = vec4(pow(max(color, vec3(0.0)), vec3(0.4545)), 1.0);
 }`;
 
 function compile(gl, type, source) {
@@ -47,33 +153,18 @@ function gpuLabel(gl) {
   return (match ? match[0] : text).trim();
 }
 
-export function runGpuBench({ durationMs = 2600, onProgress, onSample, onTick, isCancelled } = {}) {
-  const canvas = document.createElement('canvas');
-  canvas.width = WIDTH;
-  canvas.height = HEIGHT;
-  canvas.setAttribute('aria-hidden', 'true');
-  canvas.style.cssText = 'position:fixed;left:-4000px;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
-  document.body.appendChild(canvas);
-
-  const gl = canvas.getContext('webgl2', {
+export function runGpuBench({ canvas, durationMs = 60000, onSample, onTick, isCancelled } = {}) {
+  const glCanvas = document.createElement('canvas');
+  glCanvas.width = WIDTH;
+  glCanvas.height = HEIGHT;
+  const gl = glCanvas.getContext('webgl2', {
     alpha: false,
     antialias: false,
     depth: false,
     stencil: false,
     powerPreference: 'high-performance',
-    preserveDrawingBuffer: false,
   });
-
-  function cleanup() {
-    const lose = gl?.getExtension?.('WEBGL_lose_context');
-    try { lose?.loseContext(); } catch { /* already lost */ }
-    canvas.remove();
-  }
-
-  if (!gl) {
-    canvas.remove();
-    return Promise.resolve({ skipped: 'This PC did not start a graphics test.' });
-  }
+  if (!gl) return Promise.resolve({ skipped: 'This PC did not start a graphics test.' });
 
   let program = null;
   try {
@@ -88,33 +179,27 @@ export function runGpuBench({ durationMs = 2600, onProgress, onSample, onTick, i
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
       throw new Error(gl.getProgramInfoLog(program) || 'link');
     }
-  } catch {
-    cleanup();
-    return Promise.resolve({ skipped: 'This PC could not compile the graphics test.' });
+  } catch (err) {
+    return Promise.resolve({
+      skipped: 'This PC could not compile the graphics test.',
+      detail: String(err?.message || err).slice(0, 400),
+    });
   }
 
   const seed = gl.getUniformLocation(program, 'uSeed');
   const renderer = gpuLabel(gl);
   const pixel = new Uint8Array(4);
-  const vao = gl.createVertexArray();
-  gl.bindVertexArray(vao);
+  const view = canvas?.getContext?.('2d', { alpha: false }) || null;
+  gl.bindVertexArray(gl.createVertexArray());
   gl.viewport(0, 0, WIDTH, HEIGHT);
   gl.useProgram(program);
   gl.disable(gl.BLEND);
   gl.disable(gl.DEPTH_TEST);
 
-  function draw(n) {
-    for (let i = 0; i < n; i++) {
-      gl.uniform1f(seed, (i + 1) * 0.013);
-      gl.drawArrays(gl.TRIANGLES, 0, 3);
-    }
-  }
-
   return new Promise((resolve) => {
     const started = performance.now();
     let settled = false;
-    let passes = 4;
-    let passTotal = 0;
+    let frames = 0;
     let busyMs = 0;
     let ticking = false;
     let lastTick = 0;
@@ -122,16 +207,20 @@ export function runGpuBench({ durationMs = 2600, onProgress, onSample, onTick, i
 
     function result() {
       const seconds = busyMs / 1000;
-      const gigaSteps = seconds > 0
-        ? (passTotal * WIDTH * HEIGHT * ALU) / seconds / 1e9
-        : 0;
-      return { method: 'load', gigaSteps, seconds, renderer };
+      const samples = frames * WIDTH * HEIGHT;
+      return {
+        samples,
+        seconds,
+        renderer,
+        rate: seconds > 0 ? samples / seconds : 0,
+      };
     }
 
     function finish(payload) {
       if (settled) return;
       settled = true;
-      cleanup();
+      const lose = gl.getExtension('WEBGL_lose_context');
+      try { lose?.loseContext(); } catch { /* already lost */ }
       resolve(payload);
     }
 
@@ -144,27 +233,25 @@ export function runGpuBench({ durationMs = 2600, onProgress, onSample, onTick, i
       if (isCancelled?.() || performance.now() - started >= durationMs) {
         const sample = result();
         onSample?.(sample);
-        if (sample.seconds > 0 && sample.gigaSteps > 0) finish(sample);
+        if (sample.seconds > 0 && sample.samples > 0) finish(sample);
         else finish({ skipped: 'Cancelled.' });
         return;
       }
 
       const budgetStart = performance.now();
-      while (performance.now() - budgetStart < 45) {
+      let drawn = 0;
+      while (performance.now() - budgetStart < 50 && drawn < 6) {
         if (isCancelled?.()) break;
-        const one = performance.now();
-        draw(passes);
-        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-        const dt = performance.now() - one;
-        passTotal += passes;
-        busyMs += dt;
-        if (dt > 70) passes = Math.max(1, passes - 2);
-        else if (dt < 18) passes = Math.min(48, passes + 2);
+        gl.uniform1f(seed, frames + 1);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+        frames += 1;
+        drawn += 1;
       }
+      gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      if (view && canvas) view.drawImage(glCanvas, 0, 0, canvas.width, canvas.height);
+      busyMs += performance.now() - budgetStart;
 
-      const sample = result();
-      onSample?.(sample);
-      onProgress?.(Math.max(0, Math.min(1, (performance.now() - started) / durationMs)));
+      onSample?.(result());
       const now = performance.now();
       if (!ticking && now - lastTick > 2000) {
         ticking = true;
@@ -174,8 +261,7 @@ export function runGpuBench({ durationMs = 2600, onProgress, onSample, onTick, i
           if (pace === 'pause') pauseUntil = performance.now() + 1500;
         });
       }
-      const wait = performance.now() < pauseUntil ? 200 : 0;
-      setTimeout(burst, wait);
+      setTimeout(burst, performance.now() < pauseUntil ? 200 : 0);
     }
 
     setTimeout(burst, 0);

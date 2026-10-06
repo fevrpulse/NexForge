@@ -239,6 +239,8 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
 
   let pointerHover = false;
   let pointerTyping = false;
+  let pointerDown = false;
+  let hitRects = [];
 
   function watchMainFocus() {
     const main = getMainWindow?.();
@@ -249,9 +251,10 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
     main.on('blur', refresh);
   }
 
-  // The overlay is paint-only while you play: with the HUD closed, clicks and
-  // keys stay with the game. Opening the HUD (hotkey) is the request to use
-  // the panels, so the overlay takes the mouse until it is closed again.
+  // The game keeps clicks and keys unless the cursor is on a panel, a drag is
+  // in progress, or a text field is focused. No mouse forwarding — on Windows,
+  // forwarding keeps the window in the hit-test path, so the game underneath
+  // stops receiving clicks.
   function releasePointer() {
     const win = overlayWindow;
     if (!win || win.isDestroyed()) return;
@@ -262,28 +265,74 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
       if (win.isFocusable()) win.setFocusable(false);
     } catch { /* ignore */ }
     // setFocusable rebuilds the window style and can drop click-through,
-    // so ignore-mouse has to be the last call. No mouse forwarding — on
-    // Windows, forwarding keeps the window in the hit-test path.
+    // so ignore-mouse has to be the last call.
     try {
       win.setIgnoreMouseEvents(true);
     } catch { /* ignore */ }
   }
 
+  function wantsPointer() {
+    return hudOpen && (pointerHover || pointerTyping || pointerDown);
+  }
+
   function gameplayClickThrough() {
-    return !hudOpen;
+    return !wantsPointer();
   }
 
   function applyPointer() {
     watchMainFocus();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    if (gameplayClickThrough()) {
-      pointerHover = false;
-      pointerTyping = false;
+    if (!wantsPointer()) {
       releasePointer();
       return;
     }
-    overlayWindow.setIgnoreMouseEvents(false);
-    overlayWindow.setFocusable(true);
+    // Buttons and drags stay unfocused so the game keeps the keyboard.
+    // A text field is the only reason to pull focus into the overlay.
+    try {
+      if (pointerTyping) {
+        if (!overlayWindow.isFocusable()) overlayWindow.setFocusable(true);
+      } else if (overlayWindow.isFocusable()) {
+        overlayWindow.setFocusable(false);
+      }
+    } catch { /* closing */ }
+    try {
+      overlayWindow.setIgnoreMouseEvents(false);
+    } catch { /* closing */ }
+    if (pointerTyping && !overlayWindow.isFocused()) {
+      try { overlayWindow.focus(); } catch { /* closing */ }
+    }
+  }
+
+  function cursorOverHud() {
+    if (!hitRects.length || !overlayWindow || overlayWindow.isDestroyed()) return false;
+    const point = screen.getCursorScreenPoint();
+    const bounds = overlayWindow.getBounds();
+    const x = point.x - bounds.x;
+    const y = point.y - bounds.y;
+    if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) return false;
+    for (const rect of hitRects) {
+      if (x >= rect.x - 4 && y >= rect.y - 4 && x <= rect.x + rect.w + 4 && y <= rect.y + rect.h + 4) return true;
+    }
+    return false;
+  }
+
+  function syncPointerFromCursor() {
+    if (!hudOpen) return;
+    if (!overlayWindow || overlayWindow.isDestroyed() || !overlayWindow.isVisible()) return;
+    if (pointerDown) {
+      const point = screen.getCursorScreenPoint();
+      const bounds = overlayWindow.getBounds();
+      const inside = point.x >= bounds.x && point.y >= bounds.y
+        && point.x <= bounds.x + bounds.width && point.y <= bounds.y + bounds.height;
+      if (inside) return;
+      pointerDown = false;
+    }
+    const hit = cursorOverHud();
+    const typing = hit && pointerTyping;
+    if (hit === pointerHover && typing === pointerTyping) return;
+    pointerHover = hit;
+    pointerTyping = typing;
+    applyPointer();
   }
 
   function getOverlayWindow() {
@@ -709,6 +758,28 @@ function createOverlaySystem({ getMainWindow, sendToRenderer, getActiveGame }) {
       if (!pointerHover) pointerTyping = false;
       applyPointer();
     });
+
+    ipcMain.on('overlay-pointer-down', (_event, on) => {
+      pointerDown = !!on;
+      if (pointerDown) pointerHover = true;
+      else if (!pointerTyping) pointerHover = cursorOverHud();
+      applyPointer();
+    });
+
+    ipcMain.on('overlay-hit-rects', (_event, rects) => {
+      if (!Array.isArray(rects)) {
+        hitRects = [];
+        return;
+      }
+      hitRects = rects.slice(0, 48).map((rect) => ({
+        x: Number(rect?.x) || 0,
+        y: Number(rect?.y) || 0,
+        w: Number(rect?.w) || 0,
+        h: Number(rect?.h) || 0,
+      })).filter((rect) => rect.w > 1 && rect.h > 1);
+    });
+
+    setInterval(syncPointerFromCursor, 40);
 
     ipcMain.on('overlay-typing', (_event, on) => {
       pointerTyping = !!on;

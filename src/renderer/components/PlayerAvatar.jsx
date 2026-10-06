@@ -29,7 +29,7 @@ export default function PlayerAvatar({
   const url = useMemo(() => avatarPublicUrl(profile?.avatar_path), [profile?.avatar_path]);
   const preset = useMemo(() => avatarPreset(profile?.avatar_preset), [profile?.avatar_preset]);
   const frame = frameStyleKey(profile?.equipped_frame);
-  const animated = frame === 'pulse' || frame === 'spin' || frame === 'gold' || frame === 'void';
+  const animated = frame === 'pulse' || frame === 'spin' || frame === 'gold' || frame === 'void' || frame === 'storm' || frame === 'prism';
 
   return (
     <div

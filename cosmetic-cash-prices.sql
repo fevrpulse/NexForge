@@ -1,11 +1,12 @@
 -- Fair cash prices for all cosmetics (by rarity). Defaults stay free.
 -- Safe to re-run.
 
--- common  $0.49 | rare $1.99 | epic $3.99 | legendary $4.99–$6.99
+-- common  $0.99 | rare $1.99 | epic $3.99 | legendary $4.99–$6.99
+-- Stripe will not open a checkout below $0.50.
 update public.cosmetics set real_money_cents = 0
 where id in ('frame_none', 'banner_none', 'plate_default');
 
-update public.cosmetics set real_money_cents = 49
+update public.cosmetics set real_money_cents = 99
 where rarity = 'common'
   and id not in ('frame_none', 'banner_none', 'plate_default');
 

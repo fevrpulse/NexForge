@@ -16,6 +16,10 @@ export const FRAME_STYLES = {
   frame_gold: 'gold',
   frame_pulse: 'pulse',
   frame_spin: 'spin',
+  frame_mint: 'mint',
+  frame_rose: 'rose',
+  frame_storm: 'storm',
+  frame_prism: 'prism',
 };
 
 export const AVATAR_PRESETS = [
@@ -38,6 +42,10 @@ export const BANNER_STYLES = {
   banner_aurora: 'aurora',
   banner_blaze: 'blaze',
   banner_legend: 'legend',
+  banner_dusk: 'dusk',
+  banner_tide: 'tide',
+  banner_circuit: 'circuit',
+  banner_eclipse: 'eclipse',
 };
 
 export const NAMEPLATE_STYLES = {
@@ -46,6 +54,10 @@ export const NAMEPLATE_STYLES = {
   plate_sky: 'sky',
   plate_rose: 'rose',
   plate_gold: 'gold',
+  plate_mint: 'mint',
+  plate_ember: 'ember',
+  plate_void: 'void',
+  plate_prism: 'prism',
 };
 
 export function frameStyleKey(equippedFrame) {

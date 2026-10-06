@@ -50,6 +50,17 @@ const UPDATE_INSTALL_DELAY_MS = 2500;
 const GENERIC_UPDATE_FEED = 'https://github.com/fevrpulse/NexForge/releases/latest/download';
 
 let mainWindow = null;
+bench.setEmitter((tile) => {
+  if (!mainWindow || mainWindow.isDestroyed() || !tile || tile.aborted) return;
+  mainWindow.webContents.send('bench-tile', {
+    x: tile.x,
+    y: tile.y,
+    w: tile.w,
+    h: tile.h,
+    pass: tile.pass,
+    pixels: tile.pixels,
+  });
+});
 let overlaySystem = null;
 let checkoutWindow = null;
 let tray = null;

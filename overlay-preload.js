@@ -22,4 +22,6 @@ contextBridge.exposeInMainWorld('nexforgeOverlay', {
   setPrefs: (prefs) => ipcRenderer.invoke('set-overlay-prefs', prefs),
   setInteractive: (on) => ipcRenderer.send('overlay-interactive', !!on),
   setTyping: (on) => ipcRenderer.send('overlay-typing', !!on),
+  setHitRects: (rects) => ipcRenderer.send('overlay-hit-rects', rects),
+  setPointerDown: (on) => ipcRenderer.send('overlay-pointer-down', !!on),
 });

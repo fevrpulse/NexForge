@@ -2,7 +2,7 @@
 
 Windows app for game settings, a click-through stats overlay, friends, squads, and a cosmetics shop.
 
-**Public release: 5.6.2.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
+**Public release: 5.7.0.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
 
 The download is a small setup file. Run it and it fetches the latest installer. It installs for your Windows user (no administrator) and later updates install from inside the app.
 
@@ -59,6 +59,7 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 15. **`premium-ring-payments.sql`** (high-MMR ring pricing, cash prices, Stripe payment audit)
 16. **`match-result-log.sql`** (casual/session W/L logging via `log_match_result`, match `source` tags)
 17. **`cosmetic-cash-prices.sql`** (rarity-based USD price tags for shop cosmetics)
+18. **`v165-more-cosmetics.sql`** (extra frames, banners, and nameplates with coin and cash price tags)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 

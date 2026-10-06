@@ -1,460 +1,410 @@
 const { Worker } = require('worker_threads');
-const { spawn } = require('child_process');
 const os = require('os');
-const fs = require('fs');
-const path = require('path');
 
-const WRITE_CAP = 512 * 1024 * 1024;
-const MEMORY_CAP = 256 * 1024 * 1024;
+const VIEW_W = 640;
+const VIEW_H = 360;
+const TILE = 32;
+const SPP = 16;
+
+function sphereT(ox, oy, oz, dx, dy, dz, cx, cy, cz, radius, best) {
+  const ocx = ox - cx;
+  const ocy = oy - cy;
+  const ocz = oz - cz;
+  const b = ocx * dx + ocy * dy + ocz * dz;
+  const c = ocx * ocx + ocy * ocy + ocz * ocz - radius * radius;
+  let h = b * b - c;
+  if (h < 0) return best;
+  h = Math.sqrt(h);
+  let t = -b - h;
+  if (t <= 0.001) t = -b + h;
+  if (t > 0.001 && t < best) return t;
+  return best;
+}
+
+function shadeRay(ox, oy, oz, dx, dy, dz, depth, seed, scratch, slot) {
+  const out = slot * 3;
+  let best = 1e9;
+  let id = 0;
+  if (dy < -1e-4) {
+    const plane = -oy / dy;
+    if (plane > 0.001 && plane < best) {
+      best = plane;
+      id = 1;
+    }
+  }
+  let t = sphereT(ox, oy, oz, dx, dy, dz, -0.15, 0.62, 0.1, 0.62, best);
+  if (t < best) { best = t; id = 2; }
+  t = sphereT(ox, oy, oz, dx, dy, dz, -1.25, 0.38, 0.35, 0.38, best);
+  if (t < best) { best = t; id = 3; }
+  t = sphereT(ox, oy, oz, dx, dy, dz, 0.95, 0.3, 0.55, 0.3, best);
+  if (t < best) { best = t; id = 4; }
+  t = sphereT(ox, oy, oz, dx, dy, dz, 0.25, 0.26, 1.15, 0.26, best);
+  if (t < best) { best = t; id = 5; }
+
+  if (!id || best > 1e8) {
+    const up = dy * 0.5 + 0.5;
+    scratch[out] = 0.52 + up * 0.28;
+    scratch[out + 1] = 0.56 + up * 0.24;
+    scratch[out + 2] = 0.64 + up * 0.2;
+    return seed;
+  }
+
+  const hx = ox + dx * best;
+  const hy = oy + dy * best;
+  const hz = oz + dz * best;
+  let nx = 0;
+  let ny = 1;
+  let nz = 0;
+  let ar = 0.45;
+  let ag = 0.45;
+  let ab = 0.45;
+  let mirror = 0;
+  if (id === 1) {
+    const fade = 1 / (1 + (hx * hx + hz * hz) * 0.02);
+    ar = 0.55 + 0.28 * fade;
+    ag = 0.57 + 0.26 * fade;
+    ab = 0.62 + 0.22 * fade;
+  } else if (id === 2) {
+    nx = hx + 0.15; ny = hy - 0.62; nz = hz - 0.1;
+    ar = 0.95; ag = 0.34; ab = 0.12;
+  } else if (id === 3) {
+    nx = hx + 1.25; ny = hy - 0.38; nz = hz - 0.35;
+    ar = 0.12; ag = 0.72; ab = 0.78;
+  } else if (id === 4) {
+    nx = hx - 0.95; ny = hy - 0.3; nz = hz - 0.55;
+    ar = 0.9; ag = 0.88; ab = 0.82;
+  } else {
+    nx = hx - 0.25; ny = hy - 0.26; nz = hz - 1.15;
+    ar = 0.95; ag = 0.95; ab = 0.98;
+    mirror = 1;
+  }
+  if (id !== 1) {
+    const nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    nx /= nl; ny /= nl; nz /= nl;
+  }
+
+  const SHADOW = 28;
+  let light = 0;
+  for (let s = 0; s < SHADOW; s++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const ang = (seed / 4294967296) * 6.28318530718;
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    const rad = Math.sqrt(seed / 4294967296) * 0.55;
+    const lx = 0.2 + Math.cos(ang) * rad;
+    const ly = 2.45;
+    const lz = 0.35 + Math.sin(ang) * rad;
+    let ldx = lx - hx;
+    let ldy = ly - hy;
+    let ldz = lz - hz;
+    const dist = Math.sqrt(ldx * ldx + ldy * ldy + ldz * ldz) || 1;
+    ldx /= dist; ldy /= dist; ldz /= dist;
+    const ndotl = nx * ldx + ny * ldy + nz * ldz;
+    if (ndotl <= 0) continue;
+    const sox = hx + nx * 0.02;
+    const soy = hy + ny * 0.02;
+    const soz = hz + nz * 0.02;
+    let blocked = sphereT(sox, soy, soz, ldx, ldy, ldz, -0.15, 0.62, 0.1, 0.62, dist);
+    if (blocked < dist - 0.02) continue;
+    blocked = sphereT(sox, soy, soz, ldx, ldy, ldz, -1.25, 0.38, 0.35, 0.38, dist);
+    if (blocked < dist - 0.02) continue;
+    blocked = sphereT(sox, soy, soz, ldx, ldy, ldz, 0.95, 0.3, 0.55, 0.3, dist);
+    if (blocked < dist - 0.02) continue;
+    blocked = sphereT(sox, soy, soz, ldx, ldy, ldz, 0.25, 0.26, 1.15, 0.26, dist);
+    if (blocked < dist - 0.02) continue;
+    light += ndotl;
+  }
+  light = (light / SHADOW) * 7.5 + (ny * 0.5 + 0.5) * 0.22;
+  scratch[out] = ar * light;
+  scratch[out + 1] = ag * light;
+  scratch[out + 2] = ab * light;
+
+  if (mirror && depth < 1) {
+    const nd = nx * dx + ny * dy + nz * dz;
+    const rx = dx - 2 * nd * nx;
+    const ry = dy - 2 * nd * ny;
+    const rz = dz - 2 * nd * nz;
+    seed = shadeRay(hx + nx * 0.02, hy + ny * 0.02, hz + nz * 0.02, rx, ry, rz, depth + 1, seed, scratch, slot + 1);
+    const ro = (slot + 1) * 3;
+    scratch[out] = scratch[out] * 0.08 + scratch[ro] * 0.92;
+    scratch[out + 1] = scratch[out + 1] * 0.08 + scratch[ro + 1] * 0.92;
+    scratch[out + 2] = scratch[out + 2] * 0.08 + scratch[ro + 2] * 0.92;
+  }
+  return seed;
+}
+
+function tracePixel(x, y, width, height, seed, pixels, offset, spp, scratch) {
+  const aspect = width / height;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  for (let s = 0; s < spp; s++) {
+    const jx = (((seed * 13 + s * 47) % 1000) / 1000 - 0.5) / width;
+    const jy = (((seed * 29 + s * 91) % 1000) / 1000 - 0.5) / height;
+    const sx = (((x + 0.5) / width) * 2 - 1 + jx) * aspect * 0.78;
+    const sy = (1 - ((y + 0.5) / height) * 2 + jy) * 0.78;
+    let dx = sx;
+    let dy = -0.1763 + sy * 0.9844;
+    let dz = -0.9844 + sy * -0.1763;
+    const len = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1;
+    dx /= len; dy /= len; dz /= len;
+    seed = shadeRay(0, 1.05, 3.35, dx, dy, dz, 0, seed + s + 1, scratch, 0);
+    r += scratch[0];
+    g += scratch[1];
+    b += scratch[2];
+  }
+  const n = spp || 1;
+  pixels[offset] = enc(r / n);
+  pixels[offset + 1] = enc(g / n);
+  pixels[offset + 2] = enc(b / n);
+  pixels[offset + 3] = 255;
+  return seed >>> 0;
+}
+
+function enc(c) {
+  if (c < 0) c = 0;
+  c = c / (1 + c);
+  return Math.max(0, Math.min(255, Math.round(Math.pow(c, 0.4545) * 255)));
+}
 
 const WORKER_SRC = `
 const { parentPort, workerData } = require('worker_threads');
 const flag = new Int32Array(workerData.control);
-
-function stopped() {
-  return Atomics.load(flag, 0) === 2;
-}
-
-function cpu() {
-  const start = Date.now();
-  let x = (0x12345678 + workerData.seed) | 0;
-  let a = 1.1;
-  let b = 1.2;
-  let c = 1.3;
-  let ops = 0;
-  while (Date.now() - start < workerData.ms) {
-    if (stopped()) break;
-    for (let i = 0; i < 256; i++) {
-      x ^= x << 13;
-      x ^= x >>> 17;
-      x ^= x << 5;
-      a = b * c + 0.000001;
-      b = c * a + 0.000001;
-      c = a * b + 0.000001;
-      if (a > 1e4) {
-        a *= 1e-4;
-        b *= 1e-4;
-        c *= 1e-4;
-      }
-      ops++;
-    }
+${sphereT.toString()}
+${shadeRay.toString()}
+${enc.toString()}
+${tracePixel.toString()}
+const scratch = new Float64Array(6);
+parentPort.postMessage({ type: 'ready' });
+parentPort.on('message', (msg) => {
+  if (!msg || msg.type !== 'tile') return;
+  if (Atomics.load(flag, 0) === 2) {
+    parentPort.postMessage({ type: 'tile', aborted: true });
+    return;
   }
-  parentPort.postMessage({
-    type: 'done',
-    ops,
-    elapsedMs: Date.now() - start,
-    sink: x + a + b + c,
-  });
-}
-
-function memory() {
-  const bytes = workerData.bytes;
-  const a = Buffer.allocUnsafe(bytes);
-  const b = Buffer.allocUnsafe(bytes);
-  a.fill(1);
-  let copies = 0;
-  const t0 = process.hrtime.bigint();
-  while (Number(process.hrtime.bigint() - t0) / 1e6 < workerData.ms) {
-    if (stopped()) break;
-    a.copy(b);
-    copies += 1;
-  }
-  const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
-  parentPort.postMessage({
-    type: 'done',
-    copies,
-    elapsedMs,
-    sink: b[0] + b[bytes - 1],
-  });
-}
-
-function cpuSpin() {
-  let x = (0x9E3779B9 + workerData.seed) | 0;
-  let a = 1.1;
-  let b = 1.2;
-  let c = 1.3;
-  let ops = 0;
-  let lastPost = Date.now();
-  while (true) {
-    const mode = Atomics.load(flag, 0);
-    if (mode === 2) break;
-    if (mode === 1) {
-      if (ops) {
-        parentPort.postMessage({ type: 'tick', ops });
-        ops = 0;
-      }
-      Atomics.wait(flag, 0, 1, 250);
-      continue;
-    }
-    const burst = Date.now();
-    while (Date.now() - burst < 30) {
-      for (let i = 0; i < 4096; i++) {
-        x ^= x << 13;
-        x ^= x >>> 17;
-        x ^= x << 5;
-        a = b * c + 0.000001;
-        b = c * a + 0.000001;
-        c = a * b + 0.000001;
-        if (a > 1e4) {
-          a *= 1e-4;
-          b *= 1e-4;
-          c *= 1e-4;
-        }
-        ops++;
-      }
-    }
-    if (Date.now() - lastPost > 300) {
-      parentPort.postMessage({ type: 'tick', ops });
-      ops = 0;
-      lastPost = Date.now();
-    }
-  }
-  parentPort.postMessage({ type: 'done', ops, sink: x + a + b + c });
-}
-
-if (workerData.kind === 'cpu') cpu();
-else if (workerData.kind === 'memory') memory();
-else if (workerData.kind === 'cpu-spin') cpuSpin();
-else parentPort.postMessage({ type: 'done', error: 'unknown test' });
-`;
-
-const DISK_HOST = `
-$ErrorActionPreference = 'Stop'
-[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false
-function Emit([string]$s) { [Console]::Out.WriteLine($s); [Console]::Out.Flush() }
-Add-Type -TypeDefinition @'
-using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-public static class NfDiskBench {
-  [DllImport("kernel32", SetLastError=true, CharSet=CharSet.Unicode)]
-  static extern IntPtr CreateFile(string name, uint access, uint share, IntPtr sec, uint disp, uint flags, IntPtr tmpl);
-  [DllImport("kernel32", SetLastError=true)]
-  static extern bool CloseHandle(IntPtr h);
-  [DllImport("kernel32", SetLastError=true)]
-  static extern bool ReadFile(IntPtr h, IntPtr buf, uint n, out uint read, IntPtr ov);
-  [DllImport("kernel32", SetLastError=true)]
-  static extern bool WriteFile(IntPtr h, IntPtr buf, uint n, out uint written, IntPtr ov);
-  [DllImport("kernel32", SetLastError=true)]
-  static extern int SetFilePointer(IntPtr h, int lo, IntPtr hi, uint method);
-  static readonly IntPtr Invalid = new IntPtr(-1);
-  const uint GR = 0x80000000, GW = 0x40000000, NB = 0x20000000, SEQ = 0x08000000, CA = 2, OE = 3;
-  const int Chunk = 8 * 1024 * 1024;
-  static IntPtr Alloc() {
-    IntPtr raw = Marshal.AllocHGlobal(Chunk + 4096);
-    return raw;
-  }
-  static IntPtr Align(IntPtr raw) {
-    return new IntPtr((raw.ToInt64() + 4095) & ~4095L);
-  }
-  public static string WriteOnce(string path, int cap) {
-    if (cap < Chunk) return "ERR small";
-    cap -= cap % Chunk;
-    IntPtr raw = Alloc();
-    try {
-      IntPtr buf = Align(raw);
-      IntPtr h = CreateFile(path, GW, 0, IntPtr.Zero, CA, NB | SEQ, IntPtr.Zero);
-      if (h == Invalid) return "ERR write-open " + Marshal.GetLastWin32Error();
-      long written = 0;
-      var sw = Stopwatch.StartNew();
-      uint got;
-      try {
-        while (written < cap && sw.ElapsedMilliseconds < 30000) {
-          if (!WriteFile(h, buf, (uint)Chunk, out got, IntPtr.Zero) || got != (uint)Chunk) {
-            return "ERR write " + Marshal.GetLastWin32Error();
-          }
-          written += got;
-        }
-      } finally { CloseHandle(h); }
-      return "OK write " + written + " " + Math.Max(1, (long)sw.Elapsed.TotalMilliseconds);
-    } finally { Marshal.FreeHGlobal(raw); }
-  }
-  public static string ReadFor(string path, int ms) {
-    if (ms < 200) ms = 200;
-    IntPtr raw = Alloc();
-    try {
-      IntPtr buf = Align(raw);
-      IntPtr h = CreateFile(path, GR, 1, IntPtr.Zero, OE, NB | SEQ, IntPtr.Zero);
-      if (h == Invalid) return "ERR read-open " + Marshal.GetLastWin32Error();
-      long read = 0;
-      var sw = Stopwatch.StartNew();
-      uint got;
-      try {
-        while (sw.ElapsedMilliseconds < ms) {
-          if (!ReadFile(h, buf, (uint)Chunk, out got, IntPtr.Zero) || got == 0) {
-            if (SetFilePointer(h, 0, IntPtr.Zero, 0) != 0) break;
-            continue;
-          }
-          read += got;
-        }
-      } finally { CloseHandle(h); }
-      return "OK read " + read + " " + Math.Max(1, (long)sw.Elapsed.TotalMilliseconds);
-    } finally { Marshal.FreeHGlobal(raw); }
-  }
-}
-'@
-Emit 'READY'
-while ($true) {
-  $line = [Console]::In.ReadLine()
-  if ([string]::IsNullOrEmpty($line) -or $line -eq 'quit') { break }
-  $parts = $line.Split(' ')
-  if ($parts[0] -eq 'write') { Emit ([NfDiskBench]::WriteOnce($env:NF_DISK_FILE, [int]$parts[1])) }
-  elseif ($parts[0] -eq 'read') { Emit ([NfDiskBench]::ReadFor($env:NF_DISK_FILE, [int]$parts[1])) }
-  else { Emit 'ERR command' }
-}
-`;
-
-let current = null;
-
-function freeBytes(dir) {
   try {
-    const stat = fs.statfsSync(dir);
-    return Number(stat.bavail) * Number(stat.bsize);
-  } catch {
-    return null;
-  }
-}
-
-function diskCap(free) {
-  if (free == null) return 256 * 1024 * 1024;
-  if (free > 2 * 1024 ** 3) return WRITE_CAP;
-  if (free > 900 * 1024 ** 2) return 256 * 1024 * 1024;
-  return 0;
-}
-
-function startWorker(job, workerData) {
-  return new Promise((resolve, reject) => {
-    if (job.stop) {
-      resolve({ stopped: true });
+  const pixels = new Uint8Array(msg.w * msg.h * 4);
+  let seed = (msg.seed || 1) >>> 0;
+  for (let y = 0; y < msg.h; y++) {
+    if ((y & 7) === 0 && Atomics.load(flag, 0) === 2) {
+      parentPort.postMessage({ type: 'tile', aborted: true });
       return;
     }
-    let settled = false;
-    const worker = new Worker(WORKER_SRC, {
-      eval: true,
-      workerData: { ...workerData, control: job.control },
-    });
-    job.workers.push(worker);
-    function finish(fn, value) {
-      if (settled) return;
-      settled = true;
-      fn(value);
+    for (let x = 0; x < msg.w; x++) {
+      seed = tracePixel(msg.x + x, msg.y + y, msg.width, msg.height, seed, pixels, (y * msg.w + x) * 4, ${SPP}, scratch);
     }
-    worker.on('message', (msg) => {
-      if (msg && msg.type === 'done') finish(resolve, msg);
-    });
-    worker.on('error', (err) => {
-      if (job.stop) finish(resolve, { stopped: true });
-      else finish(reject, err);
-    });
-    worker.on('exit', () => {
-      if (settled) return;
-      if (job.stop) finish(resolve, { stopped: true });
-      else finish(reject, new Error('Benchmark worker stopped early.'));
-    });
-  });
-}
-
-function startDiskHost(job) {
-  if (process.platform !== 'win32') {
-    return Promise.resolve({ skipped: 'The drive test runs on Windows.' });
   }
-  const cap = diskCap(freeBytes(os.tmpdir()));
-  if (!cap) return Promise.resolve({ skipped: 'Not enough free space for a safe drive test.' });
-  job.diskFile = path.join(os.tmpdir(), `nexforge-bench-${process.pid}.bin`);
-  return new Promise((resolve, reject) => {
-    const child = spawn('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-Command',
-      DISK_HOST,
-    ], {
-      env: { ...process.env, NF_DISK_FILE: job.diskFile },
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-    job.diskProc = child;
-    let errText = '';
-    child.stderr.on('data', (chunk) => {
-      errText = (errText + chunk.toString('utf8')).slice(-500);
-    });
-    let buf = '';
-    const waiters = [];
-    let ready = false;
-    function fail(err) {
-      if (!ready) reject(err);
-      waiters.splice(0).forEach((waiter) => waiter.reject(err));
-    }
-    child.stdout.on('data', (chunk) => {
-      buf += chunk.toString('utf8');
-      let idx = buf.indexOf('\n');
-      while (idx >= 0) {
-        const line = buf.slice(0, idx).trim();
-        buf = buf.slice(idx + 1);
-        idx = buf.indexOf('\n');
-        if (!line) continue;
-        if (!ready && line === 'READY') {
-          ready = true;
-          resolve({ cap });
-          continue;
-        }
-        const waiter = waiters.shift();
-        if (waiter) waiter.resolve(line);
-      }
-    });
-    child.on('error', fail);
-    child.on('exit', () => fail(new Error(errText.trim() || 'Drive test stopped.')));
-    job.diskSend = (line) => new Promise((res, rej) => {
-      if (job.stop || !child.stdin.writable) {
-        rej(new Error('stopped'));
-        return;
-      }
-      waiters.push({ resolve: res, reject: rej });
-      child.stdin.write(`${line}\n`);
-    });
-    setTimeout(() => {
-      if (!ready) fail(new Error('Drive test did not start.'));
-    }, 20000);
-  });
+  parentPort.postMessage({
+    type: 'tile',
+    x: msg.x,
+    y: msg.y,
+    w: msg.w,
+    h: msg.h,
+    pass: msg.pass,
+    samples: msg.w * msg.h * ${SPP},
+    pixels,
+  }, [pixels.buffer]);
+  } catch (err) {
+    parentPort.postMessage({ type: 'tile', aborted: true, error: String(err && err.message || err) });
+  }
+});
+`;
+
+let emitTile = () => {};
+let current = null;
+
+function setEmitter(fn) {
+  emitTile = typeof fn === 'function' ? fn : () => {};
 }
 
-function parseOk(line, word) {
-  const parts = String(line || '').trim().split(/\s+/);
-  if (parts[0] !== 'OK' || parts[1] !== word) return null;
-  return { bytes: Number(parts[2]), ms: Number(parts[3]) };
-}
-
-async function prepare() {
+function prepare() {
   if (current) {
     const err = new Error('A benchmark is already running.');
     err.code = 'BUSY';
     throw err;
   }
   const control = new SharedArrayBuffer(4);
-  const job = {
+  const threads = Math.max(1, Math.min(os.cpus().length || 1, 32));
+  current = {
     stop: false,
     control,
     flag: new Int32Array(control),
     workers: [],
-    diskProc: null,
-    diskSend: null,
-    diskFile: null,
-    diskBytes: 0,
-    threads: Math.max(1, Math.min(os.cpus().length || 1, 32)),
+    idle: [],
+    queue: [],
+    inflight: 0,
+    threads,
     cpuName: (os.cpus()?.[0]?.model || '').replace(/\s+/g, ' ').trim() || null,
-    seed: 1,
+    width: VIEW_W,
+    height: VIEW_H,
+    samples: 0,
+    busyMs: 0,
+    mark: 0,
+    eased: false,
+    renderOn: false,
+    rendering: false,
+    renderThreads: 0,
+    pass: 0,
+    onIdle: null,
   };
-  current = job;
-  const freeRam = os.freemem();
-  const memoryBytes = Math.floor(Math.min(MEMORY_CAP, freeRam * 0.12));
-  const memorySkip = memoryBytes < 64 * 1024 * 1024
-    ? 'Not enough free memory to test without using the page file.'
-    : null;
-  let diskSkip = null;
-  let diskWriteMBps = null;
-  try {
-    const host = await startDiskHost(job);
-    if (host.skipped) diskSkip = host.skipped;
-    else if (job.stop) diskSkip = 'Ended.';
-    else {
-      const line = await job.diskSend(`write ${host.cap}`);
-      const parsed = parseOk(line, 'write');
-      if (!parsed || parsed.bytes < 32 * 1024 * 1024) diskSkip = 'The drive test did not get a long enough sample.';
-      else {
-        job.diskBytes = parsed.bytes;
-        diskWriteMBps = (parsed.bytes / (parsed.ms / 1000)) / 1e6;
-      }
+  Atomics.store(current.flag, 0, 0);
+  return { cpuName: current.cpuName, threads, width: VIEW_W, height: VIEW_H };
+}
+
+function buildTiles(job) {
+  const tiles = [];
+  for (let y = 0; y < job.height; y += TILE) {
+    for (let x = 0; x < job.width; x += TILE) {
+      tiles.push({
+        type: 'tile',
+        x,
+        y,
+        w: Math.min(TILE, job.width - x),
+        h: Math.min(TILE, job.height - y),
+        width: job.width,
+        height: job.height,
+        pass: job.pass,
+        seed: (job.pass * 10007 + x * 13 + y * 29 + 1) >>> 0,
+      });
     }
-  } catch (err) {
-    diskSkip = 'Could not test the drive.';
-    if (require.main === module) console.error(err);
   }
-  return {
-    cpuName: job.cpuName,
-    threads: job.threads,
-    memoryBytes: memorySkip ? 0 : memoryBytes,
-    memorySkip,
-    diskSkip,
-    diskWriteMBps,
-  };
+  return tiles;
 }
 
-async function runCpu(job, threads, ms) {
-  const tasks = [];
-  for (let i = 0; i < threads; i++) {
-    job.seed += 1;
-    tasks.push(startWorker(job, { kind: 'cpu', ms, seed: job.seed }));
+function pump(job) {
+  if (!job.renderOn || job.stop || job.eased) return;
+  while (job.idle.length && job.queue.length) {
+    const worker = job.idle.pop();
+    const tile = job.queue.shift();
+    job.inflight += 1;
+    worker.postMessage(tile);
   }
-  const parts = await Promise.all(tasks);
-  if (job.stop || parts.some((part) => part.stopped && !part.ops)) {
-    const ops = parts.reduce((sum, part) => sum + (Number(part.ops) || 0), 0);
-    const elapsedMs = parts.reduce((max, part) => Math.max(max, Number(part.elapsedMs) || 0), 0);
-    return { ops, elapsedMs, stopped: job.stop, threads };
-  }
-  const ops = parts.reduce((sum, part) => sum + (Number(part.ops) || 0), 0);
-  const elapsedMs = parts.reduce((max, part) => Math.max(max, Number(part.elapsedMs) || 0), 0) || ms;
-  return { ops, elapsedMs, stopped: !!job.stop, threads };
 }
 
-function noteCpuOps(job, worker) {
-  worker.on('message', (msg) => {
-    if (!msg || (msg.type !== 'tick' && msg.type !== 'done')) return;
-    job.cpuOps += Number(msg.ops) || 0;
-  });
+function beginPass(job) {
+  if (!job.renderOn || job.stop) return;
+  job.pass += 1;
+  job.queue = buildTiles(job);
+  pump(job);
 }
 
-function startCpuLoad(job) {
-  if (job.cpuLoad) return { threads: job.threads };
-  job.cpuOps = 0;
-  job.cpuBusyMs = 0;
-  job.cpuMark = Date.now();
-  job.cpuEased = false;
-  job.cpuLoad = true;
-  if (Atomics.load(job.flag, 0) !== 2) {
-    Atomics.store(job.flag, 0, 0);
-    Atomics.notify(job.flag, 0);
+function noteIdle(job) {
+  if (job.inflight === 0 && job.queue.length === 0 && job.renderOn && !job.eased && !job.stop) {
+    beginPass(job);
+    return;
   }
-  for (let i = 0; i < job.threads; i++) {
-    job.seed += 1;
-    const worker = new Worker(WORKER_SRC, {
-      eval: true,
-      workerData: { kind: 'cpu-spin', seed: job.seed, control: job.control },
+  if (!job.renderOn && job.inflight === 0 && job.onIdle) job.onIdle();
+}
+
+function startRender(job, threads) {
+  if (job.stop) return { stopped: true, threads: 0, width: job.width, height: job.height };
+  if (job.rendering) return { threads: job.renderThreads, width: job.width, height: job.height };
+  const count = Math.max(1, Math.min(threads || job.threads, job.threads));
+  job.samples = 0;
+  job.busyMs = 0;
+  job.mark = Date.now();
+  job.eased = false;
+  job.renderOn = true;
+  job.rendering = true;
+  job.renderThreads = count;
+  job.pass = 0;
+  job.inflight = 0;
+  job.idle = [];
+  job.queue = [];
+  job.workers = [];
+  Atomics.store(job.flag, 0, 0);
+  for (let i = 0; i < count; i++) {
+    const worker = new Worker(WORKER_SRC, { eval: true, workerData: { control: job.control } });
+    worker.on('message', (msg) => {
+      if (!msg || msg.type !== 'tile') {
+        if (msg?.type === 'ready') {
+          job.idle.push(worker);
+          pump(job);
+        }
+        return;
+      }
+      job.inflight = Math.max(0, job.inflight - 1);
+      if (!msg.aborted) {
+        job.samples += Number(msg.samples) || 0;
+        try { emitTile(msg); } catch { /* window gone */ }
+      }
+      if (job.renderOn && !job.stop) job.idle.push(worker);
+      pump(job);
+      if (job.inflight === 0 && job.queue.length === 0) noteIdle(job);
     });
-    noteCpuOps(job, worker);
+    worker.on('error', () => {
+      job.inflight = Math.max(0, job.inflight - 1);
+      noteIdle(job);
+    });
     job.workers.push(worker);
   }
-  return { threads: job.threads };
+  beginPass(job);
+  return { threads: count, width: job.width, height: job.height };
 }
 
-function setCpuEase(job, on) {
-  if (!job.cpuLoad) return { eased: false };
-  if (Atomics.load(job.flag, 0) === 2) return { eased: true };
-  if (on && !job.cpuEased) {
-    job.cpuBusyMs += Date.now() - job.cpuMark;
-    job.cpuEased = true;
-    Atomics.store(job.flag, 0, 1);
-    Atomics.notify(job.flag, 0);
-  } else if (!on && job.cpuEased) {
-    job.cpuEased = false;
-    job.cpuMark = Date.now();
-    Atomics.store(job.flag, 0, 0);
-    Atomics.notify(job.flag, 0);
+function setEase(job, on) {
+  if (!job.rendering) return { eased: false };
+  if (job.stop || Atomics.load(job.flag, 0) === 2) return { eased: true };
+  if (on && !job.eased) {
+    job.busyMs += Date.now() - job.mark;
+    job.eased = true;
+  } else if (!on && job.eased) {
+    job.eased = false;
+    job.mark = Date.now();
+    pump(job);
   }
-  return { eased: job.cpuEased };
+  return { eased: job.eased };
 }
 
-function stopCpuLoad(job) {
-  if (!job.cpuLoad) return Promise.resolve({ ops: 0, elapsedMs: 0, threads: job.threads });
-  if (!job.cpuEased) job.cpuBusyMs += Date.now() - job.cpuMark;
-  const elapsedMs = job.cpuBusyMs;
+function snapshot(job) {
+  const elapsed = job.busyMs + (job.rendering && !job.eased ? Date.now() - job.mark : 0);
+  return {
+    samples: job.samples || 0,
+    elapsedMs: elapsed,
+    threads: job.renderThreads || 0,
+    pass: job.pass || 0,
+    width: job.width,
+    height: job.height,
+  };
+}
+
+function stopRender(job) {
+  if (!job.rendering) {
+    return Promise.resolve({
+      samples: job.samples || 0,
+      elapsedMs: job.busyMs || 0,
+      threads: job.renderThreads || 0,
+      width: job.width,
+      height: job.height,
+    });
+  }
+  job.renderOn = false;
   Atomics.store(job.flag, 0, 2);
   Atomics.notify(job.flag, 0);
-  job.cpuLoad = false;
   return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({ ops: job.cpuOps || 0, elapsedMs, threads: job.threads, stopped: !!job.stop });
-    }, 180);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (!job.eased) job.busyMs += Date.now() - job.mark;
+      job.eased = true;
+      job.rendering = false;
+      for (const worker of job.workers) {
+        try { worker.terminate(); } catch { /* already gone */ }
+      }
+      job.workers = [];
+      job.idle = [];
+      job.inflight = 0;
+      resolve({
+        samples: job.samples || 0,
+        elapsedMs: Math.max(1, job.busyMs || 0),
+        threads: job.renderThreads || 0,
+        width: job.width,
+        height: job.height,
+      });
+    };
+    job.onIdle = finish;
+    if (job.inflight === 0) finish();
+    else setTimeout(finish, 700);
   });
 }
 
@@ -465,45 +415,11 @@ async function phase(opts = {}) {
     err.code = 'IDLE';
     throw err;
   }
-  const ms = Math.max(500, Math.min(60000, Number(opts.ms) || 1000));
-  if (job.stop && opts.kind !== 'cpu-stop') return { stopped: true };
-  if (opts.kind === 'cpu-start') return startCpuLoad(job);
-  if (opts.kind === 'cpu-ease') return setCpuEase(job, !!opts.on);
-  if (opts.kind === 'cpu-stop') return stopCpuLoad(job);
-  if (opts.kind === 'cpu-single') {
-    if (Atomics.load(job.flag, 0) !== 2) Atomics.store(job.flag, 0, 0);
-    return runCpu(job, 1, ms);
-  }
-  if (opts.kind === 'cpu-multi') return runCpu(job, job.threads, ms);
-  if (opts.kind === 'memory') {
-    const bytes = Math.floor(Number(opts.bytes) || 0);
-    if (bytes < 64 * 1024 * 1024) return { skipped: 'Not enough free memory.' };
-    const mem = await startWorker(job, { kind: 'memory', bytes, ms });
-    if (mem.stopped && !mem.copies) return { stopped: true, copies: 0, elapsedMs: 0 };
-    return { copies: Number(mem.copies) || 0, elapsedMs: Number(mem.elapsedMs) || 0, stopped: !!job.stop };
-  }
-  if (opts.kind === 'disk') {
-    if (!job.diskSend || job.diskBytes < 32 * 1024 * 1024) return { skipped: 'Drive test is not running.' };
-    let bytes = 0;
-    let elapsed = 0;
-    const end = Date.now() + ms;
-    while (Date.now() < end) {
-      if (job.stop) break;
-      const slice = Math.min(2500, end - Date.now());
-      if (slice < 400) break;
-      try {
-        const line = await job.diskSend(`read ${slice}`);
-        const parsed = parseOk(line, 'read');
-        if (!parsed) break;
-        bytes += parsed.bytes;
-        elapsed += parsed.ms;
-      } catch {
-        if (job.stop) break;
-        return { skipped: 'Could not read the drive.' };
-      }
-    }
-    return { bytes, elapsedMs: elapsed, stopped: !!job.stop };
-  }
+  if (opts.kind === 'render-snap') return snapshot(job);
+  if (opts.kind === 'render-stop') return stopRender(job);
+  if (job.stop && opts.kind !== 'render-stop') return { stopped: true, ...snapshot(job) };
+  if (opts.kind === 'render-start') return startRender(job, Number(opts.threads) || job.threads);
+  if (opts.kind === 'render-ease') return setEase(job, !!opts.on);
   return { skipped: 'Unknown test.' };
 }
 
@@ -512,45 +428,48 @@ async function finish() {
   current = null;
   if (!job) return { ok: true };
   job.stop = true;
+  job.renderOn = false;
   Atomics.store(job.flag, 0, 2);
   Atomics.notify(job.flag, 0);
-  if (job.diskProc) {
-    try { job.diskProc.stdin.write('quit\n'); } catch { /* closed */ }
-    try { job.diskProc.kill(); } catch { /* already gone */ }
-  }
   for (const worker of job.workers) {
     try { worker.terminate(); } catch { /* already gone */ }
   }
-  if (job.diskFile) await fs.promises.unlink(job.diskFile).catch(() => {});
   return { ok: true };
 }
 
 function cancel() {
   if (!current) return { ok: true };
   current.stop = true;
+  current.renderOn = false;
   Atomics.store(current.flag, 0, 2);
   Atomics.notify(current.flag, 0);
-  if (current.diskProc) {
-    try { current.diskProc.kill(); } catch { /* already gone */ }
-  }
   return { ok: true };
 }
 
-module.exports = { prepare, phase, finish, cancel };
+module.exports = { prepare, phase, finish, cancel, setEmitter, tracePixel, VIEW_W, VIEW_H, SPP };
 
 if (require.main === module) {
   (async () => {
     const prep = await prepare();
     console.log('prep', prep);
-    const cpu = await phase({ kind: 'cpu-single', ms: 1200 });
-    console.log('cpu', { ops: cpu.ops, elapsedMs: cpu.elapsedMs });
-    if (!prep.diskSkip) {
-      const disk = await phase({ kind: 'disk', ms: 1200 });
-      console.log('disk', disk);
-    }
+    await phase({ kind: 'render-start', threads: prep.threads });
+    const t0 = Date.now();
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    const snap = await phase({ kind: 'render-snap' });
+    const stopped = await phase({ kind: 'render-stop' });
+    const sec = stopped.elapsedMs / 1000;
+    console.log('multi', {
+      samples: stopped.samples,
+      elapsedMs: stopped.elapsedMs,
+      rate: Math.round(stopped.samples / sec),
+      snapRate: Math.round(snap.samples / Math.max(0.001, snap.elapsedMs / 1000)),
+      wall: Date.now() - t0,
+      pass: snap.pass,
+    });
     await finish();
-  })().catch((err) => {
+  })().catch(async (err) => {
     console.error(err);
-    finish().finally(() => process.exit(1));
+    try { await finish(); } catch { /* closed */ }
+    process.exit(1);
   });
 }

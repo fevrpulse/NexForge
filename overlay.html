@@ -342,7 +342,7 @@
   <div id="hud">
     <div class="hud-bar">
       <b>NEXFORGE HUD</b>
-      <span id="hud-hint">× hides a panel · Panels to restore</span>
+      <span id="hud-hint">Panels take the mouse · empty space stays in the game</span>
       <button type="button" id="hud-clip">Clip</button>
       <button type="button" id="hud-panels">Panels</button>
       <button type="button" id="hud-close">Close</button>
@@ -1338,7 +1338,7 @@
       document.body.classList.toggle('strip-on', !open && !!payload?.strip);
       if (payload?.prefs) applyChrome(payload.prefs, true);
       document.getElementById('hud-hint').textContent =
-        '× hides a panel · Panels restores · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes';
+        'Panels take the mouse · empty space stays in the game · ' + formatAcc(prefs.hotkeys?.overlay) + ' closes';
       if (payload?.clipStatus) applyClipUi(payload.clipStatus);
       if (payload?.lastClipPath) {
         document.getElementById('clip-last').textContent = payload.lastClipPath.split(/[/\\]/).pop();
@@ -1350,6 +1350,7 @@
         aiReq += 1;
         document.getElementById('panel-picker').classList.remove('open');
       }
+      publishHits();
     });
     api?.onPrefs((p) => { if (p) applyChrome(p, true); });
     api?.onState(applyState);
@@ -1371,6 +1372,24 @@
     function hitTarget(node) {
       return !!(node && node.closest && node.closest('.panel, .hud-bar, #panel-picker'));
     }
+    function publishHits() {
+      if (!api?.setHitRects) return;
+      if (!document.body.classList.contains('hud-on')) {
+        api.setHitRects([]);
+        return;
+      }
+      const rects = [];
+      document.querySelectorAll('.panel, .hud-bar, #panel-picker').forEach((el) => {
+        const style = getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden') return;
+        const box = el.getBoundingClientRect();
+        if (box.width < 2 || box.height < 2) return;
+        rects.push({ x: box.x, y: box.y, w: box.width, h: box.height });
+      });
+      api.setHitRects(rects);
+    }
+    setInterval(publishHits, 150);
+    window.addEventListener('resize', publishHits);
     document.addEventListener('mousemove', (e) => {
       if (!document.body.classList.contains('hud-on')) return;
       const hit = hitTarget(e.target);
@@ -1384,10 +1403,13 @@
       api?.setInteractive?.(false);
     });
     document.addEventListener('mousedown', (e) => {
+      if (hitTarget(e.target)) api?.setPointerDown?.(true);
       const field = e.target && e.target.closest && e.target.closest('input, textarea');
       if (field) api?.setTyping?.(true);
       else if (e.target && e.target.closest && e.target.closest('button')) e.preventDefault();
     }, true);
+    window.addEventListener('mouseup', () => api?.setPointerDown?.(false));
+    window.addEventListener('blur', () => api?.setPointerDown?.(false));
     document.addEventListener('focusout', () => {
       setTimeout(() => {
         const ae = document.activeElement;
