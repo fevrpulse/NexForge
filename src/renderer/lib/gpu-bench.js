@@ -189,7 +189,7 @@ export function runGpuBench({ canvas, durationMs = 60000, onSample, onTick, isCa
   const seed = gl.getUniformLocation(program, 'uSeed');
   const renderer = gpuLabel(gl);
   const pixel = new Uint8Array(4);
-  const view = canvas?.getContext?.('2d', { alpha: false }) || null;
+  const view = canvas?.getContext?.('2d') || null;
   gl.bindVertexArray(gl.createVertexArray());
   gl.viewport(0, 0, WIDTH, HEIGHT);
   gl.useProgram(program);
@@ -203,7 +203,7 @@ export function runGpuBench({ canvas, durationMs = 60000, onSample, onTick, isCa
     let busyMs = 0;
     let ticking = false;
     let lastTick = 0;
-    let pauseUntil = 0;
+    let lastSampleAt = 0;
 
     function result() {
       const seconds = busyMs / 1000;
@@ -211,6 +211,7 @@ export function runGpuBench({ canvas, durationMs = 60000, onSample, onTick, isCa
       return {
         samples,
         seconds,
+        frames,
         renderer,
         rate: seconds > 0 ? samples / seconds : 0,
       };
@@ -224,12 +225,10 @@ export function runGpuBench({ canvas, durationMs = 60000, onSample, onTick, isCa
       resolve(payload);
     }
 
+    let hold = false;
+
     function burst() {
       if (settled) return;
-      if (performance.now() < pauseUntil) {
-        setTimeout(burst, 200);
-        return;
-      }
       if (isCancelled?.() || performance.now() - started >= durationMs) {
         const sample = result();
         onSample?.(sample);
@@ -238,30 +237,35 @@ export function runGpuBench({ canvas, durationMs = 60000, onSample, onTick, isCa
         return;
       }
 
-      const budgetStart = performance.now();
-      let drawn = 0;
-      while (performance.now() - budgetStart < 50 && drawn < 6) {
-        if (isCancelled?.()) break;
-        gl.uniform1f(seed, frames + 1);
-        gl.drawArrays(gl.TRIANGLES, 0, 3);
-        frames += 1;
-        drawn += 1;
+      const now = performance.now();
+      if (!ticking && (hold || now - lastTick > 800)) {
+        ticking = true;
+        lastTick = now;
+        Promise.resolve(onTick?.() ?? 'run').then((pace) => {
+          ticking = false;
+          hold = pace === 'pause';
+          setTimeout(burst, hold ? 250 : 0);
+        });
+        return;
       }
+      if (hold) {
+        setTimeout(burst, 250);
+        return;
+      }
+
+      const budgetStart = performance.now();
+      gl.uniform1f(seed, frames + 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      frames += 1;
       gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
       if (view && canvas) view.drawImage(glCanvas, 0, 0, canvas.width, canvas.height);
       busyMs += performance.now() - budgetStart;
 
-      onSample?.(result());
-      const now = performance.now();
-      if (!ticking && now - lastTick > 2000) {
-        ticking = true;
-        lastTick = now;
-        Promise.resolve(onTick?.()).then((pace) => {
-          ticking = false;
-          if (pace === 'pause') pauseUntil = performance.now() + 1500;
-        });
+      if (performance.now() - lastSampleAt > 250) {
+        lastSampleAt = performance.now();
+        onSample?.(result());
       }
-      setTimeout(burst, performance.now() < pauseUntil ? 200 : 0);
+      setTimeout(burst, 0);
     }
 
     setTimeout(burst, 0);

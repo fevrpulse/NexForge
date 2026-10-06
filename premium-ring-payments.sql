@@ -13,16 +13,16 @@ alter table public.cosmetics
 update public.cosmetics
 set
   description = 'Animated neon pulse frame — earn it at Elite MMR or buy it instantly',
-  price = 2500,
+  price = 16000,
   min_mmr = 2800,
-  real_money_cents = 499,
+  real_money_cents = 599,
   rarity = 'legendary'
 where id = 'frame_pulse';
 
 update public.cosmetics
 set
   description = 'Animated gold orbit — earn it at Legend MMR or buy it instantly',
-  price = 4000,
+  price = 25000,
   min_mmr = 3200,
   real_money_cents = 699,
   rarity = 'legendary'

@@ -48,20 +48,20 @@ create policy "Anyone authenticated can browse cosmetics"
 
 insert into public.cosmetics (id, slot, name, description, price, min_mmr, rarity, style_key) values
   ('frame_none', 'frame', 'No Frame', 'Clean default look', 0, 0, 'common', 'none'),
-  ('frame_neon', 'frame', 'Neon Ring', 'Bright lime outline', 75, 0, 'common', 'neon'),
-  ('frame_ice', 'frame', 'Ice Ring', 'Cool blue outline', 90, 0, 'common', 'ice'),
-  ('frame_ember', 'frame', 'Ember Ring', 'Warm orange glow', 120, 1400, 'rare', 'ember'),
-  ('frame_void', 'frame', 'Void Ring', 'Purple spectral rim', 180, 1800, 'epic', 'void'),
+  ('frame_neon', 'frame', 'Neon Ring', 'Bright lime outline', 800, 0, 'common', 'neon'),
+  ('frame_ice', 'frame', 'Ice Ring', 'Cool blue outline', 900, 0, 'common', 'ice'),
+  ('frame_ember', 'frame', 'Ember Ring', 'Warm orange glow', 1800, 1400, 'rare', 'ember'),
+  ('frame_void', 'frame', 'Void Ring', 'Purple spectral rim', 3600, 1800, 'epic', 'void'),
   ('frame_gold', 'frame', 'Champion Ring', 'Gold for high MMR', 0, 2200, 'legendary', 'gold'),
   ('banner_none', 'banner', 'No Banner', 'Default profile backdrop', 0, 0, 'common', 'none'),
-  ('banner_grid', 'banner', 'Forge Grid', 'Subtle neon grid wash', 60, 0, 'common', 'grid'),
-  ('banner_aurora', 'banner', 'Aurora', 'Soft teal / violet wash', 110, 0, 'rare', 'aurora'),
-  ('banner_blaze', 'banner', 'Blaze', 'Hot red gradient strip', 150, 1600, 'epic', 'blaze'),
+  ('banner_grid', 'banner', 'Forge Grid', 'Subtle neon grid wash', 700, 0, 'common', 'grid'),
+  ('banner_aurora', 'banner', 'Aurora', 'Soft teal / violet wash', 1700, 0, 'rare', 'aurora'),
+  ('banner_blaze', 'banner', 'Blaze', 'Hot red gradient strip', 3200, 1600, 'epic', 'blaze'),
   ('banner_legend', 'banner', 'Legend Stripe', 'Unlocked at Master MMR', 0, 2700, 'legendary', 'legend'),
   ('plate_default', 'nameplate', 'Standard Tag', 'Default name color', 0, 0, 'common', 'default'),
-  ('plate_neon', 'nameplate', 'Neon Tag', 'Lime gamer tag', 80, 0, 'common', 'neon'),
-  ('plate_sky', 'nameplate', 'Sky Tag', 'Bright blue tag', 80, 0, 'common', 'sky'),
-  ('plate_rose', 'nameplate', 'Rose Tag', 'Pink accent tag', 100, 1200, 'rare', 'rose'),
+  ('plate_neon', 'nameplate', 'Neon Tag', 'Lime gamer tag', 800, 0, 'common', 'neon'),
+  ('plate_sky', 'nameplate', 'Sky Tag', 'Bright blue tag', 800, 0, 'common', 'sky'),
+  ('plate_rose', 'nameplate', 'Rose Tag', 'Pink accent tag', 1600, 1200, 'rare', 'rose'),
   ('plate_gold', 'nameplate', 'Gold Tag', 'Champion gold letters', 0, 2200, 'legendary', 'gold')
 on conflict (id) do update set
   name = excluded.name,
@@ -218,28 +218,12 @@ language plpgsql
 security definer
 set search_path = public
 as $$
-declare
-  last_claim timestamptz;
-  new_balance int;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
   end if;
 
-  select forge_coins_claimed_at into last_claim
-  from public.profiles where id = auth.uid() for update;
-
-  if last_claim is not null and last_claim > now() - interval '20 hours' then
-    raise exception 'Daily Forge Coins already claimed';
-  end if;
-
-  update public.profiles
-    set forge_coins = least(1000000, coalesce(forge_coins, 0) + 50),
-        forge_coins_claimed_at = now()
-    where id = auth.uid()
-    returning forge_coins into new_balance;
-
-  return json_build_object('ok', true, 'forge_coins', new_balance, 'gained', 50);
+  raise exception 'Forge Coins are minted in the Forge';
 end;
 $$;
 

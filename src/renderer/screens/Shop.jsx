@@ -2,20 +2,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNexForge } from '../context/NexForgeContext.jsx';
 import { sb } from '../lib/supabase.js';
 import PlayerAvatar from '../components/PlayerAvatar.jsx';
+import ForgeTrial from '../components/ForgeTrial.jsx';
 
 const SLOTS = [
   { id: 'frame', label: 'Frames' },
   { id: 'banner', label: 'Banners' },
   { id: 'nameplate', label: 'Nameplates' },
 ];
-
-const DAILY_CLAIM_MS = 20 * 60 * 60 * 1000;
-
-function isDailyClaimed(claimedAt) {
-  if (!claimedAt) return false;
-  const t = Date.parse(claimedAt);
-  return Number.isFinite(t) && Date.now() - t < DAILY_CLAIM_MS;
-}
 
 function pendingCashKey(userId) {
   return `nf_pending_cash_${userId}`;
@@ -45,8 +38,6 @@ export default function Shop() {
   const [owned, setOwned] = useState(new Set());
   const [slot, setSlot] = useState('frame');
   const [busyId, setBusyId] = useState(null);
-  const [claiming, setClaiming] = useState(false);
-  const [justClaimed, setJustClaimed] = useState(false);
   const [friendOptions, setFriendOptions] = useState([]);
   const [giftTarget, setGiftTarget] = useState(null);
   const [cashBusyId, setCashBusyId] = useState(null);
@@ -227,7 +218,6 @@ export default function Shop() {
   );
 
   const coins = profile?.forge_coins ?? 0;
-  const claimed = justClaimed || isDailyClaimed(profile?.forge_coins_claimed_at);
   const equipped = {
     frame: profile?.equipped_frame || 'frame_none',
     banner: profile?.equipped_banner || 'banner_none',
@@ -377,28 +367,6 @@ export default function Shop() {
     }
   }
 
-  async function claimDaily() {
-    if (claiming || justClaimed || isDailyClaimed(profile?.forge_coins_claimed_at)) return;
-    setClaiming(true);
-    try {
-      const { data, error } = await sb.rpc('claim_daily_forge_coins');
-      if (error) throw error;
-      setJustClaimed(true);
-      await refreshProfile();
-      showToast(`+${data?.gained || 50} Forge Coins claimed`, 'success');
-    } catch (err) {
-      const msg = String(err?.message || '');
-      if (/already claimed/i.test(msg)) {
-        setJustClaimed(true);
-        await refreshProfile();
-        return;
-      }
-      showToast(msg || 'Could not claim daily coins.', 'error');
-    } finally {
-      setClaiming(false);
-    }
-  }
-
   if (guestMode) {
     return (
       <div className="card">
@@ -426,14 +394,13 @@ export default function Shop() {
             </div>
           </div>
         </div>
-        <button
-          className={`action-btn ${claimed ? 'claimed' : 'primary'}`}
-          onClick={claimDaily}
-          disabled={claiming || claimed}
-        >
-          {claiming ? 'Claiming…' : claimed ? 'Claimed' : 'Claim +50 Daily Coins'}
-        </button>
       </div>
+
+      <ForgeTrial
+        refreshProfile={refreshProfile}
+        showToast={showToast}
+        reportCloudError={reportCloudError}
+      />
 
       <div className="shop-tabs">
         {SLOTS.map((s) => (

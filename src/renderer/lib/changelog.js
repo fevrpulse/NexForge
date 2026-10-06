@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.7.1',
+    highlights: [
+      'CPU and GPU each have their own benchmark. Both keep redrawing the same scene for up to 10 minutes, and you can end early.',
+      'A hot processor rests at 90°C and a hot graphics card rests at 87°C. Fans, voltage, and power limits stay untouched.',
+      'Forge Coins are minted in the Forge. Cash prices run from $0.99 to $6.99, and coin prices are higher.',
+    ],
+  },
+  {
     version: '5.7.0',
     highlights: [
       'Benchmark renders one original scene: one core, then every core, then the graphics card. It runs for 10 minutes, you can end it early, and each new run starts over.',

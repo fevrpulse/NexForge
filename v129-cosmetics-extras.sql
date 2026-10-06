@@ -1,7 +1,7 @@
 -- v1.2.9 cosmetics extras: win coins, gifts, avatar presets
 -- Safe to re-run.
 
--- Award Forge Coins whenever a win match row is inserted (duel completion, etc.).
+-- Match inserts keep the trigger, but coins are minted only by the Forge trial.
 create or replace function public.award_forge_coins_on_match_win()
 returns trigger
 language plpgsql
@@ -9,11 +9,6 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.result = 'win' then
-    update public.profiles
-      set forge_coins = least(1000000, coalesce(forge_coins, 0) + 25)
-      where id = new.user_id;
-  end if;
   return new;
 end;
 $$;

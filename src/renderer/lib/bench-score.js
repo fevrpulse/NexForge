@@ -3,7 +3,45 @@ export const BENCH_VERSION = 4;
 
 export const BENCH_LIMIT_MS = 10 * 60 * 1000;
 export const CPU_EASE_C = 90;
+export const CPU_RESUME_C = 84;
 export const GPU_EASE_C = 87;
+export const GPU_RESUME_C = 80;
+export const UNSENSED_WORK_MS = 45000;
+export const UNSENSED_REST_MS = 12000;
+
+/**
+ * Decide whether a benchmark should keep rendering.
+ * A real temperature rests at easeAt and stays rested until it falls below resumeAt.
+ * With no reading, work runs in short stretches, then rests, so a missing sensor
+ * cannot leave a part at full load for the whole benchmark.
+ */
+export function nextPace({
+  tempC,
+  easeOn = false,
+  easeAt,
+  resumeAt,
+  now = 0,
+  blindSince = null,
+  restUntil = 0,
+  workMs = UNSENSED_WORK_MS,
+  restMs = UNSENSED_REST_MS,
+} = {}) {
+  const temp = Number(tempC);
+  if (Number.isFinite(temp) && temp > 0) {
+    let hot = easeOn;
+    if (temp >= easeAt) hot = true;
+    else if (temp < resumeAt) hot = false;
+    return { easeOn: hot, blindSince: null, restUntil: 0, reason: hot ? 'hot' : 'ok' };
+  }
+  if (now < restUntil) {
+    return { easeOn: true, blindSince: null, restUntil, reason: 'unsensed-rest' };
+  }
+  const since = blindSince == null ? now : blindSince;
+  if (now - since >= workMs) {
+    return { easeOn: true, blindSince: null, restUntil: now + restMs, reason: 'unsensed-rest' };
+  }
+  return { easeOn: false, blindSince: since, restUntil: 0, reason: 'unsensed-work' };
+}
 
 export const BENCH_BASELINE = {
   singleSamples: 560000,
@@ -46,17 +84,19 @@ export function scoreBenchmark(acc = {}, meta = {}) {
   const single = indexOf(singleRate, BENCH_BASELINE.singleSamples);
   const multi = indexOf(multiRate, BENCH_BASELINE.multiSamples);
   const graphics = acc.gpuSkipped ? 0 : indexOf(gpuRate, BENCH_BASELINE.gpuSamples);
-  const overall = multi || single || graphics;
+  const overall = meta.mode === 'gpu' ? graphics : (multi || single);
   const ratio = singleRate > 0 && multiRate > 0 ? multiRate / singleRate : 0;
   return {
     version: BENCH_VERSION,
     at: acc.at || Date.now(),
+    mode: meta.mode === 'gpu' ? 'gpu' : 'cpu',
     cpuName: meta.cpuName || acc.cpuName || null,
     threads: meta.threads || acc.threads || null,
     cpu: {
       score: single,
       singlePts: single,
       multiPts: multi,
+      multiOn: acc.multiMs > 0,
       ratio,
     },
     memory: { skipped: 'This render does not score memory.', score: 0 },
@@ -64,13 +104,15 @@ export function scoreBenchmark(acc = {}, meta = {}) {
     graphics: acc.gpuSkipped
       ? { skipped: acc.gpuSkipped, score: 0 }
       : (gpuRate > 0
-        ? { score: graphics, renderer: acc.gpuName || null }
+        ? { score: graphics, renderer: acc.gpuName || null, frames: acc.gpuFrames || 0 }
         : (meta.finished
-          ? { skipped: 'Ended before graphics were tested.', score: 0 }
-          : { score: 0 })),
+          ? { skipped: meta.mode === 'gpu' ? 'Ended before the graphics card rendered a frame.' : 'Run the GPU benchmark for this score.', score: 0 }
+          : { score: 0, pending: meta.mode !== 'cpu' })),
     overall,
     tier: tierFor(overall),
-    limit: limitNote({ single, multi, graphics }),
+    limit: meta.mode === 'gpu'
+      ? 'This score is the graphics card on this scene.'
+      : limitNote({ single, multi }),
     durationSec: Math.max(0, Math.round(Number(meta.durationSec) || 0)),
     eased: meta.eased || null,
     postedLocal: true,
@@ -132,8 +174,21 @@ export function limitNote(scores) {
 
 export function formatBenchText(result) {
   if (!result) return '';
+  if (result.mode === 'gpu') {
+    const lines = [
+      'NexForge GPU Benchmark',
+      result.graphics?.renderer,
+      result.durationSec ? `Ran ${formatClock(result.durationSec)} of 10:00` : null,
+      result.graphics?.skipped
+        ? `Graphics — ${result.graphics.skipped}`
+        : `GPU ${Number(result.graphics?.score || result.overall || 0).toLocaleString()} · ${result.tier?.label || ''}`,
+      result.tier?.line,
+      result.limit,
+    ];
+    return lines.filter(Boolean).join('\n');
+  }
   const lines = [
-    'NexForge Benchmark',
+    'NexForge CPU Benchmark',
     result.cpuName,
     result.durationSec ? `Ran ${formatClock(result.durationSec)} of 10:00` : null,
     `Overall ${result.overall.toLocaleString()} · ${result.tier?.label || ''}`,
@@ -141,9 +196,9 @@ export function formatBenchText(result) {
     result.limit,
     `Multi Core ${Number(result.cpu?.multiPts || 0).toLocaleString()} pts${result.cpu?.ratio ? ` · ${result.cpu.ratio.toFixed(1)}× one core` : ''}`,
     `Single Core ${Number(result.cpu?.singlePts || 0).toLocaleString()} pts`,
-    result.graphics?.skipped
-      ? `Graphics — ${result.graphics.skipped}`
-      : `Graphics ${Number(result.graphics?.score || 0).toLocaleString()} pts${result.graphics?.renderer ? ` · ${result.graphics.renderer}` : ''}`,
+    result.graphics?.score > 0
+      ? `Graphics ${Number(result.graphics.score).toLocaleString()} pts${result.graphics?.renderer ? ` · ${result.graphics.renderer}` : ''}`
+      : null,
   ];
   return lines.filter(Boolean).join('\n');
 }

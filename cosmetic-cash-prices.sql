@@ -21,7 +21,7 @@ where rarity = 'legendary'
   and id in ('frame_gold', 'banner_legend', 'plate_gold');
 
 update public.cosmetics set real_money_cents = 599
-where id = 'frame_pulse';
+where id in ('frame_prism', 'banner_eclipse', 'frame_pulse');
 
 update public.cosmetics set real_money_cents = 699
-where id = 'frame_spin';
+where id in ('plate_prism', 'frame_spin');

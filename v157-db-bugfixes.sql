@@ -221,7 +221,7 @@ revoke all on function public.friend_activity_feed(integer) from public, anon;
 grant execute on function public.friend_activity_feed(integer) to authenticated;
 
 -- ---------------------------------------------------------------------------
--- 6) Self-report wins must not mint Forge Coins
+-- 6) Match rows must not mint Forge Coins. The Forge trial does that.
 -- ---------------------------------------------------------------------------
 create or replace function public.award_forge_coins_on_match_win()
 returns trigger
@@ -230,11 +230,6 @@ security definer
 set search_path = public
 as $$
 begin
-  if new.result = 'win' and coalesce(new.source, '') = 'duel' then
-    update public.profiles
-      set forge_coins = least(1000000, coalesce(forge_coins, 0) + 25)
-      where id = new.user_id;
-  end if;
   return new;
 end;
 $$;
