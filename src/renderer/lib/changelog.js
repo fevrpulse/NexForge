@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.7.3',
+    highlights: [
+      'Shop items do not ask for a rank. Buy them with coins or a card, or equip the free ones.',
+      'Creating, joining, or inviting someone to a clan no longer asks for a rank.',
+      'Leaderboard headings no longer call the score MMR.',
+    ],
+  },
+  {
     version: '5.7.2',
     highlights: [
       'MMR rewards in the shop show the rank they need. You can still buy them with a card before that rank.',

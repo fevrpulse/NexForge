@@ -96,9 +96,9 @@ export default function Leaderboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <div className="card-title" style={{ marginBottom: 0 }}>
           {mode === 'clans'
-            ? 'Top Clans — Total MMR'
+            ? 'Top Clans'
             : mode === 'friends'
-              ? 'Friends — Lifetime MMR'
+              ? 'Friends'
               : mode === 'season'
                 ? `Top Players — ${seasonName}`
                 : 'Top Players — Lifetime'}
@@ -139,17 +139,17 @@ export default function Leaderboard() {
       </div>
       {mode === 'season' && (
         <div className="lb-season-hint">
-          Ranked duel wins/losses this season (±15 MMR). Lifetime cosmetics unlocks still use career MMR.
+          Ranked duel wins and losses this season.
         </div>
       )}
       {mode === 'friends' && (
         <div className="lb-season-hint">
-          You and your accepted friends, ranked by career MMR.
+          You and your accepted friends.
         </div>
       )}
       {mode === 'clans' && (
         <div className="lb-season-hint">
-          Clans ranked by sum of members&apos; career MMR. Higher clan rank boosts weekly Forge Coin rewards.
+          Clans ranked by their members. Higher clan rank boosts weekly Forge Coin rewards.
         </div>
       )}
       {mode === 'clans' ? (
@@ -184,7 +184,6 @@ export default function Leaderboard() {
                   </div>
                   <div className="player-game">
                     {c.member_count || 0} members
-                    {(c.min_mmr || 0) > 0 ? ` · ${c.min_mmr}+ MMR req` : ''}
                   </div>
                 </div>
                 <div className="player-mmr">{Number(c.total_mmr || 0).toLocaleString()}</div>

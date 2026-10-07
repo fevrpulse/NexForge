@@ -50,19 +50,19 @@ insert into public.cosmetics (id, slot, name, description, price, min_mmr, rarit
   ('frame_none', 'frame', 'No Frame', 'Clean default look', 0, 0, 'common', 'none'),
   ('frame_neon', 'frame', 'Neon Ring', 'Bright lime outline', 800, 0, 'common', 'neon'),
   ('frame_ice', 'frame', 'Ice Ring', 'Cool blue outline', 900, 0, 'common', 'ice'),
-  ('frame_ember', 'frame', 'Ember Ring', 'Warm orange glow', 1800, 1400, 'rare', 'ember'),
-  ('frame_void', 'frame', 'Void Ring', 'Purple spectral rim', 3600, 1800, 'epic', 'void'),
-  ('frame_gold', 'frame', 'Champion Ring', 'Gold for high MMR', 0, 2200, 'legendary', 'gold'),
+  ('frame_ember', 'frame', 'Ember Ring', 'Warm orange glow', 1800, 0, 'rare', 'ember'),
+  ('frame_void', 'frame', 'Void Ring', 'Purple spectral rim', 3600, 0, 'epic', 'void'),
+  ('frame_gold', 'frame', 'Champion Ring', 'Gold champion ring', 0, 0, 'legendary', 'gold'),
   ('banner_none', 'banner', 'No Banner', 'Default profile backdrop', 0, 0, 'common', 'none'),
   ('banner_grid', 'banner', 'Forge Grid', 'Subtle neon grid wash', 700, 0, 'common', 'grid'),
   ('banner_aurora', 'banner', 'Aurora', 'Soft teal / violet wash', 1700, 0, 'rare', 'aurora'),
-  ('banner_blaze', 'banner', 'Blaze', 'Hot red gradient strip', 3200, 1600, 'epic', 'blaze'),
-  ('banner_legend', 'banner', 'Legend Stripe', 'Unlocked at Master MMR', 0, 2700, 'legendary', 'legend'),
+  ('banner_blaze', 'banner', 'Blaze', 'Hot red gradient strip', 3200, 0, 'epic', 'blaze'),
+  ('banner_legend', 'banner', 'Legend Stripe', 'Gold legend stripe', 0, 0, 'legendary', 'legend'),
   ('plate_default', 'nameplate', 'Standard Tag', 'Default name color', 0, 0, 'common', 'default'),
   ('plate_neon', 'nameplate', 'Neon Tag', 'Lime gamer tag', 800, 0, 'common', 'neon'),
   ('plate_sky', 'nameplate', 'Sky Tag', 'Bright blue tag', 800, 0, 'common', 'sky'),
-  ('plate_rose', 'nameplate', 'Rose Tag', 'Pink accent tag', 1600, 1200, 'rare', 'rose'),
-  ('plate_gold', 'nameplate', 'Gold Tag', 'Champion gold letters', 0, 2200, 'legendary', 'gold')
+  ('plate_rose', 'nameplate', 'Rose Tag', 'Pink accent tag', 1600, 0, 'rare', 'rose'),
+  ('plate_gold', 'nameplate', 'Gold Tag', 'Champion gold letters', 0, 0, 'legendary', 'gold')
 on conflict (id) do update set
   name = excluded.name,
   description = excluded.description,
@@ -127,10 +127,6 @@ begin
     raise exception 'Profile missing';
   end if;
 
-  if coalesce(p.mmr, 1200) < c.min_mmr then
-    raise exception 'Need % MMR to unlock this item', c.min_mmr;
-  end if;
-
   if exists (
     select 1 from public.user_cosmetics uc
     where uc.user_id = auth.uid() and uc.cosmetic_id = p_cosmetic_id
@@ -167,7 +163,6 @@ set search_path = public
 as $$
 declare
   c public.cosmetics;
-  user_mmr int;
 begin
   if auth.uid() is null then
     raise exception 'Not authenticated';
@@ -178,17 +173,11 @@ begin
     raise exception 'Unknown cosmetic';
   end if;
 
-  select coalesce(mmr, 1200) into user_mmr from public.profiles where id = auth.uid();
-
   if not exists (
     select 1 from public.user_cosmetics uc
     where uc.user_id = auth.uid() and uc.cosmetic_id = p_cosmetic_id
   ) then
-    if c.price = 0 and user_mmr >= c.min_mmr then
-      insert into public.user_cosmetics (user_id, cosmetic_id)
-      values (auth.uid(), p_cosmetic_id)
-      on conflict do nothing;
-    elsif c.price = 0 and c.min_mmr = 0 then
+    if c.price = 0 then
       insert into public.user_cosmetics (user_id, cosmetic_id)
       values (auth.uid(), p_cosmetic_id)
       on conflict do nothing;

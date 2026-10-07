@@ -268,8 +268,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
   n text; t text; cid uuid;
-  min_req integer := greatest(0, least(5000, coalesce(p_min_mmr, 0)));
-  my_mmr integer;
+  min_req integer := 0;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
   n := nullif(trim(coalesce(p_name, '')), '');
@@ -282,11 +281,6 @@ begin
   end if;
   if exists (select 1 from public.clans where tag = t) then
     raise exception 'That clan tag is taken';
-  end if;
-
-  select coalesce(mmr, 1200) into my_mmr from public.profiles where id = uid;
-  if my_mmr < min_req then
-    raise exception 'Your MMR (%) is below this clan requirement (%)', my_mmr, min_req;
   end if;
 
   delete from public.clan_members where user_id = uid and status = 'invited';
@@ -308,7 +302,6 @@ language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
   c public.clans;
-  my_mmr integer;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
   if p_clan_id is null then raise exception 'Clan required'; end if;
@@ -319,11 +312,6 @@ begin
 
   if exists (select 1 from public.clan_members where user_id = uid and status = 'joined') then
     raise exception 'Leave your current clan first';
-  end if;
-
-  select coalesce(mmr, 1200) into my_mmr from public.profiles where id = uid;
-  if my_mmr < c.min_mmr then
-    raise exception 'Need % MMR to join (you have %)', c.min_mmr, my_mmr;
   end if;
 
   delete from public.clan_members where user_id = uid and status = 'invited';
@@ -344,7 +332,6 @@ language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
   c public.clans;
-  my_mmr integer;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
   if not exists (
@@ -363,10 +350,6 @@ begin
 
   select * into c from public.clans where id = p_clan_id;
   if not found then raise exception 'Clan not found'; end if;
-  select coalesce(mmr, 1200) into my_mmr from public.profiles where id = uid;
-  if my_mmr < c.min_mmr then
-    raise exception 'Need % MMR to join (you have %)', c.min_mmr, my_mmr;
-  end if;
 
   update public.clan_members
     set status = 'joined', joined_at = now(), role = 'member'

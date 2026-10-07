@@ -79,12 +79,7 @@ begin
     raise exception 'Profile missing';
   end if;
 
-  -- Free MMR unlocks: friend must meet MMR; otherwise gifter pays the coin price.
-  if c.price = 0 then
-    if (select coalesce(mmr, 1200) from public.profiles where id = p_friend_id) < c.min_mmr then
-      raise exception 'Friend needs % MMR for this unlock', c.min_mmr;
-    end if;
-  else
+  if c.price > 0 then
     if coalesce(buyer.forge_coins, 0) < c.price then
       raise exception 'Not enough Forge Coins to gift this';
     end if;
@@ -112,7 +107,7 @@ grant execute on function public.gift_cosmetic(uuid, text) to authenticated;
 -- Animated legendary/epic frames (client CSS). Seed an extra animated frame.
 insert into public.cosmetics (id, slot, name, description, price, min_mmr, rarity, style_key) values
   ('frame_pulse', 'frame', 'Pulse Ring', 'Animated neon pulse frame', 200, 0, 'legendary', 'pulse'),
-  ('frame_spin', 'frame', 'Orbit Ring', 'Animated rotating gold orbit', 220, 1800, 'legendary', 'spin')
+  ('frame_spin', 'frame', 'Orbit Ring', 'Animated rotating gold orbit', 220, 0, 'legendary', 'spin')
 on conflict (id) do update set
   name = excluded.name,
   description = excluded.description,

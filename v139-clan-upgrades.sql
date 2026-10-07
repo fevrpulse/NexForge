@@ -206,8 +206,7 @@ language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
   n text; t text; cid uuid;
-  min_req integer := greatest(0, least(5000, coalesce(p_min_mmr, 0)));
-  my_mmr integer;
+  min_req integer := 0;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
   n := nullif(trim(coalesce(p_name, '')), '');
@@ -220,11 +219,6 @@ begin
   end if;
   if exists (select 1 from public.clans where tag = t) then
     raise exception 'That clan tag is taken';
-  end if;
-
-  select coalesce(mmr, 1200) into my_mmr from public.profiles where id = uid;
-  if my_mmr < min_req then
-    raise exception 'Your MMR (%) is below this clan requirement (%)', my_mmr, min_req;
   end if;
 
   delete from public.clan_members where user_id = uid and status = 'invited';
@@ -260,7 +254,7 @@ begin
   if cid is null then raise exception 'Only the clan owner can edit settings'; end if;
 
   update public.clans set
-    min_mmr = case when p_min_mmr is null then min_mmr else greatest(0, least(5000, p_min_mmr)) end,
+    min_mmr = 0,
     is_open = case when p_is_open is null then is_open else p_is_open end,
     description = case
       when p_description is null then description
@@ -310,7 +304,6 @@ language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
   c public.clans;
-  my_mmr integer;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
   if p_clan_id is null then raise exception 'Clan required'; end if;
@@ -321,11 +314,6 @@ begin
 
   if exists (select 1 from public.clan_members where user_id = uid and status = 'joined') then
     raise exception 'Leave your current clan first';
-  end if;
-
-  select coalesce(mmr, 1200) into my_mmr from public.profiles where id = uid;
-  if my_mmr < c.min_mmr then
-    raise exception 'Need % MMR to join (you have %)', c.min_mmr, my_mmr;
   end if;
 
   delete from public.clan_members where user_id = uid and status = 'invited';
@@ -349,7 +337,6 @@ language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
   c public.clans;
-  my_mmr integer;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
   if not exists (
@@ -368,10 +355,6 @@ begin
 
   select * into c from public.clans where id = p_clan_id;
   if not found then raise exception 'Clan not found'; end if;
-  select coalesce(mmr, 1200) into my_mmr from public.profiles where id = uid;
-  if my_mmr < c.min_mmr then
-    raise exception 'Need % MMR to join (you have %)', c.min_mmr, my_mmr;
-  end if;
 
   update public.clan_members
     set status = 'joined', joined_at = now(), role = 'member'
@@ -460,7 +443,6 @@ declare
   uid uuid := auth.uid();
   cid uuid;
   c public.clans;
-  friend_mmr integer;
 begin
   if uid is null then raise exception 'Not authenticated'; end if;
   if p_friend_id is null or p_friend_id = uid then raise exception 'Invalid invite target'; end if;
@@ -484,11 +466,6 @@ begin
   end if;
   if exists (select 1 from public.clan_members where user_id = p_friend_id and status = 'invited') then
     raise exception 'That player already has a clan invite';
-  end if;
-
-  select coalesce(mmr, 1200) into friend_mmr from public.profiles where id = p_friend_id;
-  if friend_mmr < c.min_mmr then
-    raise exception 'That player needs % MMR (has %)', c.min_mmr, friend_mmr;
   end if;
 
   insert into public.clan_members (clan_id, user_id, role, status, invited_by)

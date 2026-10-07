@@ -12,18 +12,18 @@ alter table public.cosmetics
 
 update public.cosmetics
 set
-  description = 'Animated neon pulse frame — earn it at Elite MMR or buy it instantly',
+  description = 'Animated neon pulse frame',
   price = 16000,
-  min_mmr = 2800,
+  min_mmr = 0,
   real_money_cents = 599,
   rarity = 'legendary'
 where id = 'frame_pulse';
 
 update public.cosmetics
 set
-  description = 'Animated gold orbit — earn it at Legend MMR or buy it instantly',
+  description = 'Animated gold orbit',
   price = 25000,
-  min_mmr = 3200,
+  min_mmr = 0,
   real_money_cents = 699,
   rarity = 'legendary'
 where id = 'frame_spin';
@@ -43,8 +43,7 @@ create table if not exists public.cosmetic_payments (
 alter table public.cosmetic_payments enable row level security;
 revoke all on table public.cosmetic_payments from anon, authenticated;
 
--- Gifts must respect the recipient's MMR requirement. Stripe is the only path
--- that bypasses MMR; gifting with Forge Coins must not become a loophole.
+-- Gifts charge Forge Coins. Cash checkout is separate and does not spend coins.
 create or replace function public.gift_cosmetic(p_friend_id uuid, p_cosmetic_id text)
 returns json
 language plpgsql
@@ -54,7 +53,6 @@ as $$
 declare
   c public.cosmetics;
   buyer public.profiles;
-  recipient_mmr integer;
   is_friend boolean := false;
 begin
   if auth.uid() is null then
@@ -88,15 +86,8 @@ begin
     raise exception 'Friend already owns this cosmetic';
   end if;
 
-  select coalesce(mmr, 1200)
-    into recipient_mmr
-    from public.profiles
-    where id = p_friend_id;
-  if not found then
+  if not exists (select 1 from public.profiles where id = p_friend_id) then
     raise exception 'Friend profile missing';
-  end if;
-  if recipient_mmr < c.min_mmr then
-    raise exception 'Friend needs % MMR for this unlock', c.min_mmr;
   end if;
 
   select * into buyer from public.profiles where id = auth.uid() for update;

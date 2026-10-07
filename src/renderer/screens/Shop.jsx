@@ -226,11 +226,7 @@ export default function Shop() {
 
   function isOwned(item) {
     if (owned.has(item.id)) return true;
-    return !(item.price > 0) && !(item.min_mmr > 0);
-  }
-
-  function mmrShort(item) {
-    return item.min_mmr > 0 && (profile?.mmr ?? 1200) < item.min_mmr;
+    return !(item.price > 0);
   }
 
   async function buyOrEquip(item) {
@@ -428,7 +424,6 @@ export default function Shop() {
           </div>
         ) : filtered.map((item) => {
           const ownedItem = isOwned(item);
-          const coinLocked = !ownedItem && mmrShort(item);
           const canBuy = item.price === 0 || coins >= item.price;
           const showGift = ownedItem || canBuy;
           const cashPrice = (item.real_money_cents || 0) / 100;
@@ -463,7 +458,7 @@ export default function Shop() {
               <div className="shop-card-meta">
                 <span className={`rarity-pill rarity-${item.rarity}`}>{item.rarity}</span>
                 <span className={`shop-price-tag ${item.price > 0 ? 'coins' : 'free'}`}>
-                  {item.price > 0 ? `${item.price} coins` : item.min_mmr > 0 ? `${item.min_mmr} MMR` : 'Free'}
+                  {item.price > 0 ? `${item.price} coins` : 'Free'}
                 </span>
                 {cashPrice > 0 && (
                   <span className="shop-price-tag cash">${cashPrice.toFixed(2)}</span>
@@ -473,18 +468,16 @@ export default function Shop() {
                 <button
                   className={`action-btn ${active ? 'ghost' : 'primary'} full`}
                   style={{ flex: 1 }}
-                  disabled={!!busyId || coinLocked || (item.price > 0 && !ownedItem && coins < item.price)}
+                  disabled={!!busyId || (item.price > 0 && !ownedItem && coins < item.price)}
                   onClick={() => buyOrEquip(item)}
                 >
                   {busyId === item.id && !giftingThis
                     ? '…'
                     : active
                       ? 'Equipped'
-                      : coinLocked
-                        ? `Need ${item.min_mmr} MMR`
-                        : ownedItem || item.price === 0
-                          ? 'Equip'
-                          : `Buy · ${item.price}`}
+                      : ownedItem || item.price === 0
+                        ? 'Equip'
+                        : `Buy · ${item.price}`}
                 </button>
                 {showGift && (
                   <button

@@ -2,7 +2,7 @@
 
 Windows app for game settings, a click-through stats overlay, friends, squads, and a cosmetics shop.
 
-**Public release: 5.7.2.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
+**Public release: 5.7.3.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
 
 The download is a small setup file. Run it and it fetches the latest installer. It installs for your Windows user (no administrator) and later updates install from inside the app.
 
@@ -56,12 +56,13 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 12. **`v128-blocks-privacy-profile.sql`** (block/report, hide match history privacy, richer friend profiles)
 13. **`cosmetics-avatars.sql`** (Forge Coins, cosmetics shop RPCs, public `avatars` storage bucket)
 14. **`v129-cosmetics-extras.sql`** (match-win coin rewards, gift cosmetics RPC, avatar presets)
-15. **`premium-ring-payments.sql`** (high-MMR ring pricing, cash prices, Stripe payment audit)
+15. **`premium-ring-payments.sql`** (ring pricing, cash prices, Stripe payment audit)
 16. **`match-result-log.sql`** (casual/session W/L logging via `log_match_result`, match `source` tags)
 17. **`cosmetic-cash-prices.sql`** (rarity-based USD price tags for shop cosmetics)
 18. **`v165-more-cosmetics.sql`** (extra frames, banners, and nameplates with coin and cash price tags)
 19. **`v166-cosmetic-prices.sql`** (higher Forge Coin prices, cheaper cash tags)
 20. **`v167-forge-trial.sql`** (Forge mint trial; closes the free daily claim and match-win coin drip)
+21. **`v168-clear-mmr-gates.sql`** (shop and clan joins no longer require a rank)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 
