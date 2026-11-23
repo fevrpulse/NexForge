@@ -1,0 +1,19 @@
+{
+  "name": "nexforge-discord-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NexForge Discord bot: welcome members, a /stats placeholder, and channel posts.",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy": "node src/deploy-commands.js",
+    "test": "node src/check.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^18.0.5"
+  }
+}

@@ -23,6 +23,14 @@ Stack: Electron main/preload (`main.js`, `preload.js`, `game-tracker.js`) + Reac
 
 Requirements: Windows recommended for game-process tracking; Node 20+.
 
+## Discord bot
+
+A separate Discord bot lives in `discord-bot/` (join greeting and optional role, `/stats` placeholder, admin `/post`). It is not part of the Electron installer. Setup, the invite URL, and how to run it are in `discord-bot/README.md`.
+
+```bash
+cd discord-bot && npm install && npm start
+```
+
 ## Build / release
 
 ```bash
