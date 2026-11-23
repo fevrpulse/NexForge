@@ -172,7 +172,8 @@ export default function PartyPanel({ compact = false }) {
             <PlayerAvatar
               profile={{
                 gamer_tag: m.gamer_tag,
-                avatar_url: m.avatar_url,
+                avatar_path: m.avatar_path,
+                avatar_preset: m.avatar_preset,
                 equipped_frame: m.equipped_frame,
               }}
               size={compact ? 28 : 32}
@@ -203,7 +204,7 @@ export default function PartyPanel({ compact = false }) {
         {!compact && invited.map((m) => (
           <div className="party-member-row pending" key={`inv-${m.user_id}`}>
             <PlayerAvatar
-              profile={{ gamer_tag: m.gamer_tag, avatar_url: m.avatar_url, equipped_frame: m.equipped_frame }}
+              profile={{ gamer_tag: m.gamer_tag, avatar_path: m.avatar_path, avatar_preset: m.avatar_preset, equipped_frame: m.equipped_frame }}
               size={32}
             />
             <div className="party-member-info">

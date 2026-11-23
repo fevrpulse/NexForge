@@ -349,6 +349,14 @@ export function NexForgeProvider({ children }) {
     return loadProfileFor(user);
   }, [user, loadProfileFor]);
 
+  // A start with no network leaves the profile empty; load it once the cloud is back.
+  const wasOfflineRef = useRef(false);
+  useEffect(() => {
+    const cameBack = wasOfflineRef.current && !cloudOffline;
+    wasOfflineRef.current = cloudOffline;
+    if (cameBack && user && !profile && !guestMode) loadProfileFor(user).catch(() => {});
+  }, [cloudOffline, user, profile, guestMode, loadProfileFor]);
+
   const enterGuest = useCallback(() => {
     setGuestMode(true);
     setUser(null);

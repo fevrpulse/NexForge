@@ -98,6 +98,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
   let ringTimer = null;
   let muted = false;
   let deafened = false;
+  let mutedBeforeDeafen = false;
   let iceServers = null;
   let iceServersExpireAt = 0;
   let detail = '';
@@ -304,23 +305,32 @@ export function createVoiceCallController({ userId, onState, onError }) {
   async function ensurePeerIce(session) {
     if (!session.callId) return null;
     if (session.iceChannel) return session.iceChannel;
-    const ch = sb.channel(`voice-ice-${session.callId}`, {
-      config: { broadcast: { ack: false, self: false } },
-    });
-    ch.on('broadcast', { event: 'candidates' }, ({ payload }) => {
-      if (!payload || payload.from === userId) return;
-      const list = payload.candidates || (payload.candidate ? [payload.candidate] : []);
-      for (const c of list) applyRemoteCandidate(session, c);
-    });
-    await new Promise((resolve) => {
-      ch.subscribe((status) => {
-        if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          resolve(status);
-        }
+    // sb.channel() hands back the same channel for the same topic, and a second subscribe() never calls back.
+    if (session.icePromise) return session.icePromise;
+    session.icePromise = (async () => {
+      const ch = sb.channel(`voice-ice-${session.callId}`, {
+        config: { broadcast: { ack: false, self: false } },
       });
-    });
-    session.iceChannel = ch;
-    return ch;
+      ch.on('broadcast', { event: 'candidates' }, ({ payload }) => {
+        if (!payload || payload.from === userId) return;
+        const list = payload.candidates || (payload.candidate ? [payload.candidate] : []);
+        for (const c of list) applyRemoteCandidate(session, c);
+      });
+      await new Promise((resolve) => {
+        ch.subscribe((status) => {
+          if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            resolve(status);
+          }
+        });
+      });
+      session.iceChannel = ch;
+      return ch;
+    })();
+    try {
+      return await session.icePromise;
+    } finally {
+      session.icePromise = null;
+    }
   }
 
   function queueIceCandidate(session, candidate) {
@@ -414,11 +424,19 @@ export function createVoiceCallController({ userId, onState, onError }) {
       }
       if (ev.track.kind === 'video') {
         session.remoteVideoTrack = ev.track;
-        ev.track.onended = () => {
+        const clearShare = () => {
           if (session.remoteVideoTrack === ev.track) {
             session.remoteVideoTrack = null;
             emit();
           }
+        };
+        // A remote track does not end when the sharer stops; it mutes after the renegotiation.
+        ev.track.onended = clearShare;
+        ev.track.onmute = clearShare;
+        ev.track.onunmute = () => {
+          if (ev.track.readyState !== 'live' || session.remoteVideoTrack === ev.track) return;
+          session.remoteVideoTrack = ev.track;
+          emit();
         };
         emit();
       }
@@ -540,7 +558,8 @@ export function createVoiceCallController({ userId, onState, onError }) {
       try { session.audioEl.remove(); } catch { /* ignore */ }
     }
     if (session.callId) {
-      await sb.from('voice_call_signals').delete().eq('call_id', session.callId).then(() => {}).catch(() => {});
+      // Only rows sent to us; deleting our own hangup can stop Realtime from delivering it.
+      await sb.from('voice_call_signals').delete().eq('call_id', session.callId).eq('recipient_id', userId).then(() => {}, () => {});
     }
     peers.delete(peerId);
     if (mode === 'channel') refreshChannelDetail();
@@ -711,6 +730,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
         await dropPeer(from, { notify: false });
         return;
       }
+      if (!peers.has(from) && pendingDm?.peerId !== from) return;
       if (pendingDm?.callId && cid && pendingDm.callId !== cid) return;
       const session = peers.get(from);
       if (session?.callId && cid && session.callId !== cid) return;
@@ -784,8 +804,12 @@ export function createVoiceCallController({ userId, onState, onError }) {
   function setDeafened(next) {
     const wasDeafened = deafened;
     deafened = !!next;
-    if (deafened) setMuted(true);
-    else if (wasDeafened) setMuted(false);
+    if (deafened && !wasDeafened) {
+      mutedBeforeDeafen = muted;
+      setMuted(true);
+    } else if (!deafened && wasDeafened) {
+      setMuted(mutedBeforeDeafen);
+    }
     applyDeafenedToAll();
     emit();
   }
@@ -863,11 +887,15 @@ export function createVoiceCallController({ userId, onState, onError }) {
   }
 
   async function stopScreenShare() {
+    const changed = [];
     for (const session of peers.values()) {
       if (!session.pc || !screenTrack) continue;
       const sender = session.pc.getSenders().find((s) => s.track === screenTrack);
       if (sender) {
-        try { session.pc.removeTrack(sender); } catch { /* ignore */ }
+        try {
+          session.pc.removeTrack(sender);
+          changed.push(session);
+        } catch { /* ignore */ }
       }
     }
     if (screenTrack) {
@@ -879,6 +907,10 @@ export function createVoiceCallController({ userId, onState, onError }) {
     screenTrack = null;
     screenStream = null;
     emit();
+    for (const session of changed) {
+      if (peers.get(session.peerId) !== session) continue;
+      await sendOffer(session, { renegotiate: true }).catch(() => {});
+    }
   }
 
   async function startChannelVoice(chId, peerIds = []) {
@@ -946,6 +978,7 @@ export function createVoiceCallController({ userId, onState, onError }) {
     channelId = null;
     muted = false;
     deafened = false;
+    mutedBeforeDeafen = false;
     detail = '';
     setState('idle', '');
   }

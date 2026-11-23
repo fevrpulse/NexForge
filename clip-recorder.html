@@ -55,7 +55,11 @@
     return types.find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
   }
 
+  // Bumped by every stop and start, so a capture that finishes after a newer request is thrown away.
+  let captureGen = 0;
+
   function stopTracks() {
+    captureGen += 1;
     const dying = recorder;
     recorder = null;
     if (dying) {
@@ -79,16 +83,23 @@
     stopTracks();
     seconds = clampSeconds(payload?.seconds);
     const video = { frameRate: 12, width: 1280, height: 720 };
+    const gen = captureGen;
+    let captured;
     try {
-      stream = await navigator.mediaDevices.getDisplayMedia({ video, audio: true });
+      captured = await navigator.mediaDevices.getDisplayMedia({ video, audio: true });
     } catch {
       try {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video, audio: false });
+        captured = await navigator.mediaDevices.getDisplayMedia({ video, audio: false });
       } catch (err) {
-        api.error(err?.message || 'Screen capture was blocked');
+        if (gen === captureGen) api.error(err?.message || 'Screen capture was blocked');
         return;
       }
     }
+    if (gen !== captureGen) {
+      captured.getTracks().forEach((t) => { try { t.stop(); } catch { /* ignore */ } });
+      return;
+    }
+    stream = captured;
     const opts = { videoBitsPerSecond: 1600000 };
     const mime = mimeType();
     if (mime) opts.mimeType = mime;

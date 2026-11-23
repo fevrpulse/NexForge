@@ -65,7 +65,7 @@ export default function Matchmaking() {
             && new Date(d.created_at).getTime() < cutoff
           ));
           if (staleMine) {
-            await sb.rpc('cancel_duel', { p_duel_id: staleMine.id }).catch(() => {});
+            await sb.rpc('cancel_duel', { p_duel_id: staleMine.id }).then(() => {}, () => {});
           }
         }
       }

@@ -155,7 +155,8 @@ export default function ForgeTrial({ refreshProfile, showToast, reportCloudError
       if (error) throw error;
       const schedule = Array.isArray(data?.schedule) ? data.schedule : forgeTrialSchedule();
       scheduleRef.current = schedule;
-      const age = Math.max(0, Date.now() - Date.parse(data.started_at));
+      // Only a resumed trial has a head start; using the PC clock for a new one loses beats when it runs fast.
+      const age = data.resumed ? Math.max(0, Date.now() - Date.parse(data.started_at)) : 0;
       startRef.current = performance.now() - age;
       hitsRef.current = [];
       submittedRef.current = false;

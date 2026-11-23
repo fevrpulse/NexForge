@@ -197,6 +197,7 @@
     }
 
     function loadAiMsgs() {
+      aiMsgs = [{ role: 'assistant', content: AI_WELCOME }];
       if (!uid) return;
       try {
         const raw = localStorage.getItem(`nexpanion-chat:${uid}`);
@@ -511,6 +512,9 @@
       if (pollId) clearInterval(pollId);
       await sb.auth.signOut();
       home = null;
+      uid = null;
+      aiMsgs = [{ role: 'assistant', content: AI_WELCOME }];
+      $('ai-body').innerHTML = '';
       setAuthed(false);
     };
 

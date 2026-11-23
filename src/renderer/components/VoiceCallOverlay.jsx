@@ -53,8 +53,9 @@ export function VoiceCallProvider({ children }) {
     }
   }, []);
 
+  // Reads DND from the ref: the call controller effect depends on this, and rebuilding it hangs up the call.
   const playRingtone = useCallback(() => {
-    if (dndEnabled || getAppPref('callSounds') === false) return;
+    if (dndRef.current || getAppPref('callSounds') === false) return;
     stopRingtone();
     try {
       const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -88,7 +89,7 @@ export function VoiceCallProvider({ children }) {
     } catch {
       /* ignore */
     }
-  }, [dndEnabled, stopRingtone]);
+  }, [stopRingtone]);
 
   useEffect(() => {
     if (!user?.id) {

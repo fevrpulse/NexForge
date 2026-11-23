@@ -205,6 +205,14 @@ class GameTracker extends EventEmitter {
     this._ticking = true;
     try {
       const found = await this._findGameProcess();
+      if (!this._running) return; // stopped during the scan
+      if (found === undefined) {
+        // One slow or failed scan is not proof the game closed.
+        this._scanFails = (this._scanFails || 0) + 1;
+        if (this._scanFails < 3) return;
+      } else {
+        this._scanFails = 0;
+      }
       if (!found) {
         if (this._session) this._endSession();
         this._cpuPrev = null;
@@ -355,7 +363,8 @@ Get-Process -ErrorAction SilentlyContinue |
       return hits[0];
     } catch (err) {
       console.error('Process scan failed:', err.message || err);
-      return null;
+      // undefined = the scan itself failed; null = the scan worked and no game is open.
+      return undefined;
     }
   }
 

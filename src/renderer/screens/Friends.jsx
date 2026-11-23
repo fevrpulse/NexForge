@@ -50,13 +50,21 @@ function isOnline(p) {
   return Date.now() - new Date(p.last_seen_at).getTime() < ONLINE_WINDOW_MS;
 }
 
-function mergeConversation(prev, incoming) {
+// With `complete`, rows missing from `incoming` inside the fetched time range were deleted.
+// Older rows (from "Load earlier") and newer ones (sent while the fetch ran) are kept.
+function mergeConversation(prev, incoming, { complete = false, fullHistory = false } = {}) {
   const byId = new Map();
   for (const m of incoming || []) {
     if (m?.id != null) byId.set(m.id, m);
   }
+  const list = incoming || [];
+  const lo = !complete || !list.length ? Infinity : (fullHistory ? -Infinity : new Date(list[0].created_at).getTime());
+  const hi = !complete || !list.length ? -Infinity : new Date(list[list.length - 1].created_at).getTime();
   for (const m of prev || []) {
-    if (m?.id != null && !byId.has(m.id)) byId.set(m.id, m);
+    if (m?.id == null || byId.has(m.id)) continue;
+    const t = new Date(m.created_at).getTime();
+    if (t >= lo && t <= hi) continue;
+    byId.set(m.id, m);
   }
   return [...byId.values()].sort((a, b) => {
     const ta = new Date(a.created_at).getTime();
@@ -302,7 +310,7 @@ export default function Friends() {
       const incoming = (data || []).slice().reverse();
       setHasMore((data || []).length >= 200);
       // Keep just-sent rows if an in-flight poll started before the insert landed.
-      setMessages((prev) => mergeConversation(prev, incoming));
+      setMessages((prev) => mergeConversation(prev, incoming, { complete: true, fullHistory: (data || []).length < 200 }));
       const ids = (data || []).map((m) => m.id);
       if (ids.length) {
         const { data: reacts } = await sb
@@ -597,7 +605,7 @@ export default function Friends() {
     try {
       const { data, error } = await sb
         .from('profiles')
-        .select('id,gamer_tag,display_name,mmr,main_game')
+        .select('id,gamer_tag,display_name,mmr,main_game,platform')
         .ilike('gamer_tag', `%${q}%`)
         .neq('id', myId)
         .limit(6);

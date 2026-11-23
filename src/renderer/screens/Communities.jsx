@@ -291,7 +291,7 @@ export default function Communities() {
     const chid = voiceChannelRef.current;
     if (!chid) return;
     voiceChannelRef.current = null;
-    sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+    sb.rpc('leave_community_voice', { p_channel_id: chid }).then(() => {}, () => {});
     loadVoiceHere(chid);
   }, [voice?.call?.state, voice?.call?.mode, loadVoiceHere]);
 
@@ -425,7 +425,7 @@ export default function Communities() {
         voiceChannelRef.current = chid;
         showToast(`Joined ${activeChannel.name}`, 'success');
       } catch (err) {
-        await sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+        await sb.rpc('leave_community_voice', { p_channel_id: chid }).then(() => {}, () => {});
         await voice.leaveChannelVoice?.().catch(() => {});
         voiceChannelRef.current = null;
         throw err;
@@ -437,7 +437,7 @@ export default function Communities() {
     const chid = voiceChannelRef.current;
     if (!chid) return;
     voiceChannelRef.current = null;
-    sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+    sb.rpc('leave_community_voice', { p_channel_id: chid }).then(() => {}, () => {});
     voiceRef.current?.leaveChannelVoice?.().catch(() => {});
     voiceRef.current?.hangup?.().catch(() => {});
   }
@@ -464,7 +464,7 @@ export default function Communities() {
   useEffect(() => () => {
     const chid = voiceChannelRef.current;
     if (!chid) return;
-    sb.rpc('leave_community_voice', { p_channel_id: chid }).catch(() => {});
+    sb.rpc('leave_community_voice', { p_channel_id: chid }).then(() => {}, () => {});
     voiceRef.current?.leaveChannelVoice?.().catch(() => {});
     voiceRef.current?.hangup?.().catch(() => {});
     voiceChannelRef.current = null;

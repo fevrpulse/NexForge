@@ -529,6 +529,8 @@
     let signedIn = false;
     let overlayState = {};
     const AI_HISTORY_KEY = 'nf-overlay-ai-history';
+    // The HUD chat belongs to whoever was signed in; another account on this PC starts fresh.
+    const AI_OWNER_KEY = 'nf-overlay-ai-owner';
     const AI_HISTORY_MAX = 16;
     let aiHistory = [];
     try {
@@ -988,6 +990,12 @@
       overlayState = { ...overlayState, ...state };
       if (Object.prototype.hasOwnProperty.call(state, 'durationSec')) durationAt = Date.now();
       signedIn = !!overlayState.signedIn;
+      if (signedIn && overlayState.tag) {
+        let owner = null;
+        try { owner = localStorage.getItem(AI_OWNER_KEY); } catch { /* ignore */ }
+        if (owner && owner !== overlayState.tag) clearAiHistory();
+        try { localStorage.setItem(AI_OWNER_KEY, overlayState.tag); } catch { /* ignore */ }
+      }
       const game = overlayState.game || '';
       document.getElementById('session-game').textContent = game || 'No game tracked';
       document.getElementById('strip-game').textContent = game || 'Idle';

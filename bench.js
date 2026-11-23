@@ -387,7 +387,9 @@ function setEase(job, on) {
   } else if (!on && job.eased) {
     job.eased = false;
     job.mark = Date.now();
-    pump(job);
+    // A pass can finish during the rest; noteIdle skips beginPass while eased, so start it here.
+    if (!job.queue.length && job.inflight === 0) beginPass(job);
+    else pump(job);
   }
   return { eased: job.eased };
 }

@@ -16,6 +16,4 @@ jobs:
           node-version: '20'
           cache: npm
       - run: npm ci
-      - run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: npm run build -- --publish never

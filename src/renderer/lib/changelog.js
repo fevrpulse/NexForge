@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.7.5',
+    highlights: [
+      'Party member photos show again. Creating or joining a party no longer fails on a missing avatar field.',
+      'Voice calls keep your mute state when you undeafen, reconnect ICE more reliably, and clear a stopped screen share for the other person.',
+      'Game tracking no longer ends a session after one failed process scan, and a Forge trial that starts fresh no longer skips early beats.',
+    ],
+  },
+  {
     version: '5.7.4',
     highlights: [
       'The Benchmark tab is rebuilt. CPU multi core, CPU single core, and GPU each have their own Start button and score, and the scene renders in squares you can watch.',
