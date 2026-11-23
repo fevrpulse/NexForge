@@ -2,7 +2,7 @@
 
 Windows app for game settings, a click-through stats overlay, friends, squads, and a cosmetics shop.
 
-**Public release: 5.7.3.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
+**Public release: 5.7.4.** Install from the website: [fevrpulse.github.io/NexForge](https://fevrpulse.github.io/NexForge/).
 
 The download is a small setup file. Run it and it fetches the latest installer. It installs for your Windows user (no administrator) and later updates install from inside the app.
 
@@ -63,6 +63,9 @@ Apply SQL in the Supabase SQL editor in this order if starting fresh:
 19. **`v166-cosmetic-prices.sql`** (higher Forge Coin prices, cheaper cash tags)
 20. **`v167-forge-trial.sql`** (Forge mint trial; closes the free daily claim and match-win coin drip)
 21. **`v168-clear-mmr-gates.sql`** (shop and clan joins no longer require a rank)
+22. **`v164-bench-leaderboard.sql`** (benchmark leaderboard for the multi core test)
+23. **`v169-bench-rankings.sql`** (single core and GPU rankings; needs step 22)
+24. **`v170-remove-clans.sql`** (turns clans off for older apps, stops clan coin rewards, and clears clan tags)
 
 Database migrations remain SQL (Postgres). App UI/logic is JavaScript / React.
 

@@ -53,12 +53,13 @@ let mainWindow = null;
 bench.setEmitter((tile) => {
   if (!mainWindow || mainWindow.isDestroyed() || !tile || tile.aborted) return;
   mainWindow.webContents.send('bench-tile', {
+    kind: tile.kind === 'start' ? 'start' : 'done',
     x: tile.x,
     y: tile.y,
     w: tile.w,
     h: tile.h,
     pass: tile.pass,
-    pixels: tile.pixels,
+    pixels: tile.kind === 'start' ? null : tile.pixels,
   });
 });
 let overlaySystem = null;

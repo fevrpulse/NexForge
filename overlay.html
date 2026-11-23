@@ -1108,7 +1108,7 @@
       const youTag = overlayState.tag || 'Player';
       document.getElementById('you-tag').textContent = youTag;
       document.getElementById('you-sub').textContent = signedIn
-        ? [overlayState.clanTag ? '[' + overlayState.clanTag + ']' : null, overlayState.mainGame || null].filter(Boolean).join(' · ') || 'Online'
+        ? overlayState.mainGame || 'Online'
         : 'Sign in to fill this out.';
       document.getElementById('you-stats').innerHTML =
         `<div class="stat-row"><span>Unread</span><b>${overlayState.unread || 0}</b></div>` +

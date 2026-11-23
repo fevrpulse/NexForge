@@ -118,7 +118,7 @@ export default function Communities() {
       if (uids.length) {
         const { data: profs } = await sb
           .from('profiles')
-          .select('id,gamer_tag,display_name,avatar_path,equipped_frame,clan_tag,mmr')
+          .select('id,gamer_tag,display_name,avatar_path,equipped_frame,mmr')
           .in('id', uids);
         const map = {};
         for (const p of profs || []) map[p.id] = p;

@@ -317,15 +317,6 @@
             <h2>In party</h2>
             <p class="muted">${esc(party.game || 'Party')} · ${(party.members || []).filter(m => m.status === 'joined').length} joined</p>
           </div>` : ''}
-        ${(home.clan && home.clan.my_status === 'invited') ? `
-          <div class="card">
-            <h2>Clan invite</h2>
-            <p class="muted">[${esc(home.clan.tag)}] ${esc(home.clan.name)}</p>
-            <div class="actions">
-              <button class="btn" type="button" data-clan-accept="${esc(home.clan.id)}">Accept</button>
-              <button class="btn ghost" type="button" data-clan-decline="${esc(home.clan.id)}">Decline</button>
-            </div>
-          </div>` : ''}
       `;
     }
 
@@ -549,18 +540,6 @@
       const decline = t.getAttribute('data-party-decline');
       if (decline) {
         await sb.rpc('respond_party_invite', { p_party_id: decline, p_accept: false });
-        await refreshHome();
-        return;
-      }
-      const clanA = t.getAttribute('data-clan-accept');
-      if (clanA) {
-        await sb.rpc('respond_clan_invite', { p_clan_id: clanA, p_accept: true });
-        await refreshHome();
-        return;
-      }
-      const clanD = t.getAttribute('data-clan-decline');
-      if (clanD) {
-        await sb.rpc('respond_clan_invite', { p_clan_id: clanD, p_accept: false });
         await refreshHome();
         return;
       }

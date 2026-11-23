@@ -257,7 +257,7 @@ export default function Friends() {
       }
       const otherIds = [...new Set(list.map((r) => (r.requester_id === myId ? r.addressee_id : r.requester_id)))];
       if (otherIds.length) {
-        const fullSelect = 'id,gamer_tag,display_name,mmr,main_game,platform,last_seen_at,playing_game,custom_status,avatar_path,equipped_frame,equipped_banner,equipped_nameplate,clan_tag';
+        const fullSelect = 'id,gamer_tag,display_name,mmr,main_game,platform,last_seen_at,playing_game,custom_status,avatar_path,equipped_frame,equipped_banner,equipped_nameplate';
         let { data: profs, error: pErr } = await sb.from('profiles').select(fullSelect).in('id', otherIds);
         if (pErr) {
           ({ data: profs, error: pErr } = await sb

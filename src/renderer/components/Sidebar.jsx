@@ -13,7 +13,6 @@ const PRIMARY_NAV = [
 const SECONDARY_NAV = [
   { id: 'friends', label: 'Friends' },
   { id: 'communities', label: 'Communities' },
-  { id: 'clans', label: 'Clans' },
   { id: 'shop', label: 'Shop' },
   { id: 'profile', label: 'My Profile' },
   { id: 'analytics', label: 'Analytics' },

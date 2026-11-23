@@ -113,7 +113,8 @@ void main() {
   vec2 uv = gl_FragCoord.xy / vec2(${WIDTH}.0, ${HEIGHT}.0);
   float aspect = ${WIDTH}.0 / ${HEIGHT}.0;
   float sx = (uv.x * 2.0 - 1.0) * aspect * 0.78;
-  float sy = (1.0 - uv.y * 2.0) * 0.78;
+  // gl_FragCoord.y starts at the bottom row, so this matches the CPU scene's top-down rows.
+  float sy = (uv.y * 2.0 - 1.0) * 0.78;
   vec3 rd = normalize(vec3(sx, -0.1763 + sy * 0.9844, -0.9844 - sy * 0.1763));
   vec3 color = vec3(0.0);
   for (int i = 0; i < 24; i++) {

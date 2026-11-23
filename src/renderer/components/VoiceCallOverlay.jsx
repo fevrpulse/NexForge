@@ -205,7 +205,7 @@ export function VoiceCallProvider({ children }) {
     }
     let active = true;
     sb.from('profiles')
-      .select('id,gamer_tag,display_name,avatar_path,equipped_frame,clan_tag,mmr')
+      .select('id,gamer_tag,display_name,avatar_path,equipped_frame,mmr')
       .eq('id', peerId)
       .maybeSingle()
       .then(({ data }) => {
@@ -222,7 +222,7 @@ export function VoiceCallProvider({ children }) {
     }
     let active = true;
     sb.from('profiles')
-      .select('id,gamer_tag,display_name,avatar_path,equipped_frame,clan_tag,mmr')
+      .select('id,gamer_tag,display_name,avatar_path,equipped_frame,mmr')
       .in('id', ids)
       .then(({ data }) => {
         if (!active) return;

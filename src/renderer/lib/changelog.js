@@ -4,6 +4,14 @@
  */
 export const CHANGELOG = [
   {
+    version: '5.7.4',
+    highlights: [
+      'The Benchmark tab is rebuilt. CPU multi core, CPU single core, and GPU each have their own Start button and score, and the scene renders in squares you can watch.',
+      'The GPU benchmark no longer draws the scene upside down.',
+      'Clans are removed. Clan tags no longer show next to names.',
+    ],
+  },
+  {
     version: '5.7.3',
     highlights: [
       'Shop items do not ask for a rank. Buy them with coins or a card, or equip the free ones.',

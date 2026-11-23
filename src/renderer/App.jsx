@@ -15,7 +15,6 @@ import Analytics from './screens/Analytics.jsx';
 import Squad from './screens/Squad.jsx';
 import Friends from './screens/Friends.jsx';
 import Shop from './screens/Shop.jsx';
-import Clans from './screens/Clans.jsx';
 import Communities from './screens/Communities.jsx';
 import Settings from './screens/Settings.jsx';
 import Optimize from './screens/Optimize.jsx';
@@ -30,7 +29,6 @@ const SCREEN_META = {
   matchmaking: { title: 'Matchmaking', badge: 'FIND MATCH' },
   friends: { title: 'Friends', badge: 'SOCIAL' },
   communities: { title: 'Communities', badge: 'LOUNGES' },
-  clans: { title: 'Clans', badge: 'CREW' },
   shop: { title: 'Cosmetics Shop', badge: 'FORGE' },
   profile: { title: 'My Profile', badge: 'MY ACCOUNT' },
   analytics: { title: 'Analytics', badge: 'STATS' },
@@ -45,7 +43,6 @@ const SCREEN_COMPONENTS = {
   matchmaking: Matchmaking,
   friends: Friends,
   communities: Communities,
-  clans: Clans,
   shop: Shop,
   profile: Profile,
   analytics: Analytics,

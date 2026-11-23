@@ -6,20 +6,18 @@ import PlayerAvatar, { GamerTag } from '../components/PlayerAvatar.jsx';
 
 const COLORS = ['#C9FF00', '#3B7EFF', '#FF8C42', '#4ade80', '#9B5CFF'];
 
-const PROFILE_COLS = 'id,gamer_tag,display_name,mmr,main_game,platform,avatar_path,avatar_preset,equipped_frame,equipped_banner,equipped_nameplate,clan_tag';
+const PROFILE_COLS = 'id,gamer_tag,display_name,mmr,main_game,platform,avatar_path,avatar_preset,equipped_frame,equipped_banner,equipped_nameplate';
 
 export default function Leaderboard() {
-  const { user, profile, guestMode, setCloudOffline, reportCloudError, activeSeason, clan } = useNexForge();
-  const [mode, setMode] = useState('season'); // 'season' | 'lifetime' | 'friends' | 'clans'
+  const { user, profile, guestMode, setCloudOffline, reportCloudError, activeSeason } = useNexForge();
+  const [mode, setMode] = useState('season'); // 'season' | 'lifetime' | 'friends'
   const [players, setPlayers] = useState(null);
-  const [clans, setClans] = useState(null);
 
   const load = useCallback(async () => {
     try {
       if (mode === 'friends') {
         if (!user || guestMode) {
           setCloudOffline(false);
-          setClans(null);
           setPlayers([]);
           return;
         }
@@ -33,7 +31,6 @@ export default function Leaderboard() {
         )).filter(Boolean))];
         if (!ids.length) {
           setCloudOffline(false);
-          setClans(null);
           setPlayers([]);
           return;
         }
@@ -44,21 +41,11 @@ export default function Leaderboard() {
           .in('id', ids);
         if (error) throw error;
         setCloudOffline(false);
-        setClans(null);
         setPlayers(
           [...(data || [])].sort((a, b) => (b.mmr ?? 1200) - (a.mmr ?? 1200)),
         );
         return;
       }
-      if (mode === 'clans') {
-        const { data, error } = await sb.rpc('get_clan_leaderboard', { p_limit: 20 });
-        if (error) throw error;
-        setCloudOffline(false);
-        setClans(Array.isArray(data?.clans) ? data.clans : []);
-        setPlayers([]);
-        return;
-      }
-      setClans(null);
       if (mode === 'season') {
         const { data, error } = await sb.rpc('get_season_leaderboard', {
           p_game: '_global',
@@ -79,13 +66,11 @@ export default function Leaderboard() {
     } catch (err) {
       await reportCloudError(err);
       setPlayers([]);
-      setClans([]);
     }
   }, [mode, user, guestMode, setCloudOffline, reportCloudError]);
 
   useEffect(() => {
     setPlayers(null);
-    setClans(null);
     load();
   }, [load]);
 
@@ -95,13 +80,11 @@ export default function Leaderboard() {
     <div className="card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <div className="card-title" style={{ marginBottom: 0 }}>
-          {mode === 'clans'
-            ? 'Top Clans'
-            : mode === 'friends'
-              ? 'Friends'
-              : mode === 'season'
-                ? `Top Players — ${seasonName}`
-                : 'Top Players — Lifetime'}
+          {mode === 'friends'
+            ? 'Friends'
+            : mode === 'season'
+              ? `Top Players — ${seasonName}`
+              : 'Top Players — Lifetime'}
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <div className="lb-mode-toggle">
@@ -126,13 +109,6 @@ export default function Leaderboard() {
             >
               Friends
             </button>
-            <button
-              type="button"
-              className={`lb-mode-btn ${mode === 'clans' ? 'active' : ''}`}
-              onClick={() => setMode('clans')}
-            >
-              Clans
-            </button>
           </div>
           <button className="mm-back" style={{ marginBottom: 0 }} onClick={load}>↻ Refresh</button>
         </div>
@@ -147,51 +123,7 @@ export default function Leaderboard() {
           You and your accepted friends.
         </div>
       )}
-      {mode === 'clans' && (
-        <div className="lb-season-hint">
-          Clans ranked by their members. Higher clan rank boosts weekly Forge Coin rewards.
-        </div>
-      )}
-      {mode === 'clans' ? (
-        clans === null ? (
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
-            Loading clan leaderboard...
-          </div>
-        ) : clans.length === 0 ? (
-          <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
-            No clans yet — create one from the Clans tab.
-          </div>
-        ) : (
-          clans.map((c, i) => {
-            const col = COLORS[i] || '#666';
-            const isMine = clan?.id && c.id === clan.id;
-            return (
-              <div
-                className="player-row"
-                key={c.id}
-                style={isMine ? { background: 'rgba(201,255,0,.04)', margin: '0 -16px', padding: '9px 16px' } : undefined}
-              >
-                <div className="player-num" style={{ color: i < 3 ? col : 'var(--muted2)', fontWeight: 700 }}>
-                  {c.rank || i + 1}
-                </div>
-                <div className="player-av" style={{ background: 'rgba(201,255,0,.12)', color: 'var(--neon)', fontSize: 11 }}>
-                  {String(c.tag || '??').slice(0, 3)}
-                </div>
-                <div className="player-info">
-                  <div className="player-tag">
-                    <span className="clan-tag-prefix">[{c.tag}]</span> {c.name}
-                    {isMine ? ' (Yours)' : ''}
-                  </div>
-                  <div className="player-game">
-                    {c.member_count || 0} members
-                  </div>
-                </div>
-                <div className="player-mmr">{Number(c.total_mmr || 0).toLocaleString()}</div>
-              </div>
-            );
-          })
-        )
-      ) : players === null ? (
+      {players === null ? (
         <div style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--muted2)', padding: '20px 0', textAlign: 'center' }}>
           Loading leaderboard...
         </div>

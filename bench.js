@@ -1,8 +1,9 @@
 const { Worker } = require('worker_threads');
 const os = require('os');
 
-const VIEW_W = 640;
-const VIEW_H = 360;
+const VIEW_W = 1280;
+const VIEW_H = 720;
+// Larger buckets leave threads idle at the end of each pass and lower the all-core score.
 const TILE = 32;
 const SPP = 16;
 
@@ -291,7 +292,12 @@ function pump(job) {
       worker.postMessage(tile);
     } catch {
       dropWorker(job, worker);
+      job.queue.unshift(tile);
+      continue;
     }
+    try {
+      emitTile({ kind: 'start', x: tile.x, y: tile.y, w: tile.w, h: tile.h, pass: tile.pass });
+    } catch { /* window gone */ }
   }
   if (job.renderOn && job.workers.length === 0) {
     job.renderOn = false;

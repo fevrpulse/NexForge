@@ -23,7 +23,7 @@ import { hwScanNote, loadHwScan, qualityFromScan } from '../lib/optimize.js';
 const NexForgeContext = createContext(null);
 
 /** Screens that guests cannot access — matches legacy GUEST_LOCKED behavior. */
-export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'clans', 'communities'];
+export const GUEST_LOCKED_SCREENS = ['matchmaking', 'profile', 'analytics', 'squad', 'friends', 'shop', 'communities'];
 
 const GUEST_LOCKED_LABELS = {
   matchmaking: 'Matchmaking is locked in Guest Mode',
@@ -32,7 +32,6 @@ const GUEST_LOCKED_LABELS = {
   squad: 'Squad Finder requires an account',
   friends: 'Friends & messages require an account',
   shop: 'The cosmetics shop requires an account',
-  clans: 'Clans require an account',
   communities: 'Communities require an account',
 };
 
@@ -99,7 +98,6 @@ export function NexForgeProvider({ children }) {
   const heatAlertForRef = useRef(null);
   const [pendingFriendChatId, setPendingFriendChatId] = useState(null);
   const [party, setParty] = useState(null);
-  const [clan, setClan] = useState(null);
   const [activeSeason, setActiveSeason] = useState(null);
   const [seasonRating, setSeasonRating] = useState(null);
   const [battlePassXp, setBattlePassXp] = useState(null);
@@ -355,7 +353,6 @@ export function NexForgeProvider({ children }) {
     setGuestMode(true);
     setUser(null);
     setParty(null);
-    setClan(null);
     setActiveSeason(null);
     setSeasonRating(null);
     setBattlePassXp(null);
@@ -379,7 +376,6 @@ export function NexForgeProvider({ children }) {
       setUser(null);
       setProfile(null);
       setParty(null);
-      setClan(null);
       setActiveSeason(null);
       setSeasonRating(null);
       setBattlePassXp(null);
@@ -549,7 +545,6 @@ export function NexForgeProvider({ children }) {
         setProfile(null);
         setGuestMode(false);
         setParty(null);
-        setClan(null);
         setActiveSeason(null);
         setSeasonRating(null);
         setBattlePassXp(null);
@@ -833,7 +828,6 @@ export function NexForgeProvider({ children }) {
     window.nexforge?.overlaySyncState?.({
       signedIn: !!user,
       tag: profile?.gamer_tag || (guestMode ? 'Guest' : 'Player'),
-      clanTag: profile?.clan_tag || null,
       mainGame: profile?.main_game || null,
       game: liveSession?.game || null,
       unread: unreadTotal,
@@ -868,7 +862,7 @@ export function NexForgeProvider({ children }) {
       rig,
     });
   }, [
-    user, guestMode, profile?.gamer_tag, profile?.clan_tag, profile?.main_game,
+    user, guestMode, profile?.gamer_tag, profile?.main_game,
     liveSession, unreadTotal, dndEnabled, lastSessionRecap, overlayLobby, party, overlayFriends,
   ]);
 
@@ -1206,125 +1200,6 @@ export function NexForgeProvider({ children }) {
     return undefined;
   }, [user, guestMode, refreshSeason, profile?.mmr, profile?.wins, profile?.losses]);
 
-  const refreshClan = useCallback(async () => {
-    if (!user || guestMode) {
-      setClan(null);
-      return null;
-    }
-    try {
-      const { data, error } = await sb.rpc('get_my_clan');
-      if (error) throw error;
-      setClan(data || null);
-      return data || null;
-    } catch (err) {
-      const msg = String(err?.message || '');
-      if (/no clan|not in a clan|could not find the function|schema cache/i.test(msg)) {
-        setClan(null);
-      }
-      console.warn('get_my_clan failed', err);
-      await reportCloudError(err);
-      return null;
-    }
-  }, [user, guestMode, reportCloudError]);
-
-  const runClanRpc = useCallback(async (fnName, args = {}) => {
-    const { data, error } = await sb.rpc(fnName, args);
-    if (error) throw error;
-    if (data && typeof data === 'object' && data.id) {
-      setClan(data);
-      return data;
-    }
-    await refreshClan();
-    return data;
-  }, [refreshClan]);
-
-  const createClan = useCallback(async (name, tag, minMmr = 0, isOpen = true) => {
-    const data = await runClanRpc('create_clan', {
-      p_name: name,
-      p_tag: tag,
-      p_min_mmr: Number(minMmr) || 0,
-      p_is_open: !!isOpen,
-    });
-    showToast('Clan created', 'success');
-    await refreshProfile();
-    return data;
-  }, [runClanRpc, showToast, refreshProfile]);
-
-  const inviteToClan = useCallback(async (friendId) => {
-    const data = await runClanRpc('invite_to_clan', { p_friend_id: friendId });
-    showToast('Clan invite sent', 'success');
-    return data;
-  }, [runClanRpc, showToast]);
-
-  const respondClanInvite = useCallback(async (clanId, accept) => {
-    const data = await runClanRpc('respond_clan_invite', {
-      p_clan_id: clanId,
-      p_accept: !!accept,
-    });
-    showToast(accept ? 'Joined clan' : 'Invite declined', 'success');
-    await refreshProfile();
-    return data;
-  }, [runClanRpc, showToast, refreshProfile]);
-
-  const leaveClan = useCallback(async () => {
-    await runClanRpc('leave_clan');
-    setClan(null);
-    showToast('Left clan', 'success');
-    await refreshProfile();
-  }, [runClanRpc, showToast, refreshProfile]);
-
-  const disbandClan = useCallback(async () => {
-    await runClanRpc('disband_clan');
-    setClan(null);
-    showToast('Clan disbanded', 'success');
-    await refreshProfile();
-  }, [runClanRpc, showToast, refreshProfile]);
-
-  const joinClan = useCallback(async (clanId) => {
-    const data = await runClanRpc('join_clan', { p_clan_id: clanId });
-    showToast('Joined clan', 'success');
-    await refreshProfile();
-    return data;
-  }, [runClanRpc, showToast, refreshProfile]);
-
-  const updateClanSettings = useCallback(async ({ minMmr, isOpen, description } = {}) => {
-    const data = await runClanRpc('update_clan_settings', {
-      p_min_mmr: minMmr == null ? null : Number(minMmr),
-      p_is_open: isOpen == null ? null : !!isOpen,
-      p_description: description == null ? null : description,
-    });
-    showToast('Clan settings saved', 'success');
-    return data;
-  }, [runClanRpc, showToast]);
-
-  const claimClanReward = useCallback(async () => {
-    const { data, error } = await sb.rpc('claim_clan_reward');
-    if (error) throw error;
-    if (data?.clan) setClan(data.clan);
-    else await refreshClan();
-    await refreshProfile();
-    showToast(`+${data?.coins || 0} clan coins`, 'success');
-    return data;
-  }, [refreshClan, refreshProfile, showToast]);
-
-  useEffect(() => {
-    if (!user || guestMode) {
-      setClan(null);
-      return undefined;
-    }
-    let active = true;
-    const tick = async () => {
-      if (!active) return;
-      await refreshClan();
-    };
-    tick();
-    const id = setInterval(tick, 8000);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, [user, guestMode, refreshClan]);
-
   const refreshBattlePassXp = useCallback(async () => {
     if (!user || guestMode) {
       setBattlePassXp(null);
@@ -1532,16 +1407,6 @@ export function NexForgeProvider({ children }) {
     leaveParty,
     kickPartyMember,
     disbandParty,
-    clan,
-    refreshClan,
-    createClan,
-    inviteToClan,
-    respondClanInvite,
-    leaveClan,
-    disbandClan,
-    joinClan,
-    updateClanSettings,
-    claimClanReward,
     activeSeason,
     seasonRating,
     refreshSeason,
